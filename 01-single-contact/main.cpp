@@ -44,8 +44,13 @@ double getDistanceToSurface(const VectorXd& object_joints) {
 	return object_joints[sphere_height_joint_id] + object_in_world.translation()[2] - radius;
 }
 
-void getContactPoint(Sai2Model::Sai2Model* sphere, Vector3d& point) {
-	sphere->positionInWorld(point, object_link_name, Vector3d(0, 0, -radius));
+void getContactPointLocalFrame(Sai2Model::Sai2Model* sphere, const Vector3d& global_point, Vector3d& local_point) {
+	static Eigen::Affine3d T_object_base;
+	sphere->transformInWorld(T_object_base, object_link_name);
+	// cout << T_object_base.linear() << endl;
+	// cout << T_object_base.translation().transpose() << endl;
+	local_point = (object_in_world*T_object_base).inverse() * global_point;
+	// cout << local_point << endl;
 }
 
 // simulation loop
@@ -153,7 +158,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	double contact_moment = 0.0; // for sphere, moment is 1-dof
 	double normal_impulse = 0.0;
 	Vector2d tangent_impulse(0, 0);
-	Vector3d contact_point;
+	Vector3d contact_point; // in local link frame
 	Matrix3d contact_frame = Matrix3d::Identity(); // 1st and 2nd cols are tangent, 3rd is normal
 	MatrixXd contact_jacobian(3, model->dof());
 	Matrix3d contact_lambda_inv;
@@ -186,8 +191,8 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 						state = SphereContactState::Colliding;
 						cout << "Collision" << endl;
 						// initialize state for SphereContactState::Colliding
-						getContactPoint(model, contact_point);
-						model->Jv(contact_jacobian, object_link_name, Vector3d(0, 0, -radius));
+						getContactPointLocalFrame(model, Vector3d(model->_q[0], model->_q[1], model->_q[2]+object_in_world.translation()[2]-radius), contact_point);
+						model->Jv(contact_jacobian, object_link_name, contact_point);
 						// check if rolling
 						// TODO: rotate to contact frame
 						contact_lambda_inv = contact_jacobian * model->_M_inv * contact_jacobian.transpose();
@@ -217,6 +222,9 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 				(Vector3d(0, 0, -RESTIT_EPS * pre_collision_contact_vel[2]) -
 					 pre_collision_contact_vel)
 				);
+				// cout << "model->_dq " << model->_dq.transpose() << endl; 
+				// cout << "Pre contact vel " << pre_collision_contact_vel.transpose() << endl;
+				cout << "Rolling impulse " << rolling_contact_impulse.transpose() << endl;
 				// check for friction cone
 				if (rolling_contact_impulse.segment<2>(0).norm() < rolling_contact_impulse[2]*FRICTION_COEFF) {
 					model->_dq += model->_M_inv*(contact_jacobian.transpose()*rolling_contact_impulse);
@@ -226,11 +234,13 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 					slip_direction = pre_collision_contact_vel.segment<2>(0);
 					if(slip_direction.norm() < 1e-5) {
 						// TODO: force stick
+						cout << "Shouldn't be here!" << endl;
 					} else {
 						slip_direction = slip_direction/slip_direction.norm();
 						sliding_contact_impulse << -FRICTION_COEFF*slip_direction, 1.0;
 						normal_impulse = 1/(contact_lambda_inv.row(2).dot(sliding_contact_impulse.transpose())) 
 											* -(1 + RESTIT_EPS) * pre_collision_contact_vel[2];
+						cout << "Normal impulse " << normal_impulse << endl;
 						sliding_contact_impulse *= normal_impulse;
 						model->_dq += model->_M_inv*(contact_jacobian.transpose()*sliding_contact_impulse);
 					}
