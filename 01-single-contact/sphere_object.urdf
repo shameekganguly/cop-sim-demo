@@ -36,10 +36,19 @@
 			<mass value="1.000" />
 			<inertia ixx="0.009" iyy="0.009" izz="0.009" ixy="0" ixz="0" iyz="0" />
 		</inertial>
-		<visual>
+		<!-- <visual>
 	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
 	        <geometry>
-	            <sphere radius="0.15" />
+	        	<sphere radius="0.15"/>
+	        </geometry>
+	        <material name="material_brown">
+		        <color rgba="0.9 0.5 0.1 1.0" />
+	        </material>
+	    </visual> -->
+	    <visual>
+	        <origin xyz="-0.1 0.0 0.0" rpy="0 0 0" />
+	        <geometry>
+	            <capsule radius="0.1" length="0.2"/>
 	        </geometry>
 	        <material name="material_brown">
 		        <color rgba="0.9 0.5 0.1 1.0" />

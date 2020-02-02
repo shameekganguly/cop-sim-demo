@@ -9,12 +9,14 @@ Date: 11/8/2017
 #include <thread>
 #include <chrono>
 #include <math.h>
+#include <vector>
 
 #include "Sai2Model.h"
 #include "Sai2Graphics.h"
 #include "Sai2Simulation.h"
 #include "dynamics3d.h"
 #include "rbdl/rbdl.h"
+#include "chai_extension/Capsule.h"
 
 #include <Eigen/Dense>
 using namespace Eigen;
@@ -30,18 +32,75 @@ const string object_fname = "resources/01-single-contact/sphere_object.urdf";
 const string object_name = "Sphere";
 const string object_link_name = "object";
 const string camera_name = "camera_front";
+
+// geometry enum
+enum GeometryType {SPHERE, CAPSULE, BOX, CYLINDER};
+
+const GeometryType geom_type = GeometryType::CAPSULE;
+
+// sphere constants
 const double radius = 0.15; //TODO: remove this hardcode.
+const uint sphere_height_joint_id = 2;
+
+// capsule constants
+const double cap_radius = 0.1;
+const double cap_length = 0.2;
+const Vector3d end1_local(-cap_length/2, 0.0, 0.0); // Capsule is centered
+const Vector3d end2_local(cap_length/2, 0.0, 0.0);
 
 // thresholds
 const double FREE_TO_COLL_DIST_THRES = 0.003; // mm
 const double RESTIT_EPS = 0.3;
-const double FRICTION_COEFF = 0.1;
+const double FRICTION_COEFF = 0.01;
 
 Affine3d object_in_world;
 
-const uint sphere_height_joint_id = 2;
-double getDistanceToSurface(const VectorXd& object_joints) {
-	return object_joints[sphere_height_joint_id] + object_in_world.translation()[2] - radius;
+enum ContactType {
+	UNDEFINED,
+	POINT,
+	LINE,
+	SURFACE
+};
+
+struct ContactInfo {
+	double min_distance;
+	vector<Vector3d> contact_points;
+	ContactType type;
+	ContactInfo(): min_distance(0), type(ContactType::UNDEFINED) { }
+	ContactInfo(double adist, ContactType atype): min_distance(adist), type(atype) { }
+};
+
+ContactInfo getDistanceToSurface(Sai2Model::Sai2Model* object) {
+	ContactInfo ret_info;
+	if ( geom_type == GeometryType::SPHERE ) {
+		double object_height_offset = object_in_world.translation()[2] - radius;
+		auto object_joints = object->_q;
+		ret_info.min_distance = object_joints[sphere_height_joint_id] + object_height_offset;
+		ret_info.contact_points.push_back(Vector3d(object_joints[0], object_joints[1], ret_info.min_distance));
+		ret_info.type = ContactType::POINT;
+	} else if (geom_type == GeometryType::CAPSULE) {
+		Vector3d end1_base, end2_base, end1_world, end2_world;
+		double end1_distance, end2_distance;
+		object->position(end1_base, object_link_name, end1_local);
+		object->position(end2_base, object_link_name, end2_local);
+		end1_world = object_in_world * end1_base;
+		end2_world = object_in_world * end2_base;
+		end1_distance = end1_world[2] - cap_radius; // surface normal is in +z direction
+		end2_distance = end2_world[2] - cap_radius;
+		if(abs(end1_distance - end2_distance) < 1e-5) {
+			ret_type.type = ContactType::LINE;
+			ret_info.contact_points.push_back(Vector3d(end1_world[0], end1_world[1], end1_distance));
+			ret_info.contact_points.push_back(Vector3d(end2_world[0], end2_world[1], end2_distance));
+		} else if(end1_distance < end2_distance) {
+			ret_info.type = ContactType::POINT;
+			ret_info.contact_points.push_back(Vector3d(end1_world[0], end1_world[1], end1_distance));
+		} else {
+			ret_info.type = ContactType::POINT;
+			ret_info.contact_points.push_back(Vector3d(end2_world[0], end2_world[1], end2_distance));
+		}
+		ret_type.min_distance = min(end1_distance, end2_distance);
+	}
+	return ret_info;
 }
 
 void getContactPointLocalFrame(Sai2Model::Sai2Model* sphere, const Vector3d& global_point, Vector3d& local_point) {
@@ -52,6 +111,83 @@ void getContactPointLocalFrame(Sai2Model::Sai2Model* sphere, const Vector3d& glo
 	local_point = (object_in_world*T_object_base).inverse() * global_point;
 	// cout << local_point << endl;
 }
+
+class ContactSpaceModel {
+public:
+	ContactInfo _contact_description; //TODO: should this be array?
+	MatrixXd _contactJacobian;
+	MatrixXd _contactLambdaInv;
+	VectorXd _rhs_coll;
+	VectorXd _rhs_contact;
+	std::list<uint> _activeContacts;
+
+	ContactSpaceModel(Sai2Model::Sai2Model* object, const VectorXd& nonlinear_torques, ContactInfo contact_description) { //TODO: extend to multi object
+		uint Ndof = object->dof();
+		N_contacts = contact_description.contact_points.size();
+		_contactJacobian.setZero(3*N_contacts, Ndof);
+		Vector3d local_contact_point;
+		uint i = 0;
+		for(auto point: contact_description.contact_points) {
+			getContactPointLocalFrame(model, point, local_contact_point);
+			// TODO: reorient local frame such that first two components are tangent and third is normal
+			model->Jv(_contactJacobian.block(i*3, 0, 3, Ndof), object_link_name, local_contact_point);
+			_activeContacts.push_back(i);
+			i++;
+		}
+		_contactLambdaInv = _contactJacobian * object->_M_inv * _contactJacobian.transpose();
+		_rhs_coll = _contactJacobian * model->_dq; // post_v = Lambda_inv*p_coll + pre_v
+		_rhs_contact = -_contactJacobian * object->_M_inv * nonlinear_torques;
+	}
+
+	void getActiveContactSpaceMatrices(MatrixXd& JC, MatrixXd& LambdaCInv, VectorXd& rhsC_coll, VectorXd& rhsC_contact) {
+		uint Ndof = _contactJacobian.cols();
+		JC.resize(_activeContacts.size()*3, Ndof);
+		LambdaCInv.resize(_activeContacts.size()*3, _activeContacts.size()*3);
+		rhsC_coll.resize(_activeContacts.size()*3);
+		rhsC_contact.resize(_activeContacts.size()*3);
+		uint cind = 0;
+		for(auto index: _activeContacts) {
+			JC.block(3*cind, 0, 3, Ndof) = _contactJacobian(3*index, 0, 3, Ndof);
+			rhsC_coll.segment(3*cind, 3) = _rhs_coll.segment(3*index, 3);
+			rhsC_contact.segment(3*cind, 3) = _rhs_contact.segment(3*index, 3);
+			cind++;
+		}
+		uint cind1 = 0;
+		uint cind2 = 0;
+		for(auto index1: _activeContacts) {
+			for(auto index2: _activeContacts) {
+				LambdaCInv.block(3*cind1, 3*cind2, 3, 3) = _contactLambdaInv.block(3*index1, 3*index2, 3, 3);
+				cind2++;
+			}
+			cind1++;
+		}
+	}
+
+	bool addActiveContact(uint contact_index) {
+		//TODO: assert contact_index < N_contacts.size()
+		for(auto cind: _activeContacts) {
+			if(cind == contact_index) {
+				return false;
+			}
+		}
+		_activeContacts.push_back(contact_index);
+		return true;
+	}
+
+	bool removeActiveContact(uint contact_index) {
+		//TODO: assert contact_index < N_contacts.size()
+		for(auto cind: _activeContacts) {
+			if(cind == contact_index) {
+				_activeContacts.remove(contact_index);
+				return true;
+			}
+		}
+		return false;
+	}
+
+private:
+	uint N_contacts;
+};
 
 // simulation loop
 bool fSimulationRunning = false;
@@ -83,12 +219,14 @@ int main (int argc, char** argv) {
 
 	// load graphics scene
 	auto graphics = new Sai2Graphics::Sai2Graphics(world_fname, false);
+
 	// set object graphics to wireframe, and show frame for last link
 	graphics->showLinkFrame(true, object_name, object_link_name);
 
 	// load object
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, Eigen::Affine3d::Identity(), grav_vector);
-	coobject->_dq[1] = 0.1;
+	// coobject->_dq[1] = 0.1;
+	// coobject->_dq[5] = 0.1;
 
 	// initialize GLFW window
 	GLFWwindow* window = glfwInitialize();
@@ -142,13 +280,21 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	// sleep for a few moments to let graphics start
 	// std::this_thread::sleep_for(std::chrono::seconds(1));
 
-	enum SphereContactState {
+	// enum SphereContactState {
+	// 	NoContact,
+	// 	Colliding,
+	// 	Rolling,
+	// 	Sticking
+	// } state;
+	// state = SphereContactState::NoContact;
+
+	enum CapsuleContactState {
 		NoContact,
 		Colliding,
 		Rolling,
 		Sticking
 	} state;
-	state = SphereContactState::NoContact;
+	state = CapsuleContactState::NoContact;
 	
 	// state vars
 	const uint dof = model->dof();
@@ -157,14 +303,19 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	Vector3d contact_force; contact_force.setZero();
 	double contact_moment = 0.0; // for sphere, moment is 1-dof
 	double normal_impulse = 0.0;
+	double normal_force;
 	Vector2d tangent_impulse(0, 0);
 	Vector3d contact_point; // in local link frame
 	Matrix3d contact_frame = Matrix3d::Identity(); // 1st and 2nd cols are tangent, 3rd is normal
-	MatrixXd contact_jacobian(3, model->dof());
-	Matrix3d contact_lambda_inv;
-	Vector3d rolling_contact_impulse, sliding_contact_impulse;
-	Vector3d pre_collision_contact_vel, post_collision_contact_vel;
+	MatrixXd contact_jacobian;
+	MatrixXd contact_lambda_inv;
+	ContactSpaceModel contact_model;
+	VectorXd rolling_contact_impulse, sliding_contact_impulse;
+	VectorXd pre_collision_contact_vel, post_collision_contact_vel;
+	VectorXd rhs_coll, rhs_contact;
 	Vector2d slip_direction;
+
+	ContactInfo cinfo;
 
 	double last_time = timer.elapsedTime(); //secs
 	bool fTimerDidSleep = true;
@@ -185,84 +336,166 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 			model->updateModel(); // TODO: we shouldn't explicity compute M inverse
 			model->coriolisPlusGravity(nonlinear_torques);
 
-			switch (state) {
-				case SphereContactState::NoContact:
-					if (getDistanceToSurface(model->_q) < FREE_TO_COLL_DIST_THRES && model->_dq[sphere_height_joint_id] < 0) {
-						state = SphereContactState::Colliding;
-						cout << "Collision" << endl;
-						// initialize state for SphereContactState::Colliding
-						getContactPointLocalFrame(model, Vector3d(model->_q[0], model->_q[1], model->_q[2]+object_in_world.translation()[2]-radius), contact_point);
-						model->Jv(contact_jacobian, object_link_name, contact_point);
-						// check if rolling
-						// TODO: rotate to contact frame
-						contact_lambda_inv = contact_jacobian * model->_M_inv * contact_jacobian.transpose();
+			// check if contacts have changed:
+			// TODO: implement a change tracker so that we can do delta updates
+			// to the contact state model
+			cinfo = getDistanceToSurface(model);
+			if (cinfo.min_distance < FREE_TO_COLL_DIST_THRES) {
+				// compute contact velocities to see if any contact is colliding
+				contact_model = ContactSpaceModel(model, nonlinear_torques, cinfo);
+				pre_collision_contact_vel = contact_model._contactJacobian * model->_dq;
+
+				bool is_colliding = false;
+				for(uint i = 0; i < cinfo.contact_points.size(); i++) {
+					is_colliding = is_colliding && (pre_collision_contact_vel[3*i + 2] < 0);
+					if (pre_collision_contact_vel[3*i + 2] > 0) {
+						contact_model.removeActiveContact(i);
 					}
+				}
+				if (is_colliding) {
+					state = CapsuleContactState::Colliding;
+					cout << "Collision" << endl;
+					// initialize state for CapsuleContactState::Colliding
+					contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
+				}
+			}
+
+			switch (state) {
+				case CapsuleContactState::NoContact:
 					break;
-				case SphereContactState::Colliding:
+				case CapsuleContactState::Colliding:
 					break;
-				case SphereContactState::Rolling:
+				case CapsuleContactState::Rolling:
 
 				break;
-				case SphereContactState::Sticking:
+				case CapsuleContactState::Sticking:
 				break;
 			}
 			// cout << model->_q.transpose() << endl;
 		}
+		// TODO: else, extrapolated model updates
 
-		// compute contact force
+		// resolve collision
 		contact_torques.setZero();
-		switch (state) {
-			case SphereContactState::NoContact:
-				// nothing to do
-				break;
-			case SphereContactState::Colliding:
+		if (state == CapsuleContactState::Colliding) {
+			bool is_post_steady_contact = false;
+			while(true) {
 				pre_collision_contact_vel = contact_jacobian * model->_dq;
-				// handle frictional collision
-				rolling_contact_impulse = contact_lambda_inv.ldlt().solve(
-				(Vector3d(0, 0, -RESTIT_EPS * pre_collision_contact_vel[2]) -
-					 pre_collision_contact_vel)
-				);
-				// cout << "model->_dq " << model->_dq.transpose() << endl; 
-				// cout << "Pre contact vel " << pre_collision_contact_vel.transpose() << endl;
-				cout << "Rolling impulse " << rolling_contact_impulse.transpose() << endl;
-				// check for friction cone
-				if (rolling_contact_impulse.segment<2>(0).norm() < rolling_contact_impulse[2]*FRICTION_COEFF) {
-					model->_dq += model->_M_inv*(contact_jacobian.transpose()*rolling_contact_impulse);
+				double min_coll_vel = 0.0;
+				for (uint i = 0; i < contact_model._activeContacts.size(); i++) {
+					min_coll_vel = min(min_coll_vel, pre_collision_contact_vel[3*i + 2]);
+				}
+				double coll_restitution = RESTIT_EPS;
+				if (abs(min_coll_vel) < 1e-3) { // We use the fastest collision to determine the coefficient of restitution
+					coll_restitution = 0.0; // force inelastic collision to bring to steady contact
+				}
+				CollLCPPointSolution lcp_sol;
+				if(contact_model._activeContacts.size() == 1) {
+					lcp_sol = solveCollLCPOnePoint (
+						contact_lambda_inv,
+						pre_collision_contact_vel,
+						pre_collision_contact_vel,
+						coll_restitution,
+						FRICTION_COEFF
+					);
 				} else {
-					sliding_contact_impulse = rolling_contact_impulse;
-					// TODO: determine slip direction
-					slip_direction = pre_collision_contact_vel.segment<2>(0);
-					if(slip_direction.norm() < 1e-5) {
-						// TODO: force stick
-						cout << "Shouldn't be here!" << endl;
+					lcp_sol = solveCollLCPPoint (
+						2, //TODO: remove hardcode
+						contact_lambda_inv,
+						pre_collision_contact_vel,
+						pre_collision_contact_vel,
+						coll_restitution,
+						FRICTION_COEFF
+					);
+				}
+				if (lcp_sol.result == LCPSolResult::Success) {
+					cout << "LCP Impulse: " << lcp_sol.p_sol;
+				} else {
+					cerr << "LCP failed with type: " << lcp_sol.result << endl;
+					cout << pre_collision_contact_vel.transpose() << endl;
+					break;
+				}
+				// update joint velocities
+				model->_dq += model->_M_inv*(contact_jacobian.transpose()*lcp_sol.p_sol);
+				// recheck for collision at ALL contacts:
+				post_collision_contact_vel = contact_model._contactJacobian * model->_dq;
+				bool did_contact_change = false;
+				bool is_post_colliding = false;
+				for (uint i = 0; i < cinfo.contact_points.size(); i++) {
+					if (post_collision_contact_vel[3*i + 2] <= 0) {
+						did_contact_change = did_contact_change || contact_model->addActiveContact(i);
 					} else {
-						slip_direction = slip_direction/slip_direction.norm();
-						sliding_contact_impulse << -FRICTION_COEFF*slip_direction, 1.0;
-						normal_impulse = 1/(contact_lambda_inv.row(2).dot(sliding_contact_impulse.transpose())) 
-											* -(1 + RESTIT_EPS) * pre_collision_contact_vel[2];
-						cout << "Normal impulse " << normal_impulse << endl;
-						sliding_contact_impulse *= normal_impulse;
-						model->_dq += model->_M_inv*(contact_jacobian.transpose()*sliding_contact_impulse);
+						did_contact_change = did_contact_change || contact_model->removeActiveContact(i);
+					}
+					if(post_collision_contact_vel[3*i + 2] < 0) {
+						is_post_colliding = true;
+					} else if (post_collision_contact_vel[3*i + 2] <= 1e-4) {
+						is_post_steady_contact = true;
 					}
 				}
-
-				// check if sticking
-				if (model->_dq[sphere_height_joint_id] < 1e-3) {
-					state = SphereContactState::Rolling;
-					model->_dq[sphere_height_joint_id] = 0;
-					contact_torques[sphere_height_joint_id] = nonlinear_torques[sphere_height_joint_id];
-					cout << "Rolling" << endl;
-				} else {
-					cout << "No contact" << endl;
-					state = SphereContactState::NoContact;
+				if(did_contact_change) {
+					contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
 				}
-				// no contact torques to apply
+				if(!is_post_colliding) break;
+			} // end sequential collisions
+
+			// check if steady contact is formed
+			if (is_post_steady_contact) {
+				state = CapsuleContactState::Rolling;
+				cout << "Rolling" << endl;
+			} else {
+				state = CapsuleContactState::NoContact;
+				cout << "No contact" << endl;
+			}
+		}
+
+		// compute contact torques
+		if (state == CapsuleContactState::Rolling) {
+			break;
+
+			// recompute active contacts: TODO: this might be optimized when a collision was resolved in this sim cycle
+			bool did_contact_change = false;
+			post_collision_contact_vel = contact_model._contactJacobian * model->_dq;
+			for (uint i = 0; i < cinfo.contact_points.size(); i++) {
+				if (post_collision_contact_vel[3*i + 2] <= 1e-4) { // note that we allow some positive contact velocity
+					did_contact_change = did_contact_change || contact_model->addActiveContact(i);
+				} else {
+					did_contact_change = did_contact_change || contact_model->removeActiveContact(i);
+				}
+			}
+			if(did_contact_change) {
+				contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
+			}
+			post_collision_contact_vel = contact_jacobian * model->_dq;
+
+			// TODO: switch to COP model
+			CollLCPPointSolution lcp_sol;
+			if(contact_model._activeContacts.size() == 1) {
+				lcp_sol = solveCollLCPOnePoint (
+					contact_lambda_inv,
+					rhs_contact,
+					post_collision_contact_vel,
+					0.0,
+					FRICTION_COEFF
+				);
+			} else {
+				lcp_sol = solveCollLCPPoint (
+					2, //TODO: remove hardcode
+					contact_lambda_inv,
+					rhs_contact,
+					post_collision_contact_vel,
+					0.0,
+					FRICTION_COEFF
+				);
+			}
+			if (lcp_sol.result == LCPSolResult::Success) {
+				cout << "Contact LCP Contact force: " << lcp_sol.p_sol;
+			} else {
+				cerr << "Contact LCP failed with type: " << lcp_sol.result << endl;
 				break;
-			case SphereContactState::Rolling:
-				contact_torques[sphere_height_joint_id] = nonlinear_torques[sphere_height_joint_id];
-				break;
-			case SphereContactState::Sticking:
-				break;
+			}
+			contact_force = lcp_sol.p_sol;
+			contact_torques = contact_jacobian.transpose() * contact_force;
 		}
 
 		// integrate //TODO: switch to Euler-Heun
