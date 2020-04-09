@@ -192,5 +192,24 @@ int main (int argc, char** argv) {
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
+	// test 8 - one contact only
+	{
+		cout << endl;
+		cout << " --- Test 8 ---" << endl;
+		VectorXd pre_v(6);
+		const double mu = 0.01;
+		pre_v << -1.31951e-08, 0, -0.000262909, -2.44319e-11, 0, -0.000131114;
+		//-6.6098e-09, 0, -0.000262909, -6.6098e-09, 0, -0.000131114;
+		Eigen::MatrixXd Test8Lambda_inv(6,6);
+		Test8Lambda_inv<< 1.33099, 0, 0.332461, 1.33092, 0, -0.334272,
+        				0, 2.44252, 0, 0, 1.77578, 0,
+ 					0.332461, 0, 1.33175, 0.332394, 0, 0.665086,
+  					1.33092, 0, 0.332394, 1.33086, 0, -0.334206,
+        			0, 1.77578, 0, 0, 2.44238, 0,
+					-0.334272, 0, 0.665086, -0.334206, 0, 1.33175;
+		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Test8Lambda_inv, pre_v, pre_v, 0.0, mu);
+		cout << test1_sol.result << endl;
+		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
+	}
 	return 0;
 }

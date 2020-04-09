@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 
-<world name="demo_world" gravity="0.0 0.0 -0.25">
+<world name="demo_world" gravity="0.0 0.0 -9.8">
 
 	<static_object name="Box">
 		<origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
@@ -23,7 +23,7 @@
 
 	<robot name="Sphere">
 		<model dir="resources/01-single-contact/" path="sphere_object.urdf" name="SphereObjectModel" />
-		<origin xyz="0.0 0.0 0.5" rpy="0 0 0" />
+		<origin xyz="0.0 0.0 1.0" rpy="0 1.0 0" />
 	</robot>
 
 	<light name="light2" type="directional">
@@ -38,6 +38,11 @@
 
 	<camera name="camera_front">
 		<position xyz="1.5 0.0 0.5" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.5" />
+	</camera>
+	<camera name="camera_side">
+		<position xyz="0.0 1.5 0.5" />
 		<vertical xyz="0.0 0.0 1.0" />
 		<lookat xyz="0.0 0.0 0.5" />
 	</camera>
