@@ -29,6 +29,7 @@ using namespace Eigen;
 #include <GLFW/glfw3.h> //must be loaded after loading opengl/glew as part of graphicsinterface
 
 using namespace std;
+using namespace chai3d;
 
 const string world_fname = "resources/01-single-contact/world.urdf";
 const string object_fname = "resources/01-single-contact/sphere_object.urdf";
@@ -53,11 +54,14 @@ const Vector3d end2_local(cap_length/2, 0.0, 0.0);
 
 // thresholds
 const double FREE_TO_COLL_DIST_THRES = 0.003; // mm
-const double RESTIT_EPS = 0.4;
+const double RESTIT_EPS = 0.0;
 const double FRICTION_COEFF = 0.01;
 
 // logging
 bool LOG_DEBUG = false;
+
+// which sim to use
+bool USE_ORB_SIM = true;
 
 Affine3d object_in_world;
 
@@ -265,16 +269,39 @@ int main (int argc, char** argv) {
 	auto sim = new Simulation::Sai2Simulation(world_fname, false);
 	// set co-efficient of restition to zero to avoid bounce
     // see issue: https://github.com/manips-sai/sai2-simulation/issues/1
-    sim->setCollisionRestitution(0.0);
-    sim->setCoeffFrictionStatic(0.5);
-    sim->setCoeffFrictionDynamic(0.5);
-    object_in_world.translation() = sim->_world->getBaseNode("Sphere")->getLocalPos().eigen();
-    object_in_world.linear() = sim->_world->getBaseNode("Sphere")->getLocalRot().eigen();
+    sim->setCollisionRestitution(RESTIT_EPS);
+    sim->setCoeffFrictionStatic(FRICTION_COEFF);
+    sim->setCoeffFrictionDynamic(FRICTION_COEFF);
+    object_in_world.translation() = sim->_world->getBaseNode(object_name)->getLocalPos().eigen();
+    object_in_world.linear() = sim->_world->getBaseNode(object_name)->getLocalRot().eigen();
+	// VectorXd temp(6);
+ //    sim->getJointVelocities(object_name, temp);
+ //    cout << temp.transpose() << endl;
 
     Vector3d grav_vector = sim->_world->getGravity().eigen();
 
 	// load graphics scene
 	auto graphics = new Sai2Graphics::Sai2Graphics(world_fname, false);
+	auto graphics_capsule_chailink = graphics->findLink(object_name, object_link_name);
+	auto cap_mmesh = dynamic_cast<cMultiMesh*>(graphics_capsule_chailink->getChild(0));
+	auto cap_mesh = dynamic_cast<cMesh*>(cap_mmesh->getMesh(0));
+
+
+    // set graphics object as collision for sai2-simulation
+    {
+    	auto objectsimbase = sim->_world->getBaseNode(object_name);
+	    objectsimbase->enableDynamics(false);
+	    auto link = objectsimbase->getLink(object_link_name);
+	    auto tmp_mmesh = new cMultiMesh();
+		tmp_mmesh->m_name = std::string("sai_dyn3d_link_mesh");
+		auto tmp_mesh = cap_mesh->copy();
+		tmp_mmesh->addMesh(tmp_mesh);
+		tmp_mmesh->setLocalPos(cVector3d(-0.1, 0.0, 0.0));
+		tmp_mmesh->setLocalRot(Matrix3d::Identity());
+		link->setCollisionModel(tmp_mmesh);
+		link->buildCollisionHull(0.0001, 0.0001);
+		objectsimbase->enableDynamics(true);
+    }
 
 	// set object graphics to wireframe, and show frame for last link
 	graphics->showLinkFrame(true, object_name, object_link_name);
@@ -282,8 +309,8 @@ int main (int argc, char** argv) {
 	// load object
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, Affine3d::Identity(), object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
-	// coobject->_dq[3] = 0.1;
-	coobject->_dq[5] = 0.1;
+	coobject->_dq[3] = 0.5;
+	// coobject->_dq[5] = 0.5;
 
 	// initialize GLFW window
 	GLFWwindow* window = glfwInitialize();
@@ -375,13 +402,14 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	VectorXd pre_collision_contact_vel, post_collision_contact_vel;
 	VectorXd rhs_coll, rhs_contact;
 	Vector2d slip_direction;
+	Matrix3d bodyorient = Matrix3d::Identity();
 
 	ContactInfo cinfo;
 
 	// create a timer
 	LoopTimer timer;
 	timer.initializeTimer();
-	timer.setLoopFrequency(20000); //1500Hz timer
+	timer.setLoopFrequency(40000); //1500Hz timer
 	double last_time = timer.elapsedTime(); //secs
 	bool fTimerDidSleep = true;
 	model->updateModel();
@@ -389,6 +417,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	// cout << model->_M_inv << endl;
 	// cout << nonlinear_torques.transpose() << endl;
 	// cout << model->_world_gravity.transpose() << endl;
+	// sim->_world->getBaseNode(object_name)->getJoint("jrs")->setVelSpherical(Vector3d(0.5,0.0,0.0));
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 		// if (timer.elapsedCycles() % 10000 == 0) {
@@ -398,11 +427,21 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 		// integrate forward
 		double curr_time = timer.elapsedTime();
 		double loop_dt = curr_time - last_time; 
-		// sim->integrate(loop_dt);
+		if(!USE_ORB_SIM) {
+			sim->integrate(loop_dt);
+			sim->getJointPositions(object_name, model->_q);
+			sim->getJointVelocities(object_name, model->_dq);
+			// cout << model->_dq.transpose() << endl;
+			model->updateModel();
+			// update last time
+			last_time = curr_time;
+			continue;
+		}
 		
 		// check contact state every now and then
 		if (timer.elapsedCycles() % 10 == 0) {
 			model->updateModel(); // TODO: we shouldn't explicity compute M inverse
+			model->rotation(bodyorient, object_link_name);
 			model->coriolisPlusGravity(nonlinear_torques);
 			// cout << model->_q.transpose() << endl;
 			// cout << "Nonlinear torques: " << nonlinear_torques[0] << " " << nonlinear_torques[2] << endl;
@@ -705,9 +744,11 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 		VectorXd temp(6), temp2(7), temp3(7);
 		temp2 << model->_q; 
 		temp = model->_dq + 0.5*model->_ddq * loop_dt;
+		// model->_q += temp * loop_dt;
 		model->_q.segment<3>(0) += temp.segment<3>(0) * loop_dt;
 		if (temp.segment<3>(3).norm() > 1e-15) {
-			model->_q.segment<4>(3) = RigidBodyDynamics::Math::Quaternion(model->_q.segment<4>(3)).timeStep(temp.segment<3>(3), loop_dt);
+			model->_q.segment<4>(3) = RigidBodyDynamics::Math::Quaternion(model->_q.segment<4>(3)).timeStep(bodyorient*temp.segment<3>(3), loop_dt);
+			// model->_q.segment<4>(3) /= model->_q.segment<4>(3).norm();
 		}
 		temp3 << model->_q;
 		if(LOG_DEBUG && state == CapsuleContactState::Rolling) {
@@ -758,6 +799,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	}
 	cout << "Simulation loop finished, average loop frequency: "
 		<< timer.elapsedCycles()/timer.elapsedTime() << endl;
+	cout << "Min distance of object to ground at sim end: " << cinfo.min_distance << endl;
 }
 
 //------------------------------------------------------------------------------
@@ -783,7 +825,7 @@ GLFWwindow* glfwInitialize() {
 
     // create window and make it current
     glfwWindowHint(GLFW_VISIBLE, 0);
-    GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - CS327a HW4", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - COP SIM 1", NULL, NULL);
 	glfwSetWindowPos(window, windowPosX, windowPosY);
 	glfwShowWindow(window);
     glfwMakeContextCurrent(window);
