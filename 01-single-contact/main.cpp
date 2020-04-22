@@ -54,7 +54,7 @@ const Vector3d end2_local(cap_length/2, 0.0, 0.0);
 
 // thresholds
 const double FREE_TO_COLL_DIST_THRES = 0.003; // mm
-const double RESTIT_EPS = 0.0;
+const double RESTIT_EPS = 0.1;
 const double FRICTION_COEFF = 0.01;
 
 // logging
@@ -65,7 +65,8 @@ bool USE_ORB_SIM = true;
 
 Affine3d object_in_world;
 
-chai3d::cShapeSphere contact_display(0.02);
+chai3d::cShapeSphere pt_contact_display(0.02);
+chai3d::cShapeCylinder line_contact_display(0.02, 0.02, 0.2);
 
 enum ContactType {
 	UNDEFINED,
@@ -309,7 +310,10 @@ int main (int argc, char** argv) {
 	// load object
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, Affine3d::Identity(), object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
-	coobject->_dq[3] = 0.5;
+	// coobject->_dq[0] = -0.1;
+	// coobject->_dq[1] = 0.1;
+	// coobject->_dq[2] = 1.0;
+	coobject->_dq[3] = 0.7;
 	// coobject->_dq[5] = 0.5;
 
 	// initialize GLFW window
@@ -323,11 +327,17 @@ int main (int argc, char** argv) {
 	thread sim_thread(simulation, sim, coobject);
 
 	// create sphere to see contact point
-	contact_display.setShowEnabled(false);
-	contact_display.m_material->setBrownMaroon();
-	contact_display.m_material->setShininess(100);
-	graphics->_world->addChild(&contact_display);
-	contact_display.setLocalPos(Vector3d(0.0, 0.0, 0.4));
+	pt_contact_display.setShowEnabled(false);
+	pt_contact_display.m_material->setBrownMaroon();
+	pt_contact_display.m_material->setShininess(100);
+	graphics->_world->addChild(&pt_contact_display);
+	pt_contact_display.setLocalPos(Vector3d(0.0, 0.0, 0.4));
+
+	line_contact_display.setShowEnabled(false);
+	line_contact_display.m_material->setBrownMaroon();
+	line_contact_display.m_material->setShininess(100);
+	graphics->_world->addChild(&line_contact_display);
+	line_contact_display.setLocalPos(Vector3d(0.0, 0.0, 0.4));
 
     // while window is open:
     while (!glfwWindowShouldClose(window)) {
@@ -340,7 +350,7 @@ int main (int argc, char** argv) {
 		graphics->updateGraphics(object_name, coobject);
 		graphics->render(camera_name, width, height);
 		// compute global position of spline and cherry
-		contact_display.computeGlobalPositions();
+		// pt_contact_display.computeGlobalPositions();
 		glfwSwapBuffers(window);
 		glFinish();
 
@@ -472,11 +482,33 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 					contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
 				}
 				// update visual
-				contact_display.setLocalPos(Vector3d(cinfo.contact_points[0][0], cinfo.contact_points[0][1], 0));
-				contact_display.setShowEnabled(true);
+				if(cinfo.contact_points.size() == 1) {
+					pt_contact_display.setLocalPos(Vector3d(cinfo.contact_points[0][0], cinfo.contact_points[0][1], 0));
+					pt_contact_display.setShowEnabled(true);
+					line_contact_display.setShowEnabled(false);
+				} else {
+					Vector3d temp ((cinfo.contact_points[1][0]+cinfo.contact_points[0][0])/2,
+						(cinfo.contact_points[1][1]+cinfo.contact_points[0][1])/2, 
+						0.0);
+					double theta = atan2(cinfo.contact_points[1][1]-cinfo.contact_points[0][1],
+										cinfo.contact_points[1][0]-cinfo.contact_points[0][0]);
+					// cout << theta << endl;
+					Matrix3d rot1, rot2;
+					rot1 << 0, 0, 1,
+							0, 1, 0,
+							-1, 0, 0;
+					rot2 << cos(theta), -sin(theta), 0,
+							sin(theta), cos(theta), 0,
+								0,			0,		1;
+					line_contact_display.setLocalRot(rot2*rot1);
+					line_contact_display.setLocalPos(rot2*rot1*Vector3d(0, 0, -0.1) + temp);
+					line_contact_display.setShowEnabled(true);
+					pt_contact_display.setShowEnabled(false);
+				}
 			} else {
 				state = CapsuleContactState::NoContact;
-				// contact_display.setShowEnabled(false);
+				pt_contact_display.setShowEnabled(false);
+				line_contact_display.setShowEnabled(false);
 			}
 
 			switch (state) {
