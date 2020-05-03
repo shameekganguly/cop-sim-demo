@@ -38,7 +38,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0, 0, -0.1, 0, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -51,7 +51,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0, 0, -0.1, 0, 0, 0;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -64,7 +64,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0.02, 0, -0.1, 0.02, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -77,7 +77,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << -0.02, 0, -0.1, -0.02, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -90,7 +90,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.0;
 		pre_v << 0.02, 0, -0.1, 0.02, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -103,7 +103,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0.1, 0, -0.1, 0.1, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -117,7 +117,7 @@ int main (int argc, char** argv) {
 		pre_v << 0.0, 0.1, -0.1, 0.0, 0.01, -0.1;
 		// cout << "pre energy: " << stick_end_mass*(pre_v.head(3).norm() + pre_v.tail(3).norm()) + load*((pre_v.head(3)+pre_v.tail(3)).norm()/2) << endl;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 		// VectorXd post_v = (Lambda_inv*test1_sol.p_sol + pre_v).transpose();
@@ -133,7 +133,7 @@ int main (int argc, char** argv) {
 		pre_v << 0.0, 0.01, -0.1, 0.0, 0.1, -0.1;
 		// cout << "pre energy: " << stick_end_mass*(pre_v.head(3).norm() + pre_v.tail(3).norm()) + load*((pre_v.head(3)+pre_v.tail(3)).norm()/2) << endl;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 		// VectorXd post_v = (Lambda_inv*test1_sol.p_sol + pre_v).transpose();
@@ -149,7 +149,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.4;
 		pre_v << 0.001, 0, -0.1, 0.001, 0, 0.2;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -162,7 +162,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0.001, 0, -0.1, 0.001, 0, 0.2;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -175,7 +175,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0, 0, 0.2, 0, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -188,7 +188,7 @@ int main (int argc, char** argv) {
 		const double mu = 0.1;
 		pre_v << 0.001, 0, 0.2, 0.001, 0, -0.1;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Lambda_inv, pre_v, pre_v, epsilon, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 		cout << "Vsol: " << (Lambda_inv*test1_sol.p_sol + pre_v).transpose() << endl;
 	}
@@ -208,7 +208,7 @@ int main (int argc, char** argv) {
         			0, 1.77578, 0, 0, 2.44238, 0,
 					-0.334272, 0, 0.665086, -0.334206, 0, 1.33175;
 		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Test8Lambda_inv, pre_v, pre_v, 0.0, mu);
-		cout << test1_sol.result << endl;
+		cout << static_cast<int>(test1_sol.result) << endl;
 		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
 	}
 	return 0;

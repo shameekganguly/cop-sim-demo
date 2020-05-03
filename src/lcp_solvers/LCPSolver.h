@@ -26,7 +26,7 @@
 // must not be included in the collision solution. They must be handled through
 // sequential collision handling.
 
-enum LCPSolResult {Success = 0, NoSolution, UnimplementedCase};
+enum struct LCPSolResult {Success = 0, NoSolution, UnimplementedCase};
 
 struct CollLCPPointSolution {
 	LCPSolResult result;
@@ -44,7 +44,7 @@ struct CollLCPPointSolution {
 
 };
 
-enum FeasibleCollLCPPointResult {
+enum struct FeasibleCollLCPPointResult {
 	FRSuccess = 0,
 	FRNegativeNormalImpulse,
 	FRFrictionConeViolation,
