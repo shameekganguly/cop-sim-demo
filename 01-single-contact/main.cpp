@@ -23,6 +23,8 @@ Date: 11/8/2017
 using namespace Eigen;
 
 #include "timer/LoopTimer.h"
+#include "force_sensor/ForceSensorSim.h"
+#include "force_sensor/ForceSensorDisplay.h"
 
 #include "lcp_solvers/LCPSolver.h"
 #include "cop_simulator/COPSolver.h"
@@ -36,7 +38,7 @@ const string world_fname = "resources/01-single-contact/world.urdf";
 const string object_fname = "resources/01-single-contact/sphere_object.urdf";
 const string object_name = "Sphere";
 const string object_link_name = "object";
-const string camera_name = "camera_front";
+string camera_name = "camera_front";
 
 // geometry enum
 enum GeometryType {SPHERE, CAPSULE, BOX, CYLINDER};
@@ -55,7 +57,7 @@ const Vector3d end2_local(cap_length/2, 0.0, 0.0);
 
 // thresholds
 const double FREE_TO_COLL_DIST_THRES = 0.003; // mm
-const double RESTIT_EPS = 0.1;
+const double RESTIT_EPS = 0.3;
 const double FRICTION_COEFF = 0.01;
 
 // logging
@@ -64,10 +66,15 @@ bool LOG_DEBUG = false;
 // which sim to use
 bool USE_ORB_SIM = true;
 
+// pause
+bool f_pause_sim = false;
+
 Affine3d object_in_world;
 
 chai3d::cShapeSphere pt_contact_display(0.02);
-chai3d::cShapeCylinder line_contact_display(0.02, 0.02, 0.2);
+chai3d::cShapeCylinder line_contact_display(0.01, 0.01, 0.2);
+ForceSensorDisplay* cop_force_display;
+ForceSensorSim* cop_force_sensor;
 
 enum ContactType {
 	UNDEFINED,
@@ -128,7 +135,7 @@ ContactInfo getDistanceToSurface(Sai2Model::Sai2Model* object) {
 
 void getContactPointLocalFrame(Sai2Model::Sai2Model* sphere, const Vector3d& global_point, Vector3d& local_point) {
 	static Eigen::Affine3d T_object_base;
-	sphere->transformInWorld(T_object_base, object_link_name);
+	sphere->transform(T_object_base, object_link_name);
 	// cout << T_object_base.linear() << endl;
 	// cout << T_object_base.translation().transpose() << endl;
 	local_point = (object_in_world*T_object_base).inverse() * global_point;
@@ -334,16 +341,22 @@ int main (int argc, char** argv) {
     }
 
 	// set object graphics to wireframe, and show frame for last link
-	graphics->showLinkFrame(true, object_name, object_link_name);
+	// graphics->showLinkFrame(true, object_name, object_link_name);
+	graphics->showWireMeshRender(true, object_name, object_link_name);
 
 	// load object
-	auto coobject = new Sai2Model::Sai2Model(object_fname, false, Affine3d::Identity(), object_in_world.linear().transpose()*grav_vector);
+	auto coobject = new Sai2Model::Sai2Model(object_fname, false, object_in_world, object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
-	// coobject->_dq[0] = -0.1;
-	// coobject->_dq[1] = 0.1;
+	coobject->_dq[0] = 0.1;
+	// coobject->_dq[1] = -0.02;
 	// coobject->_dq[2] = 1.0;
-	coobject->_dq[3] = 0.7;
+	coobject->_dq[3] = 0.3;
 	// coobject->_dq[5] = 0.5;
+
+	// force sim/ display
+	cop_force_sensor = new ForceSensorSim(object_name, object_link_name, Eigen::Affine3d::Identity(), coobject);
+	cop_force_display = new ForceSensorDisplay(cop_force_sensor, graphics);
+	cop_force_display->_force_line_scale = 10;
 
 	// initialize GLFW window
 	GLFWwindow* window = glfwInitialize();
@@ -377,6 +390,7 @@ int main (int argc, char** argv) {
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
 		graphics->updateGraphics(object_name, coobject);
+		cop_force_display->update();
 		graphics->render(camera_name, width, height);
 		// compute global position of spline and cherry
 		// pt_contact_display.computeGlobalPositions();
@@ -471,6 +485,11 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 
 		// integrate forward
 		double curr_time = timer.elapsedTime();
+		if(f_pause_sim) {
+			last_time = curr_time;
+			continue;
+		}
+
 		double loop_dt = curr_time - last_time; 
 		if(!USE_ORB_SIM) {
 			sim->integrate(loop_dt);
@@ -501,27 +520,39 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 				// compute contact velocities to see if any contact is colliding
 				contact_model = ContactSpaceModel(model, nonlinear_torques, cinfo);
 				pre_collision_contact_vel = contact_model._contactJacobian * model->_dq;
-				// cout << pre_collision_contact_vel.transpose() << endl;
+				if(LOG_DEBUG) cout << "Model update: pre coll vel: " << pre_collision_contact_vel.transpose() << endl;
 
 				bool is_colliding = false;
 				for(uint i = 0; i < cinfo.contact_points.size(); i++) {
 					is_colliding = is_colliding || (pre_collision_contact_vel[3*i + 2] < 0);
-					if (pre_collision_contact_vel[3*i + 2] > 0) {
+					if (pre_collision_contact_vel[3*i + 2] > 1e-4) {
 						contact_model.removeActiveContact(i);
 					}
 				}
 				if (is_colliding) {
 					state = CapsuleContactState::Colliding;
-					if(LOG_DEBUG) cout << "Collision" << endl;
+					if(LOG_DEBUG) cout << "Model update: Collision" << endl;
 					// initialize state for CapsuleContactState::Colliding
 					contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
+				} else if(contact_model._activeContacts.size() > 0) {
+					state = CapsuleContactState::Rolling;
+					if(LOG_DEBUG) cout << "Model update: Rolling" << endl;
+					contact_model.getActiveContactSpaceMatrices(contact_jacobian, contact_lambda_inv, rhs_coll, rhs_contact);
+				} else {
+					state = CapsuleContactState::NoContact;
+					if(LOG_DEBUG) cout << "Model update: Points close but no contact" << endl;
 				}
+			} else {
+				state = CapsuleContactState::NoContact;
+			}
+			if(state == CapsuleContactState::Colliding || state == CapsuleContactState::Rolling) {
 				// update visual
 				if(cinfo.contact_points.size() == 1) {
 					pt_contact_display.setLocalPos(Vector3d(cinfo.contact_points[0][0], cinfo.contact_points[0][1], 0));
 					pt_contact_display.setShowEnabled(true);
 					line_contact_display.setShowEnabled(false);
 				} else {
+					// code to visual contact line
 					Vector3d temp ((cinfo.contact_points[1][0]+cinfo.contact_points[0][0])/2,
 						(cinfo.contact_points[1][1]+cinfo.contact_points[0][1])/2, 
 						0.0);
@@ -537,11 +568,10 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 								0,			0,		1;
 					line_contact_display.setLocalRot(rot2*rot1);
 					line_contact_display.setLocalPos(rot2*rot1*Vector3d(0, 0, -0.1) + temp);
-					line_contact_display.setShowEnabled(true);
-					pt_contact_display.setShowEnabled(false);
+					// line_contact_display.setShowEnabled(true);
+					pt_contact_display.setShowEnabled(true);
 				}
 			} else {
-				state = CapsuleContactState::NoContact;
 				pt_contact_display.setShowEnabled(false);
 				line_contact_display.setShowEnabled(false);
 			}
@@ -590,7 +620,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 							coll_restitution,
 							FRICTION_COEFF
 						);
-					} else {
+					} else if (contact_model._activeContacts.size() == 2) {
 						// ensure that we do not have an assymetry due to numerical error
 						double v_red = pre_collision_contact_vel[0] + pre_collision_contact_vel[3];
 						v_red *= 0.5;
@@ -606,24 +636,27 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 							FRICTION_COEFF
 						);
 					}
-					if (lcp_sol.result == LCPSolResult::Success) {
-						if(LOG_DEBUG) cout << "LCP Impulse: " << lcp_sol.p_sol.transpose() << endl; 
-						if(LOG_DEBUG) cout << "Num contacts " << contact_model._activeContacts.size() << endl; 
-					} else {
-						cerr << "LCP failed with type: " << static_cast<int>(lcp_sol.result) << endl;
-						cout << "Num contacts " << contact_model._activeContacts.size() << endl;
-						cout << "pre coll vel: " << pre_collision_contact_vel.transpose() << endl;
-						cout << "lambda inv " << contact_lambda_inv << endl;
-						cout << "restitution " << coll_restitution << endl;
-						cout << "q " << model->_q.transpose() << endl;
-						cout << "contact Jacobian " << contact_jacobian << endl;
-						throw(std::out_of_range("Collision LCP failure."));
+					if(contact_model._activeContacts.size() > 0) {
+						if (lcp_sol.result == LCPSolResult::Success) {
+							if(LOG_DEBUG) cout << "LCP Impulse: " << lcp_sol.p_sol.transpose() << endl; 
+							if(LOG_DEBUG) cout << "Num contacts " << contact_model._activeContacts.size() << endl; 
+						} else {
+							cerr << "LCP failed with type: " << static_cast<int>(lcp_sol.result) << endl;
+							cout << "Num contacts " << contact_model._activeContacts.size() << endl;
+							cout << "pre coll vel: " << pre_collision_contact_vel.transpose() << endl;
+							cout << "lambda inv " << contact_lambda_inv << endl;
+							cout << "restitution " << coll_restitution << endl;
+							cout << "q " << model->_q.transpose() << endl;
+							cout << "contact Jacobian " << contact_jacobian << endl;
+							throw(std::out_of_range("Collision LCP failure."));
+						}						
 					}
 					if(LOG_DEBUG) {
 						double max_impact_vel = 0;
 						for(int ii = 0; ii < contact_model._activeContacts.size(); ii++) {
 							max_impact_vel = max(max_impact_vel, abs(pre_collision_contact_vel[3*ii+2]));
 						}
+						max_impact_vel = max(max_impact_vel, 1e-5);
 						if(lcp_sol.p_sol[2] > 2*max_impact_vel || 
 							(contact_model._activeContacts.size() > 1 && lcp_sol.p_sol[5] > 2*max_impact_vel)) {
 							cout << "Much higher impact impulse than expected!!" << endl;
@@ -683,11 +716,15 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 				contact_model.recomputeContactRHS(model, nonlinear_torques);
 				did_update_contact_matrices = true;
 				if(contact_model._activeContacts.size() == 2) {
-					// update cop sol from collision lcp sol
-					last_cop_sol = getLCPForInelasticCollResult(lcp_sol.p_sol, contact_model._contactPointsLocal);
-					Vector3d global_cop_pos;
-					model->position(global_cop_pos, object_link_name, last_cop_sol.local_cop_pos);
-					if(LOG_DEBUG) cout << "Coll deduced COP in global: " << (object_in_world*global_cop_pos).transpose() << endl; //if(LOG_DEBUG)
+					if(abs(lcp_sol.p_sol[2]) > 1e-8 && abs(lcp_sol.p_sol[5]) > 1e-8) {
+						if(LOG_DEBUG) cout << "2 pt impulse too small. Not updating COP." << endl;	
+					} else {
+						// update cop sol from collision lcp sol
+						last_cop_sol = getLCPForInelasticCollResult(lcp_sol.p_sol, contact_model._contactPointsLocal);
+						Vector3d global_cop_pos;
+						model->position(global_cop_pos, object_link_name, last_cop_sol.local_cop_pos);
+						if(LOG_DEBUG) cout << "Coll deduced COP in global: " << (object_in_world*global_cop_pos).transpose() << endl;
+					}
 				} else {
 					if(LOG_DEBUG) cout << "Rolling with 1 point contact. No COP deduced." << endl;
 				}
@@ -706,6 +743,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 
 			// recompute active contacts: TODO: this might be optimized when a collision was resolved in this sim cycle
 			bool did_contact_change = false;
+			bool is_post_colliding = false;
 			post_collision_contact_vel = contact_model._contactJacobian * model->_dq;
 			for (uint i = 0; i < cinfo.contact_points.size(); i++) {
 				if (post_collision_contact_vel[3*i + 2] <= 1e-4) { // note that we allow some positive contact velocity
@@ -713,6 +751,13 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 				} else {
 					did_contact_change = did_contact_change || contact_model.removeActiveContact(i);
 				}
+				if(post_collision_contact_vel[3*i + 2] < -1e-5) {
+					is_post_colliding = true;
+				}
+			}
+			if(is_post_colliding) {
+				state = CapsuleContactState::Colliding;
+				if(LOG_DEBUG) cout << "Rolling to colliding" << endl;
 			}
 			if(contact_model._activeContacts.size() == 0) {
 				state = CapsuleContactState::NoContact;
@@ -744,6 +789,44 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 							0.0,
 							FRICTION_COEFF
 						);
+						if (lcp_sol.result == LCPSolResult::Success) {
+							if(LOG_DEBUG) cout << "Contact LCP Contact force: " << lcp_sol.p_sol.transpose() << endl;
+						} else {
+							cerr << "Contact LCP failed with type: " << static_cast<int>(lcp_sol.result) << endl;
+							cout << "Num contacts " << contact_model._activeContacts.size() << endl;
+							cout << "dq: " << model->_dq.transpose() << endl;
+							cout << "Last post contact vel: " << post_collision_contact_vel.transpose() << endl;
+							cout << "Contact lambda inv: " << contact_lambda_inv << endl;
+							cout << "Contact rhs: " << rhs_contact.transpose() << endl;
+							break;
+						}
+						contact_force = lcp_sol.p_sol;
+						if(isnan(contact_force[0]) || isnan(contact_force[1]) || isnan(contact_force[2])) {
+							cout << "Nan encountered " << lcp_sol.p_sol.transpose() << endl;
+							cout << "Num contacts " << contact_model._activeContacts.size() << endl;
+							cout << "dq: " << model->_dq.transpose() << endl;
+							cout << "Last post contact vel: " << post_collision_contact_vel.transpose() << endl;
+							cout << "Contact lambda inv: " << contact_lambda_inv << endl;
+							cout << "Contact Jacobian: " << contact_jacobian << endl;
+							cout << "Mass matrix inv: " << model->_M_inv << endl;
+							cout << "Contact rhs: " << rhs_contact.transpose() << endl;
+							cout << "cinfo contacts size " << cinfo.contact_points.size() << endl;
+							cout << "Contact points, 1: " << contact_model._contact_description.contact_points[0].transpose() <<
+							    " 2: " << contact_model._contact_description.contact_points[1].transpose() << endl;
+						    Vector3d temp;
+						    model->position(temp, object_link_name, end1_local);
+							cout << "point 1: " << (object_in_world * temp).transpose() << endl;
+							model->position(temp, object_link_name, end2_local);
+							cout << "point 2: " << (object_in_world * temp).transpose() << endl;
+							break;
+						}
+						contact_torques = contact_jacobian.transpose() * contact_force;
+						// get COP solution from one point contact lcp sol in case we need it
+						bool isContact0Active = (*(contact_model._activeContacts.begin()) == 0);
+						last_cop_sol = getLCPForOnePtContactResult(lcp_sol.p_sol, contact_model._contactPointsLocal, isContact0Active);
+						Vector3d global_cop_pos;
+						model->position(global_cop_pos, object_link_name, last_cop_sol.local_cop_pos);
+						if(LOG_DEBUG) cout << "1 pt contact deduced COP in global: " << (object_in_world*global_cop_pos).transpose() << endl;
 					} else {
 						if(rhs_contact[2] > 0 && rhs_contact[5] > 0) {
 							cerr << "RHS contact is positive!" << endl;
@@ -806,6 +889,12 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 							);
 							contact_torques = last_cop_J6.block(0,0,3,dof).transpose() * last_cop_sol.force_sol.segment<3>(0);
 							contact_torques += last_cop_J6.block(4,0,2,dof).transpose() * last_cop_sol.force_sol.segment<2>(3);
+							// update contact force display
+							cop_force_sensor->_data->_transform_in_link.translation() = last_cop_sol.local_cop_pos;
+							cop_force_sensor->_data->_force = contact_model._rotXInterpoint.transpose()*last_cop_sol.force_sol.segment<3>(0);
+							pt_contact_display.setLocalPos(
+								cop_force_display->_display_line_force->m_pointA
+							);
 						} else {
 							throw(std::runtime_error("COP sol failed."));
 						}
@@ -815,37 +904,6 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 					cerr << "Seg fault contact LCP, active contact size: " << contact_model._activeContacts.size() << endl;
 					break;
 				}
-				// if (lcp_sol.result == LCPSolResult::Success) {
-				// 	if(LOG_DEBUG) cout << "Contact LCP Contact force: " << lcp_sol.p_sol.transpose() << endl;
-				// } else {
-				// 	cerr << "Contact LCP failed with type: " << static_cast<int>(lcp_sol.result) << endl;
-				// 	cout << "Num contacts " << contact_model._activeContacts.size() << endl;
-				// 	cout << "dq: " << model->_dq.transpose() << endl;
-				// 	cout << "Last post contact vel: " << post_collision_contact_vel.transpose() << endl;
-				// 	cout << "Contact lambda inv: " << contact_lambda_inv << endl;
-				// 	cout << "Contact rhs: " << rhs_contact.transpose() << endl;
-				// 	break;
-				// }
-				// contact_force = lcp_sol.p_sol;
-				// if(isnan(contact_force[0]) || isnan(contact_force[1]) || isnan(contact_force[2])) {
-				// 	cout << "Nan encountered " << lcp_sol.p_sol.transpose() << endl;
-				// 	cout << "Num contacts " << contact_model._activeContacts.size() << endl;
-				// 	cout << "dq: " << model->_dq.transpose() << endl;
-				// 	cout << "Last post contact vel: " << post_collision_contact_vel.transpose() << endl;
-				// 	cout << "Contact lambda inv: " << contact_lambda_inv << endl;
-				// 	cout << "Contact Jacobian: " << contact_jacobian << endl;
-				// 	cout << "Mass matrix inv: " << model->_M_inv << endl;
-				// 	cout << "Contact rhs: " << rhs_contact.transpose() << endl;
-				// 	cout << "cinfo contacts size " << cinfo.contact_points.size() << endl;
-				// 	cout << "Contact points, 1: " << contact_model._contact_description.contact_points[0].transpose() <<
-				// 	    " 2: " << contact_model._contact_description.contact_points[1].transpose() << endl;
-				//     Vector3d temp;
-				//     model->position(temp, object_link_name, end1_local);
-				// 	cout << "point 1: " << (object_in_world * temp).transpose() << endl;
-				// 	model->position(temp, object_link_name, end2_local);
-				// 	cout << "point 2: " << (object_in_world * temp).transpose() << endl;
-				// 	break;
-				// }
 				if(cinfo.min_distance < -FREE_TO_COLL_DIST_THRES) {
 					cout << "Num contacts " << contact_model._activeContacts.size() << endl;
 					cout << "dq: " << model->_dq.transpose() << endl;
@@ -875,41 +933,41 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 			// model->_q.segment<4>(3) /= model->_q.segment<4>(3).norm();
 		}
 		temp3 << model->_q;
-		if(LOG_DEBUG && state == CapsuleContactState::Rolling) {
-			ContactInfo cinfo2 = getDistanceToSurface(model);
-			Vector3d flocal_point;
-			model->updateModel();
-			getContactPointLocalFrame(model, cinfo2.contact_points[0], flocal_point);
-			cout << "Future local point " << flocal_point.transpose() << endl;
-			model->_q << temp2;
-			model->updateModel();
-			MatrixXd Jvfc;
-			model->Jv(Jvfc, object_link_name, flocal_point);
-			Jvfc = object_in_world.linear() * Jvfc;
-			cout << "Future contact velocity " << (Jvfc * model->_dq).transpose() << endl;
+		// if(LOG_DEBUG && state == CapsuleContactState::Rolling) {
+		// 	ContactInfo cinfo2 = getDistanceToSurface(model);
+		// 	Vector3d flocal_point;
+		// 	model->updateModel();
+		// 	getContactPointLocalFrame(model, cinfo2.contact_points[0], flocal_point);
+		// 	cout << "Future local point " << flocal_point.transpose() << endl;
+		// 	model->_q << temp2;
+		// 	model->updateModel();
+		// 	MatrixXd Jvfc;
+		// 	model->Jv(Jvfc, object_link_name, flocal_point);
+		// 	Jvfc = object_in_world.linear() * Jvfc;
+		// 	cout << "Future contact velocity " << (Jvfc * model->_dq).transpose() << endl;
 
-			model->_q << temp3;
-			Vector3d accel;
-			Vector3d local_point;
-			model->updateModel();
-			getContactPointLocalFrame(model, cinfo.contact_points[0], local_point);
-			model->linearAcceleration(accel, object_link_name, local_point);
-			cout << "loop dt" << loop_dt << endl;
-			cout << "Contact 0 acceleration " << (object_in_world.linear()*accel).transpose() << endl;
-			// cout << "J ddq " << (contact_jacobian*model->_ddq).transpose() << endl;
-			// MatrixXd objectJw;
-			// model->Jw(objectJw, object_link_name);
-			// Vector3d omega, linvel;
-			// omega = objectJw*model->_dq;
-			// linvel = contact_jacobian*model->_dq;
-			// Vector3d rworld;
-			// model->position(rworld, object_link_name, Vector3d::Zero());
-			// rworld = cinfo.contact_points[0] - object_in_world * rworld;
-			// cout << rworld.transpose() << endl;
-			// cout << ((object_in_world.linear()*omega).cross(linvel)).transpose() << endl;
-			// cout << ((object_in_world.linear()*omega).cross((object_in_world.linear()*omega).cross(rworld))).transpose() << endl;
-			cout << "Contact 0 velocity " << (contact_model._contactJacobian*model->_dq).transpose() << endl;
-		}
+		// 	model->_q << temp3;
+		// 	Vector3d accel;
+		// 	Vector3d local_point;
+		// 	model->updateModel();
+		// 	getContactPointLocalFrame(model, cinfo.contact_points[0], local_point);
+		// 	model->linearAcceleration(accel, object_link_name, local_point);
+		// 	cout << "loop dt" << loop_dt << endl;
+		// 	cout << "Contact 0 acceleration " << (object_in_world.linear()*accel).transpose() << endl;
+		// 	// cout << "J ddq " << (contact_jacobian*model->_ddq).transpose() << endl;
+		// 	// MatrixXd objectJw;
+		// 	// model->Jw(objectJw, object_link_name);
+		// 	// Vector3d omega, linvel;
+		// 	// omega = objectJw*model->_dq;
+		// 	// linvel = contact_jacobian*model->_dq;
+		// 	// Vector3d rworld;
+		// 	// model->position(rworld, object_link_name, Vector3d::Zero());
+		// 	// rworld = cinfo.contact_points[0] - object_in_world * rworld;
+		// 	// cout << rworld.transpose() << endl;
+		// 	// cout << ((object_in_world.linear()*omega).cross(linvel)).transpose() << endl;
+		// 	// cout << ((object_in_world.linear()*omega).cross((object_in_world.linear()*omega).cross(rworld))).transpose() << endl;
+		// 	cout << "Contact 0 velocity " << (contact_model._contactJacobian*model->_dq).transpose() << endl;
+		// }
 		model->_dq += model->_ddq * loop_dt;
 
 		
@@ -977,5 +1035,20 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
     if ((key == 'd' || key == 'D') && action == GLFW_PRESS) {
     	LOG_DEBUG = !LOG_DEBUG;
+    }
+    if ((key == 'z' || key == 'Z') && action == GLFW_PRESS) {
+        // change camera
+        camera_name = "camera_zoom";
+    }
+    if ((key == '1') && action == GLFW_PRESS) {
+        // change camera
+        camera_name = "camera_front";
+    }
+    if ((key == '2') && action == GLFW_PRESS) {
+        // change camera
+        camera_name = "camera_side";
+    }
+    if ((key == 'p' || key == 'P') && action == GLFW_PRESS) {
+    	f_pause_sim = (f_pause_sim)? false: true;
     }
 }

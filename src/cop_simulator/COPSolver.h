@@ -46,7 +46,9 @@ ContactCOPSolution getLCPForInelasticCollResult(
 	ContactCOPSolution ret_sol;
 	ret_sol.force_sol.setZero(5);
 	// ret_sol.force_sol.segment<3>(0) = local_psol.segment<3>(0) + local_psol.segment<3>(3);
-	double cop_dist_pos0 = local_psol[5]/(local_psol[5]+local_psol[2]);
+	double end1_imp = fmax(0, local_psol[2]);
+	double end2_imp = fmax(0, local_psol[5]);
+	double cop_dist_pos0 = end2_imp/(end2_imp+end1_imp);
 	if(COP_LOG_DEBUG) std::cout << "COPSolver: getLCPForInelasticCollResult: deduced cop distance from point 0: " << cop_dist_pos0 << std::endl;
 	assert(cop_dist_pos0 < (1+1e15) && cop_dist_pos0 >= -1e-15);
 	ret_sol.local_cop_pos = local_point_list[0]*(1.0 - cop_dist_pos0) + local_point_list[1]*(cop_dist_pos0);
@@ -57,6 +59,23 @@ ContactCOPSolution getLCPForInelasticCollResult(
 		// ret_sol.force_sol[4] = local_psol[1]*temp1[0] + local_psol[4]*temp2[0];
 	// }
 	ret_sol.result = COPSolResult::FromCollisionLCP;
+	return ret_sol;
+}
+
+ContactCOPSolution getLCPForOnePtContactResult(
+	const Eigen::VectorXd& local_psol,
+	const std::vector<Eigen::Vector3d>& local_point_list,
+	bool isActivePtZero
+) {
+	ContactCOPSolution ret_sol;
+	ret_sol.force_sol.setZero(5);
+	ret_sol.force_sol.segment<3>(0) = local_psol.segment<3>(0);
+	// ret_sol.force_sol.segment<3>(0) = local_psol.segment<3>(0) + local_psol.segment<3>(3);
+	double cop_dist_pos0 = (isActivePtZero)? 0: 1;
+	if(COP_LOG_DEBUG) std::cout << "COPSolver: getLCPForOnePtContactResult: deduced cop distance from point 0: " << cop_dist_pos0 << std::endl;
+	ret_sol.local_cop_pos = local_point_list[0]*(1.0 - cop_dist_pos0) + local_point_list[1]*(cop_dist_pos0);
+	ret_sol.cop_type = COPContactType::LineEnd;
+	ret_sol.result = COPSolResult::Success;
 	return ret_sol;
 }
 
@@ -165,7 +184,7 @@ void getCOPLineContactDisplacedMatrices(
 	const Eigen::Vector3d& r_last_cop_proj,
 	const Eigen::VectorXd& pre_vel)
 {
-	if(COP_LOG_DEBUG) std::cout << "COP solver: getCOPLineContactDisplacedMatrices: " << signed_distance_last_point << std::endl;
+	if(COP_LOG_DEBUG) std::cout << "COP solver: getCOPLineContactDisplacedMatrices: signed_distance_last_point: " << signed_distance_last_point << std::endl;
 	Eigen::MatrixXd cross_mat(5,5);
 	cross_mat.setZero();
 	cross_mat.block<3,3>(0,0) = Eigen::Matrix3d::Identity();
@@ -214,7 +233,7 @@ FeasibleCOPLineResult testFeasibleCOPLine(
 	if(force_sol[2] < -1e-8) {
 		return FeasibleCOPLineResult::FRNegativeNormalForce;
 	}
-	if(contact_type == COPContactType::LineCenter && abs(force_sol[3]) > 1e-8) {
+	if(contact_type == COPContactType::LineCenter && abs(force_sol[3]) > 1e-3) { //TODO: this is too low!!
 		return FeasibleCOPLineResult::FRZeroMomentViolation;
 	}
 	if(contact_type == COPContactType::LineEnd) {
@@ -338,6 +357,12 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 			ret_sol.result = COPSolResult::Success;
 			return ret_sol;
 		}
+		if(COP_LOG_DEBUG) {
+			std::cout << "Mu rotation: " << mu << std::endl;
+			std::cout << "Last cop sol force: " << last_COP_sol.force_sol.transpose() << std::endl;
+			std::cout << "cop accel: " << a_sol.transpose() << std::endl;
+			std::cout << "check fail result: " << static_cast<int>(test_res) <<std::endl;
+		}
 	}
 
 	// if projected point is no longer a valid solution, try to search for one
@@ -350,6 +375,13 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 	double signed_distance_last_point = 0.0;
 	FeasibleCOPLineResult it_test_res;
 	bool fForceLineCenter = false;
+	double last_signed_distance = 0.0;
+	double last_signed_distance_weight = 0.0;
+	bool fForceIgnoreSlip = false;
+	bool fBisectionSearch = false;
+	double bisection_dist_bound_upper = 0.0;
+	double bisection_dist_bound_lower = 0.0;
+	double last_zero_moment_error = 0.0;
 	while (iter_ind < max_iters) {
 		if(COP_LOG_DEBUG) std::cout << "COPSolver: iters: " << iter_ind << std::endl;
 		iter_ind++;
@@ -394,7 +426,7 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 		if(COP_LOG_DEBUG) std::cout << "COPSolver: translation slip: " << slip_vel.transpose() << " norm: " << slip_vel.norm() << std::endl;
 		if(COP_LOG_DEBUG) std::cout << "COPSolver: rotation slip: " << pre_vel_disp[4] << std::endl;
 		if(ret_sol.cop_type == COPContactType::LineCenter) {
-			if(slip_vel.norm() > 1e-8 && abs(pre_vel_disp[4]) > 1e-8) {
+			if(!fForceIgnoreSlip && slip_vel.norm() > 1e-6 && abs(pre_vel_disp[4]) > 1e-8) {
 				// slip velocity on both translation and rotation
 				trhs.setZero(2);
 				trhs[0] = -rhs_nonlin_disp[2] - Jdot_qdot_disp[2];
@@ -414,7 +446,7 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 							- mu_rot*rotation_sign*tsol[0];
 				if(COP_LOG_DEBUG) std::cout << "COPSolver: trans & rot sliding force sol : " << f_sol.transpose() << std::endl;
 
-			} else if (slip_vel.norm() > 1e-8 && abs(pre_vel_disp[4]) <= 1e-8) {
+			} else if (!fForceIgnoreSlip && slip_vel.norm() > 1e-6 && abs(pre_vel_disp[4]) <= 1e-8) {
 				// slip velocity on translation only. rotation velocity is zero
 				trhs.setZero(3);
 				trhs = -rhs_nonlin_disp.segment<3>(2) - Jdot_qdot_disp.segment<3>(2);
@@ -425,8 +457,9 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				f_sol << - mu*tsol[0]*slip_vel/slip_vel.norm(),
 							tsol;
 				if(COP_LOG_DEBUG) std::cout << "COPSolver: trans slide & rot rolling force sol : " << f_sol.transpose() << std::endl;
-			} else if (slip_vel.norm() <= 1e-8 && abs(pre_vel_disp[4]) > 1e-8) {
+			} else if (slip_vel.norm() <= 1e-6 && abs(pre_vel_disp[4]) > 1e-8) {
 				// slip velocity on rotation only. translation slip velocity is zero
+				fForceIgnoreSlip = true; // TODO: think more about this
 				trhs.setZero(4);
 				trhs = -rhs_nonlin_disp.segment<4>(0) - Jdot_qdot_disp.segment<4>(0);
 				tA.setZero(4,4);
@@ -439,11 +472,12 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				if(COP_LOG_DEBUG) std::cout << "COPSolver: trans rolling & rot slide force sol : " << f_sol.transpose() << std::endl;
 			} else {
 				// perfect rolling in both translation and rotation
+				fForceIgnoreSlip = true; // TODO: think more about this
 				f_sol = f_sol_full_roll;
 			}
 		} else { // basically a single point contact
 			// TODO: call the one pt LCP solver?
-			if(slip_vel.norm() > 1e-8) {
+			if(slip_vel.norm() > 1e-6) {
 				// slip velocity on both translation and rotation
 				double trhs_scalar = -rhs_nonlin_disp[2] - Jdot_qdot_disp[2];
 				double tA_scalar = A_disp(2,2) 
@@ -490,8 +524,45 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 			// else: maybe there is a sliding solution? so continue checking
 		}
 		if(it_test_res == FeasibleCOPLineResult::FRZeroMomentViolation) {
-			double zero_moment_dist = -f_sol[3]/fmax(f_sol[2], 1e-5);
-			signed_distance_last_point += zero_moment_dist;
+			double moment_error = f_sol[3];
+			if(fBisectionSearch && !fForceIgnoreSlip) {
+				last_signed_distance = signed_distance_last_point;
+				if(moment_error > 0) {
+					bisection_dist_bound_upper = signed_distance_last_point;
+				} else {
+					bisection_dist_bound_lower = signed_distance_last_point;
+				}
+				signed_distance_last_point = 0.5*bisection_dist_bound_lower + 0.5*bisection_dist_bound_upper;
+				if(COP_LOG_DEBUG) std::cout << "Update signed distance last point: " << signed_distance_last_point << std::endl;
+			}
+			else if(moment_error*last_zero_moment_error < -1e-10 && !fForceIgnoreSlip) {
+				// sign change in moment detected. Search using bisection
+				// if force ignore slip is on, then there is a change in the moment curve
+				// so we cannot search using bisection
+				fBisectionSearch = true;
+				if(COP_LOG_DEBUG) std::cout << "Start bisection search for COP" << std::endl;
+				if(moment_error > 0) {
+					bisection_dist_bound_lower = last_signed_distance;
+					bisection_dist_bound_upper = signed_distance_last_point;
+				} else {
+					bisection_dist_bound_lower = signed_distance_last_point;
+					bisection_dist_bound_upper = last_signed_distance;
+				}
+				last_signed_distance = signed_distance_last_point;
+				signed_distance_last_point = 0.5*bisection_dist_bound_lower + 0.5*bisection_dist_bound_upper;
+				if(COP_LOG_DEBUG) std::cout << "Last signed distance: " << last_signed_distance << std::endl;
+				if(COP_LOG_DEBUG) std::cout << "Set new signed distance last point: " << signed_distance_last_point << std::endl;
+			} else {
+				double zero_moment_dist = -f_sol[3]/fmax(f_sol[2], 1e-5);
+				last_signed_distance = signed_distance_last_point;
+				signed_distance_last_point += zero_moment_dist;
+				fBisectionSearch = false;
+			}
+			last_zero_moment_error = moment_error;
+			// signed_distance_last_point = signed_distance_last_point*(1.0 - last_signed_distance_weight) + last_signed_distance*last_signed_distance_weight;
+			// if(last_signed_distance_weight < 1e-15) {
+			// 	last_signed_distance_weight = 0.5;
+			// }
 			if(signed_distance_last_point > 0) {
 				signed_distance_last_point = fmin(signed_distance_last_point, max_signed_distance_last_point);
 			} else {
@@ -499,6 +570,8 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 			}
 			fForceLineCenter = false;
 			continue;
+		} else {
+			fBisectionSearch = false;
 		}
 		if(it_test_res == FeasibleCOPLineResult::FROtherEndPenetration) {
 			fForceLineCenter = true;
