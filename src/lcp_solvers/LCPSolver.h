@@ -7,6 +7,8 @@
 #include <Eigen/Dense>
 #include <iostream>
 
+#define LCP_LOG_DEBUG false
+
 // Collision LCP points solver solves a set of equations of the form
 // v = Ap + b 					where A is assumed positive definite
 // v_n >= -eps * pre_v_n  \perp  p_n >= 0 	where n is the normal direction. Assumed to
@@ -64,7 +66,8 @@ FeasibleCollLCPPointResult testFeasibleCollLCPPoint(uint Nactive,
 		if(psol_active(i*3 + 2) < -1e-8) {
 			return FeasibleCollLCPPointResult::FRNegativeNormalImpulse;
 		}
-		if(psol_active.segment(i*3, 2).norm() > mu * psol_active(i*3 + 2) + 1e-15) { 
+		if(psol_active.segment(i*3, 2).norm() > mu * abs(psol_active(i*3 + 2)) + 1e-15) { 
+			// Note: we use abs of normal component because we allow a small negative velocity
 			//TODO: reconsider threshold regularization as it will lead to non-conservation behavior
 			return FeasibleCollLCPPointResult::FRFrictionConeViolation;
 		}
@@ -122,7 +125,9 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	tA.block(3,3,2,2) = A.block(4,4,2,2);
 	tpsol = tA.ldlt().solve(trhs);
 	psol << tpsol[0]/2, tpsol[1], tpsol[2], tpsol[0]/2, tpsol[3], tpsol[4];
-	// std::cout <<"2 pt roll-roll: " << psol.transpose() << std::endl;
+	if(LCP_LOG_DEBUG) std::cout <<"2 pt roll-roll psol: " << psol.transpose() << std::endl;
+	if(LCP_LOG_DEBUG) std::cout <<"2 pt roll-roll vsol: " << vsol.transpose() << std::endl;
+
 	// if(psol[])
 	// The solution above is one of many possible because A is positive semi-definite.
 	// There is a line of force redundancy in the [0] coordinate in the tangent plane.
@@ -170,11 +175,12 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 				ret_lcp_sol.p_sol = psol;
 				return ret_lcp_sol;
 			} else {
-				// std::cout << "Redundancy resolution failed " << violation1 << " " << violation2 << std::endl;
-				// std::cout << abs(psol(3) - ximpulse_diff1) - sqrt(violation2) << std::endl;
+				if(LCP_LOG_DEBUG) std::cout << "Redundancy resolution failed " << violation1 << " " << violation2 << std::endl;
+				if(LCP_LOG_DEBUG) std::cout << abs(psol(3) - ximpulse_diff1) - sqrt(violation2) << std::endl;
 			}
 		}
 	}
+	if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case2a) << std::endl;
 		// --------- case 2d: both contacts sliding
 	Eigen::VectorXd roll_psol = psol;
 	psol.setZero();
@@ -189,6 +195,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		slip2_direction = -roll_psol.segment(3, 2);
 		if(slip1_direction.norm() < 1e-8 || slip2_direction.norm() < 1e-8) {
 			sliding_with_no_preslip = true;
+			if(LCP_LOG_DEBUG) std::cout << "case 2d: no slip direction available" << std::endl;
 		}
 	}
 	if(!sliding_with_no_preslip) {
@@ -206,8 +213,9 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		psol.segment(0*3, 3) *= psol_slide_slide(0);
 		psol.segment(1*3, 3) << -mu*slip2_direction, 1.0;
 		psol.segment(1*3, 3) *= psol_slide_slide(1);
-		// std::cout << "case 3d: psol " << psol.transpose() << std::endl;
-		// std::cout << "case 3d: vsol " << vsol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) vsol = A*psol + b;
+		if(LCP_LOG_DEBUG) std::cout << "case 2d: psol " << psol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "case 2d: vsol " << vsol.transpose() << std::endl;
 		FeasibleCollLCPPointResult ret_case2d = testFeasibleCollLCPPoint(2,
 			0,
 			pre_v, //unused
@@ -217,12 +225,43 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			mu
 		);
 		if(ret_case2d == FeasibleCollLCPPointResult::FRSuccess) {
-			// std::cout << "LCP Success: Contact 1 slide, Contact 2 slide" << std::endl;
+			if(LCP_LOG_DEBUG) std::cout << "LCP Success: Contact 1 slide, Contact 2 slide" << std::endl;
 			CollLCPPointSolution ret_lcp_sol(LCPSolResult::Success);
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;
 		}
-		// std::cout << "failure " << ret_case2d << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case2d) << std::endl;
+	} else {
+		// special case handle the very small normal impulse case where we can simply
+		// remove the friction force component
+		if(abs(roll_psol[2]) < 1e-8 && abs(roll_psol[5]) < 1e-8) {
+			// evaluate the no friction solution
+			psol.setZero();
+			Eigen::Matrix2d tA;
+			Eigen::Vector2d tpsol(2);
+			Eigen::Vector2d trhs(5);
+			trhs << vsol[2] - b[2], vsol[5] - b[5];
+			tA(0,0) = A(2,2);
+			tA(0,1) = A(2,5);
+			tA(1,0) = A(5,2);
+			tA(1,1) = A(5,5);
+			tpsol = tA.ldlt().solve(trhs);
+			psol << 0, 0, tpsol[0], 0, 0, tpsol[1];
+			FeasibleCollLCPPointResult ret_case2e = testFeasibleCollLCPPoint(2,
+				0,
+				pre_v, //unused
+				psol,
+				vsol, //unused
+				epsilon,
+				mu
+			);
+			if(ret_case2e == FeasibleCollLCPPointResult::FRSuccess) {
+				if(LCP_LOG_DEBUG) std::cout << "LCP Small impulse fallback success: Contact 1 slide, Contact 2 slide with no friction" << std::endl;
+				CollLCPPointSolution ret_lcp_sol(LCPSolResult::Success);
+				ret_lcp_sol.p_sol = psol;
+				return ret_lcp_sol;
+			}
+		}
 	}
 	// --------- case 2b: contact 1 rolling, contact 2 sliding
 	uint c2brind = 0;
@@ -247,6 +286,9 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		psol.segment(c2brind*3, 3) = psol_slide_roll.segment(0, 3);
 		psol.segment(c2bsind*3, 3) << -mu*slip1_direction, 1.0;
 		psol.segment(c2bsind*3, 3) *= psol_slide_roll(3);
+		if(LCP_LOG_DEBUG) std::cout << "case 2b: psol " << psol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) vsol = A*psol + b;
+		if(LCP_LOG_DEBUG) std::cout << "case 2b: vsol " << vsol.transpose() << std::endl;
 		FeasibleCollLCPPointResult ret_case2b = testFeasibleCollLCPPoint(2,
 			0,
 			pre_v, //unused
@@ -261,6 +303,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;
 		}
+		if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case2b) << std::endl;
 	}
 	// --------- case 2c: contact 2 rolling, contact 1 sliding
 	uint c2crind = 1;
@@ -285,6 +328,9 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		psol.segment(c2crind*3, 3) = psol_slide_roll.segment(0, 3);
 		psol.segment(c2csind*3, 3) << -mu*slip1_direction, 1.0;
 		psol.segment(c2csind*3, 3) *= psol_slide_roll(3);
+		if(LCP_LOG_DEBUG) std::cout << "case 2c: psol " << psol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) vsol = A*psol + b;
+		if(LCP_LOG_DEBUG) std::cout << "case 2c: vsol " << vsol.transpose() << std::endl;
 		FeasibleCollLCPPointResult ret_case2c = testFeasibleCollLCPPoint(2,
 			0,
 			pre_v, //unused
@@ -299,6 +345,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;
 		}
+		if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case2c) << std::endl;
 	}
 
 	// --------- case1: contact 1 only ---------
@@ -312,7 +359,9 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	psol.segment(cind*3, 3) = A.block(cind*3, cind*3, 3, 3).ldlt().solve(
 		vsol.segment(cind*3, 3) - b.segment(cind*3, 3)
 	);
-	// std::cout << "case 1a psol " << psol.transpose() << std::endl;
+	if(LCP_LOG_DEBUG) vsol = A*psol + b;
+	if(LCP_LOG_DEBUG) std::cout << "case 1a psol " << psol.transpose() << std::endl;
+	if(LCP_LOG_DEBUG) std::cout << "case 1a vsol " << vsol.transpose() << std::endl;
 	// compute non active velocity
 	vsol.segment(nind*3, 3) = A.block(nind*3, cind*3, 3, 3) * psol.segment(cind*3, 3) + b.segment(nind*3, 3);
 	FeasibleCollLCPPointResult ret_case1a = testFeasibleCollLCPPoint(1,
@@ -329,7 +378,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		ret_lcp_sol.p_sol = psol;
 		return ret_lcp_sol;
 	}
-	// std::cout << "failure " << ret_case1a << std::endl;
+	if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case1a) << std::endl;
 	// --------- case 1b: sliding contact ---------
 	vsol.setZero();
 	sliding_with_no_preslip = false;
@@ -339,7 +388,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		slip1_direction = -psol.segment(0, 2);
 		if(slip1_direction.norm() < 1e-8) {
 			sliding_with_no_preslip = true;
-			// std::cout << "case 1b no slip direction" << std::endl;
+			if(LCP_LOG_DEBUG) std::cout << "case 1b no slip direction" << std::endl;
 		}
 	}
 	if(!sliding_with_no_preslip) {
@@ -348,10 +397,11 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		double normal_impulse = 1/(A.block(cind*3, cind*3, 3, 3).row(2).dot(psol.segment(cind*3, 3)))
 							* (-epsilon * pre_v(cind*3 + 2) - b(cind*3 + 2));
 		psol.segment(cind*3, 3) *= normal_impulse;
-		// std::cout << "case 1b psol " << psol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "case 1b psol " << psol.transpose() << std::endl;
 		// compute non active velocity
 		vsol.segment(nind*3, 3) = A.block(nind*3, cind*3, 3, 3) * psol.segment(cind*3, 3) + b.segment(nind*3, 3);
-		// std::cout << "case 1b vsol " << vsol.transpose() << std::endl;
+		if(LCP_LOG_DEBUG) vsol = A*psol + b;
+		if(LCP_LOG_DEBUG) std::cout << "case 1b vsol " << vsol.transpose() << std::endl;
 		FeasibleCollLCPPointResult ret_case1b = testFeasibleCollLCPPoint(1,
 			1,
 			pre_v.segment(nind*3,3),
@@ -366,7 +416,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;
 		}
-		// std::cout << "failure " << ret_case1b << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case1b) << std::endl;
 	}
 	// --------- case3: contact 2 only ---------
 	cind = 1;
@@ -379,8 +429,11 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	psol.segment(cind*3, 3) = A.block(cind*3, cind*3, 3, 3).ldlt().solve(
 		vsol.segment(cind*3, 3) - b.segment(cind*3, 3)
 	);
+	if(LCP_LOG_DEBUG) std::cout << "case 3a psol " << psol.transpose() << std::endl;
 	// compute non active velocity
 	vsol.segment(nind*3, 3) = A.block(nind*3, cind*3, 3, 3) * psol.segment(cind*3, 3) + b.segment(nind*3, 3);
+	if(LCP_LOG_DEBUG) vsol = A*psol + b;
+	if(LCP_LOG_DEBUG) std::cout << "case 3a vsol " << vsol.transpose() << std::endl;
 	FeasibleCollLCPPointResult ret_case3a = testFeasibleCollLCPPoint(1,
 		1,
 		pre_v.segment(nind*3,3),
@@ -395,6 +448,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		ret_lcp_sol.p_sol = psol;
 		return ret_lcp_sol;
 	}
+	if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case3a) << std::endl;
 	// --------- case 3b: sliding contact ---------
 	vsol.setZero();
 	sliding_with_no_preslip = false;
@@ -403,6 +457,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		slip1_direction = -psol.segment(cind*3, 2);
 		if(slip1_direction.norm() < 1e-8) {
 			sliding_with_no_preslip = true;
+			if(LCP_LOG_DEBUG) std::cout << "case 3b no slip direction" << std::endl;
 		}
 	}
 	if(!sliding_with_no_preslip) {
@@ -411,8 +466,10 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 		double normal_impulse = 1/(A.block(cind*3, cind*3, 3, 3).row(2).dot(psol.segment(cind*3, 3)))
 							* (-epsilon * pre_v(cind*3 + 2) - b(cind*3 + 2));
 		psol.segment(cind*3, 3) *= normal_impulse;
+		if(LCP_LOG_DEBUG) std::cout << "case 3b psol " << psol.transpose() << std::endl;
 		// compute non active velocity
 		vsol.segment(nind*3, 3) = A.block(nind*3, cind*3, 3, 3) * psol.segment(cind*3, 3) + b.segment(nind*3, 3);
+		if(LCP_LOG_DEBUG) std::cout << "case 3b vsol " << vsol.transpose() << std::endl;
 		FeasibleCollLCPPointResult ret_case3b = testFeasibleCollLCPPoint(1,
 			1,
 			pre_v.segment(nind*3,3),
@@ -432,6 +489,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;
 		}
+		if(LCP_LOG_DEBUG) std::cout << "failure " << static_cast<int>(ret_case3b) << std::endl;
 	}
 
 	// case 4: no contact
@@ -469,7 +527,7 @@ CollLCPPointSolution solveCollLCPOnePoint (const Eigen::Matrix3d& A,
 	vsol.setZero();
 	vsol(2) = -epsilon * pre_v(2);
 	psol = A.ldlt().solve(vsol - b);
-	// std::cout << psol.transpose() << std::endl;
+	if(LCP_LOG_DEBUG) std::cout << psol.transpose() << std::endl;
 	FeasibleCollLCPPointResult ret_case1a = testFeasibleCollLCPPoint(1,
 		0,
 		pre_v, // unused
@@ -479,7 +537,7 @@ CollLCPPointSolution solveCollLCPOnePoint (const Eigen::Matrix3d& A,
 		mu
 	);
 	if(ret_case1a == FeasibleCollLCPPointResult::FRSuccess) {
-		// std::cout << "LCP Success: Contact 1 roll, No contact 2" << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "LCP Success: Contact 1 roll, No contact 2" << std::endl;
 		CollLCPPointSolution ret_lcp_sol(LCPSolResult::Success);
 		ret_lcp_sol.p_sol = psol;
 		return ret_lcp_sol;
@@ -511,7 +569,7 @@ CollLCPPointSolution solveCollLCPOnePoint (const Eigen::Matrix3d& A,
 			mu
 		);
 		if(ret_case1b == FeasibleCollLCPPointResult::FRSuccess) {
-			// std::cout << "LCP Success: Contact 1 slide, No contact 2" << std::endl;
+			if(LCP_LOG_DEBUG) std::cout << "LCP Success: Contact 1 slide, No contact 2" << std::endl;
 			CollLCPPointSolution ret_lcp_sol(LCPSolResult::Success);
 			ret_lcp_sol.p_sol = psol;
 			return ret_lcp_sol;

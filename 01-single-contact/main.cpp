@@ -57,8 +57,8 @@ const Vector3d end2_local(cap_length/2, 0.0, 0.0);
 
 // thresholds
 const double FREE_TO_COLL_DIST_THRES = 0.003; // mm
-const double RESTIT_EPS = 0.3;
-const double FRICTION_COEFF = 0.01;
+const double RESTIT_EPS = 0.1;
+const double FRICTION_COEFF = 0.05;
 
 // logging
 bool LOG_DEBUG = false;
@@ -304,9 +304,7 @@ int main (int argc, char** argv) {
 
 	// load simulation world
 	auto sim = new Simulation::Sai2Simulation(world_fname, false);
-	// set co-efficient of restition to zero to avoid bounce
-    // see issue: https://github.com/manips-sai/sai2-simulation/issues/1
-    sim->setCollisionRestitution(RESTIT_EPS);
+	sim->setCollisionRestitution(RESTIT_EPS);
     sim->setCoeffFrictionStatic(FRICTION_COEFF);
     sim->setCoeffFrictionDynamic(FRICTION_COEFF);
     object_in_world.translation() = sim->_world->getBaseNode(object_name)->getLocalPos().eigen();
@@ -347,16 +345,18 @@ int main (int argc, char** argv) {
 	// load object
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, object_in_world, object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
-	coobject->_dq[0] = 0.1;
+	// coobject->_dq[0] = 0.1;
 	// coobject->_dq[1] = -0.02;
 	// coobject->_dq[2] = 1.0;
-	coobject->_dq[3] = 0.3;
-	// coobject->_dq[5] = 0.5;
+	// coobject->_dq[3] = 0.7;
+	coobject->_dq[5] = -0.5;
 
 	// force sim/ display
 	cop_force_sensor = new ForceSensorSim(object_name, object_link_name, Eigen::Affine3d::Identity(), coobject);
 	cop_force_display = new ForceSensorDisplay(cop_force_sensor, graphics);
 	cop_force_display->_force_line_scale = 10;
+	cop_force_display->_moment_line_scale = 200;
+	cop_force_display->_display_line_moment->setLineWidth(8.0);
 
 	// initialize GLFW window
 	GLFWwindow* window = glfwInitialize();
@@ -476,7 +476,7 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 	// cout << model->_M_inv << endl;
 	// cout << nonlinear_torques.transpose() << endl;
 	// cout << model->_world_gravity.transpose() << endl;
-	// sim->_world->getBaseNode(object_name)->getJoint("jrs")->setVelSpherical(Vector3d(0.5,0.0,0.0));
+	sim->_world->getBaseNode(object_name)->getJoint("jrs")->setVelSpherical(Vector3d(0.7,0.0,0.3));
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 		// if (timer.elapsedCycles() % 10000 == 0) {
@@ -892,6 +892,8 @@ void simulation(Simulation::Sai2Simulation* sim, Sai2Model::Sai2Model* model) {
 							// update contact force display
 							cop_force_sensor->_data->_transform_in_link.translation() = last_cop_sol.local_cop_pos;
 							cop_force_sensor->_data->_force = contact_model._rotXInterpoint.transpose()*last_cop_sol.force_sol.segment<3>(0);
+							// cout << last_cop_sol.force_sol[4] << endl;
+							cop_force_sensor->_data->_moment << 0.0, 0.0, last_cop_sol.force_sol[4];
 							pt_contact_display.setLocalPos(
 								cop_force_display->_display_line_force->m_pointA
 							);

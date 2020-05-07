@@ -23,7 +23,7 @@
 
 	<robot name="Sphere">
 		<model dir="resources/01-single-contact/" path="sphere_object.urdf" name="SphereObjectModel" />
-		<origin xyz="-0.2 0.0 1.0" rpy="0 0 0" />
+		<origin xyz="-0.0 0.0 1.0" rpy="0 0.0 0.0" />
 	</robot>
 
 	<light name="light2" type="directional">
@@ -52,9 +52,9 @@
 		<lookat xyz="0.0 0.0 0.4" />
 	</camera>
 	<camera name="camera_zoom">
-		<position xyz="0.6 -0.6 0.4" />
+		<position xyz="0.3 -0.3 0.4" />
 		<vertical xyz="0.0 0.0 1.0" />
-		<lookat xyz="0.0 -0.3 0.1" />
+		<lookat xyz="-0.0 -0.0 0.1" />
 	</camera>
 
 	<!-- TODO: support stereo specification -->
