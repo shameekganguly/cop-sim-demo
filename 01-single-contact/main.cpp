@@ -346,9 +346,9 @@ int main (int argc, char** argv) {
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, object_in_world, object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
 	// coobject->_dq[0] = 0.1;
-	// coobject->_dq[1] = -0.02;
+	coobject->_dq[1] = 0.1;
 	// coobject->_dq[2] = 1.0;
-	// coobject->_dq[3] = 0.7;
+	coobject->_dq[3] = 0.7;
 	coobject->_dq[5] = -0.5;
 
 	// force sim/ display

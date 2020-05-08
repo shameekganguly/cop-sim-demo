@@ -257,9 +257,13 @@ FeasibleCOPLineResult testFeasibleCOPLine(
 	// 	return FeasibleCOPLineResult::FRPenetrationRotationAcceleration;
 	// }
 	if(pre_vel.segment<2>(0).dot(force_sol.segment<2>(0)) > 1e-8) {
+		if(COP_LOG_DEBUG) std::cout << "Translational speed: " << pre_vel.segment<2>(0).transpose() << std::endl;
+		if(COP_LOG_DEBUG) std::cout << "Tangent force: " << force_sol.segment<2>(0).transpose() << std::endl;
 		return FeasibleCOPLineResult::FRTranslationFrictionNonDissipative;
 	}
 	if(contact_type == COPContactType::LineCenter && (pre_vel[4]*force_sol[4]) > 1e-8) {
+		if(COP_LOG_DEBUG) std::cout << "Rotational speed: " << pre_vel[4] << std::endl;
+		if(COP_LOG_DEBUG) std::cout << "Moment: " << force_sol[4] << std::endl;
 		return FeasibleCOPLineResult::FRRotationFrictionNonDissipative;
 	}
 	return FeasibleCOPLineResult::FRSuccess;
@@ -457,7 +461,7 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				f_sol << - mu*tsol[0]*slip_vel/slip_vel.norm(),
 							tsol;
 				if(COP_LOG_DEBUG) std::cout << "COPSolver: trans slide & rot rolling force sol : " << f_sol.transpose() << std::endl;
-			} else if (slip_vel.norm() <= 1e-6 && abs(pre_vel_disp[4]) > 1e-8) {
+			} else if ((fForceIgnoreSlip || slip_vel.norm() <= 1e-6) && abs(pre_vel_disp[4]) > 1e-8) {
 				// slip velocity on rotation only. translation slip velocity is zero
 				fForceIgnoreSlip = true; // TODO: think more about this
 				trhs.setZero(4);
@@ -508,7 +512,15 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 		}
 		it_test_res = testFeasibleCOPLine(f_sol, a_sol, pre_vel_disp, ret_sol.cop_type, mu, mu_rot, dist_to_other_end);
 		if(COP_LOG_DEBUG) std::cout << "COPSolver: rolling solution result: " << static_cast<int>(it_test_res) << std::endl;
+		// std::cout << "COPSolver: rolling solution result: " << static_cast<int>(it_test_res) << std::endl;
 		if(it_test_res == FeasibleCOPLineResult::FRSuccess) {
+			ret_sol.local_cop_pos = local_sol_point;
+			ret_sol.force_sol = f_sol;
+			ret_sol.result = COPSolResult::Success;
+			return ret_sol;
+		}
+		if(fForceIgnoreSlip && it_test_res == FeasibleCOPLineResult::FRTranslationFrictionNonDissipative) {
+			if(COP_LOG_DEBUG) std::cout << "Force slip, therefore ignore FRTranslationFrictionNonDissipative" << std::endl;
 			ret_sol.local_cop_pos = local_sol_point;
 			ret_sol.force_sol = f_sol;
 			ret_sol.result = COPSolResult::Success;
@@ -540,7 +552,8 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				// if force ignore slip is on, then there is a change in the moment curve
 				// so we cannot search using bisection
 				fBisectionSearch = true;
-				if(COP_LOG_DEBUG) std::cout << "Start bisection search for COP" << std::endl;
+				// if(COP_LOG_DEBUG) std::cout << "Start bisection search for COP" << std::endl;
+				// std::cout << "Start bisection search for COP" << std::endl;
 				if(moment_error > 0) {
 					bisection_dist_bound_lower = last_signed_distance;
 					bisection_dist_bound_upper = signed_distance_last_point;
@@ -638,7 +651,8 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				ret_sol.result = COPSolResult::Success;
 				return ret_sol;
 			} else {
-				if(COP_LOG_DEBUG) std::cout << "Translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+				// if(COP_LOG_DEBUG) std::cout << "Translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+				std::cout << "Translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
 			}
 		}
 		if(it_test_res == FeasibleCOPLineResult::FRRotationFrictionViolation) {
@@ -688,7 +702,8 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 				ret_sol.result = COPSolResult::Success;
 				return ret_sol;
 			} else {
-				if(COP_LOG_DEBUG) std::cout << "Rotation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+				// if(COP_LOG_DEBUG) std::cout << "Rotation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+				std::cout << "Rotation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
 			}
 		}
 		// lastly check if we can find a sliding solution for both translation and rotation
@@ -721,7 +736,8 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 						ret_sol.result = COPSolResult::Success;
 						return ret_sol;
 					}  else {
-						if(COP_LOG_DEBUG) std::cout << "Rotation+translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+						// if(COP_LOG_DEBUG) std::cout << "Rotation+translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
+						std::cout << "Rotation+translation sliding solution did not work " << static_cast<int>(it_test_res) << std::endl;
 					}
 				}
 			} // else condition is handled above already
