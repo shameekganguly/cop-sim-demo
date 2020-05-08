@@ -40,6 +40,14 @@ const string object_name = "Sphere";
 const string object_link_name = "object";
 string camera_name = "camera_front";
 
+// flags for scene camera movement
+static bool fTransXp = false;
+static bool fTransXn = false;
+static bool fTransYp = false;
+static bool fTransYn = false;
+static bool fTransZp = false;
+static bool fTransZn = false;
+
 // geometry enum
 enum GeometryType {SPHERE, CAPSULE, BOX, CYLINDER};
 
@@ -321,7 +329,6 @@ int main (int argc, char** argv) {
 	auto cap_mmesh = dynamic_cast<cMultiMesh*>(graphics_capsule_chailink->getChild(0));
 	auto cap_mesh = dynamic_cast<cMesh*>(cap_mmesh->getMesh(0));
 
-
     // set graphics object as collision for sai2-simulation
     {
     	auto objectsimbase = sim->_world->getBaseNode(object_name);
@@ -345,8 +352,8 @@ int main (int argc, char** argv) {
 	// load object
 	auto coobject = new Sai2Model::Sai2Model(object_fname, false, object_in_world, object_in_world.linear().transpose()*grav_vector);
 	// cout << coobject->_q.transpose() << endl;
-	// coobject->_dq[0] = 0.1;
-	coobject->_dq[1] = 0.1;
+	// coobject->_dq[0] = 0.3;
+	// coobject->_dq[1] = 0.1;
 	// coobject->_dq[2] = 1.0;
 	coobject->_dq[3] = 0.7;
 	coobject->_dq[5] = -0.5;
@@ -382,7 +389,8 @@ int main (int argc, char** argv) {
 	line_contact_display.setLocalPos(Vector3d(0.0, 0.0, 0.4));
 
     // while window is open:
-    while (!glfwWindowShouldClose(window)) {
+    Eigen::Vector3d camera_pos, camera_lookat, camera_vertical;
+	while (!glfwWindowShouldClose(window)) {
     	// update model for object
     	// coobject->updateModel();
 
@@ -399,6 +407,40 @@ int main (int argc, char** argv) {
 
 	    // poll for events
 	    glfwPollEvents();
+
+	    // move scene camera as required
+    	Eigen::Vector3d cam_up_axis;
+    	cam_up_axis << 0.0, 0.0, 1.0; //TODO: there might be a better way to do this
+    	graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
+	    Eigen::Vector3d cam_roll_axis = (camera_lookat - camera_pos).cross(cam_up_axis);
+	    Eigen::Vector3d cam_lookat_axis = camera_lookat - camera_pos;
+    	cam_roll_axis.normalize();
+    	cam_lookat_axis.normalize();
+    	if (fTransXp) {
+	    	camera_pos = camera_pos + 0.05*cam_roll_axis;
+	    	camera_lookat = camera_lookat + 0.05*cam_roll_axis;
+	    }
+	    if (fTransXn) {
+	    	camera_pos = camera_pos - 0.05*cam_roll_axis;
+	    	camera_lookat = camera_lookat - 0.05*cam_roll_axis;
+	    }
+	    if (fTransYp) {
+	    	camera_pos = camera_pos + 0.05*cam_up_axis;
+	    	camera_lookat = camera_lookat + 0.05*cam_up_axis;
+	    }
+	    if (fTransYn) {
+	    	camera_pos = camera_pos - 0.05*cam_up_axis;
+	    	camera_lookat = camera_lookat - 0.05*cam_up_axis;
+	    }
+	    if (fTransZp) {
+	    	camera_pos = camera_pos + 0.05*cam_lookat_axis;
+	    	camera_lookat = camera_lookat + 0.05*cam_lookat_axis;
+	    }
+	    if (fTransZn) {
+	    	camera_pos = camera_pos - 0.05*cam_lookat_axis;
+	    	camera_lookat = camera_lookat - 0.05*cam_lookat_axis;
+	    }
+	    graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
 	}
 
 	// stop simulation
@@ -1052,5 +1094,30 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
     if ((key == 'p' || key == 'P') && action == GLFW_PRESS) {
     	f_pause_sim = (f_pause_sim)? false: true;
+    }
+    bool set = (action != GLFW_RELEASE);
+    switch(key) {
+		case GLFW_KEY_RIGHT:
+			fTransXp = set;
+			break;
+		case GLFW_KEY_LEFT:
+			fTransXn = set;
+			break;
+		case GLFW_KEY_UP:
+			fTransYp = set;
+			break;
+		case GLFW_KEY_DOWN:
+			fTransYn = set;
+			break;
+		case 'i':
+		case 'I':
+			fTransZp = set;
+			break;
+		case 'o':
+		case 'O':
+			fTransZn = set;
+			break;
+		default:
+			break;
     }
 }

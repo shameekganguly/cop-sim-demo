@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 
-<world name="demo_world" gravity="0.0 0.0 -2.0">
+<world name="demo_world" gravity="0.0 0.0 -1.0">
 
 	<static_object name="Box">
 		<origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
@@ -23,7 +23,7 @@
 
 	<robot name="Sphere">
 		<model dir="resources/01-single-contact/" path="sphere_object.urdf" name="SphereObjectModel" />
-		<origin xyz="-0.0 0.0 1.0" rpy="0 0.3 1.0" />
+		<origin xyz="-0.0 0.0 1.0" rpy="0 0.8 1.0" />
 	</robot>
 
 	<light name="light2" type="directional">
