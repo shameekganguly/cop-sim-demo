@@ -17,6 +17,7 @@ enum struct COPContactType {
 };
 
 enum struct COPSolResult {
+	None,
 	Success,
 	NoSolution,
 	UnimplementedCase,
@@ -31,14 +32,14 @@ struct ContactCOPSolution {
 
 	//ctor
 	ContactCOPSolution()
-	:cop_type(COPContactType::Unknown), result(COPSolResult::NoSolution) {
+	:cop_type(COPContactType::Unknown), result(COPSolResult::None) {
 		// nothing to do
 	}
 };
 
 // obtain the resolved local_cop that can be used to instantiate the lcp solver
 // in the stead contact force resolution step
-ContactCOPSolution getLCPForInelasticCollResult(
+inline ContactCOPSolution getLCPForInelasticCollResult(
 	const Eigen::VectorXd& local_psol,
 	const std::vector<Eigen::Vector3d>& local_point_list
 	// const Eigen::Matrix3d& R_body_COP_frame
@@ -62,7 +63,7 @@ ContactCOPSolution getLCPForInelasticCollResult(
 	return ret_sol;
 }
 
-ContactCOPSolution getLCPForOnePtContactResult(
+inline ContactCOPSolution getLCPForOnePtContactResult(
 	const Eigen::VectorXd& local_psol,
 	const std::vector<Eigen::Vector3d>& local_point_list,
 	bool isActivePtZero
@@ -79,7 +80,7 @@ ContactCOPSolution getLCPForOnePtContactResult(
 	return ret_sol;
 }
 
-Eigen::Matrix3d crossMat(const Eigen::Vector3d& r) {
+inline Eigen::Matrix3d crossMat(const Eigen::Vector3d& r) {
 	Eigen::Matrix3d ret_mat;
 	ret_mat << 0, -r(2), r(1),
     r(2), 0, -r(0),
@@ -88,7 +89,7 @@ Eigen::Matrix3d crossMat(const Eigen::Vector3d& r) {
 }
 
 // TODO: merge the below functions into one
-void getCOPJ6FullFromPoint0J6Full(
+inline void getCOPJ6FullFromPoint0J6Full(
 	const Eigen::MatrixXd& point0_J_full, // in global cop frame
 	const Eigen::Vector3d& r_point0_to_cop, // in global cop frame
 	Eigen::MatrixXd& last_cop_J6
@@ -100,7 +101,7 @@ void getCOPJ6FullFromPoint0J6Full(
 	last_cop_J6.block(3, 0, 3, point0_J_full.cols()) = point0_J_full.block(3, 0, 3, point0_J_full.cols());
 }
 
-void getCOPLambdaInv6FullFromPoint0LambdaInv6Full(
+inline void getCOPLambdaInv6FullFromPoint0LambdaInv6Full(
 	const Eigen::MatrixXd& point0_lambdaInv_full,
 	const Eigen::Vector3d& r_point0_to_cop,
 	Eigen::MatrixXd& last_cop_lambdainv_full
@@ -116,7 +117,7 @@ void getCOPLambdaInv6FullFromPoint0LambdaInv6Full(
 	if(COP_LOG_DEBUG) std::cout << "last_cop_lambdainv_full " << last_cop_lambdainv_full << std::endl;
 }
 
-void getCOPRhsNonlinFullFromPoint0RhsNonlinFull(
+inline void getCOPRhsNonlinFullFromPoint0RhsNonlinFull(
 	const Eigen::VectorXd& point0_rhs_nonlin_6,
 	const Eigen::Vector3d& r_point0_to_cop,
 	Eigen::VectorXd& last_cop_rhsnonlin_full
@@ -146,7 +147,7 @@ void getCOPRhsNonlinFullFromPoint0RhsNonlinFull(
 // 	cop_jacobian.block(3, 0, 2, dof) = ref_jacobian.block(3, 0, 2, dof);
 // }
 
-void getCOPLineContactDisplacedMatricesFromFull(
+inline void getCOPLineContactDisplacedMatricesFromFull(
 	Eigen::MatrixXd& A,
 	Eigen::VectorXd& rhs_nonlin,
 	Eigen::VectorXd& Jdot_qdot,
@@ -172,7 +173,7 @@ void getCOPLineContactDisplacedMatricesFromFull(
 	pre_vel = cross_mat*pre_vel_full;
 }
 
-void getCOPLineContactDisplacedMatrices(
+inline void getCOPLineContactDisplacedMatrices(
 	Eigen::MatrixXd& A_disp,
 	Eigen::VectorXd& rhs_nonlin_disp,
 	Eigen::VectorXd& Jdot_qdot_disp,
@@ -202,7 +203,7 @@ void getCOPLineContactDisplacedMatrices(
 }
 
 // compute mu_rot from mu and location of cop point
-double getMuRotation(double mu, double dist_end1, double dist_end2) {
+inline double getMuRotation(double mu, double dist_end1, double dist_end2) {
 	assert(dist_end1 > -1e-15 && dist_end2 > -1e-15 && (dist_end1 + dist_end2) > 1e-15 );
 	return mu * 2 * dist_end1*dist_end2/(dist_end1 + dist_end2);
 }
@@ -221,7 +222,7 @@ enum struct FeasibleCOPLineResult {
 	FRRotationFrictionNonDissipative
 };
 
-FeasibleCOPLineResult testFeasibleCOPLine(
+inline FeasibleCOPLineResult testFeasibleCOPLine(
 	const Eigen::VectorXd& force_sol,
 	const Eigen::VectorXd& acc_sol,
 	const Eigen::VectorXd& pre_vel,
@@ -277,7 +278,7 @@ FeasibleCOPLineResult testFeasibleCOPLine(
 //
 // EXCEPTION: local_point_list, and last_COP_sol.local_cop_pos, which 
 // are defined in the BODY FRAME
-ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
+inline ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 	const Eigen::MatrixXd& A_full, // 6 x 6 defined at last_COP_sol local point
 	const Eigen::VectorXd& rhs_nonlin_full, // 6 defined at last_COP_sol local point
 	const Eigen::Vector3d& omega, // defined in global COP frame
@@ -464,6 +465,10 @@ ContactCOPSolution resolveCOPLineContactWithLastCOPSol(
 			} else if ((fForceIgnoreSlip || slip_vel.norm() <= 1e-6) && abs(pre_vel_disp[4]) > 1e-8) {
 				// slip velocity on rotation only. translation slip velocity is zero
 				fForceIgnoreSlip = true; // TODO: think more about this
+				// TODO: Instead of this approach, we can consider the slip direction at the next time step.
+				// i.e. slip_vel = current_slip_vel + tangential_acc*dt
+				// Have to think about whether this can introduce an increase in energy, like in 
+				// Kane's example for frictional collision
 				trhs.setZero(4);
 				trhs = -rhs_nonlin_disp.segment<4>(0) - Jdot_qdot_disp.segment<4>(0);
 				tA.setZero(4,4);

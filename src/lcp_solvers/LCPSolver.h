@@ -53,7 +53,7 @@ enum struct FeasibleCollLCPPointResult {
 	FRNonActivePenetration
 };
 
-FeasibleCollLCPPointResult testFeasibleCollLCPPoint(uint Nactive,
+inline FeasibleCollLCPPointResult testFeasibleCollLCPPoint(uint Nactive,
 	uint Nnonactive,
 	const Eigen::VectorXd& pre_v_nonactive,
 	const Eigen::VectorXd& psol_active,
@@ -87,7 +87,7 @@ FeasibleCollLCPPointResult testFeasibleCollLCPPoint(uint Nactive,
 // line joining the two contact points. For two contact points, there is a redundancy
 // in this direction because equal and opposite forces will cancel each other out.
 
-CollLCPPointSolution solveCollLCPPoint (uint Npoints, 
+inline CollLCPPointSolution solveCollLCPPoint (uint Npoints, 
 	const Eigen::MatrixXd& A,
 	const Eigen::VectorXd& b,
 	const Eigen::VectorXd& pre_v,
@@ -510,7 +510,7 @@ CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 
 
 /* subset of above 2-pt LCP solver. This is just a one point solver. */
-CollLCPPointSolution solveCollLCPOnePoint (const Eigen::Matrix3d& A,
+inline CollLCPPointSolution solveCollLCPOnePoint (const Eigen::Matrix3d& A,
 	const Eigen::Vector3d& b,
 	const Eigen::Vector3d& pre_v,
 	double epsilon,
