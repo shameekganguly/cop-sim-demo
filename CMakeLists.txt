@@ -88,6 +88,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${PROJECT_SOURCE_DIR}/bin)
 set (COP_DEMO_BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 
 add_subdirectory(01-single-contact)
+add_subdirectory(02-two-capsules)
 
 # tests
 add_subdirectory(src/lcp_solvers)
