@@ -66,7 +66,17 @@ set(COP_DEMO_COMMON_LIBRARIES
     ${SAI2-PRIMITIVES_LIBRARIES}
     ${SAI2-COMMON_LIBRARIES}
 	${GLFW_LIBRARY}
+)
 
+set(COP_DEMO_COMMON_SOURCE
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/Primitive.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/PrimPrimDistance.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBody.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBodyManager.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/WorldContactMap.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactSpaceModel.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
 )
 
 # add apps
