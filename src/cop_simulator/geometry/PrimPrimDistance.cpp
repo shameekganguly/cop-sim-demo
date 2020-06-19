@@ -56,7 +56,7 @@ namespace Sai2COPSim {
 
 		Vector3d end1_world, end2_world;
 		Vector3d end1_local(-capsule_len/2, 0.0, 0.0);
-		Vector3d end2_local(-capsule_len/2, 0.0, 0.0);
+		Vector3d end2_local(capsule_len/2, 0.0, 0.0);
 		double end1_distance, end2_distance;
 		end1_world = capsuleInWorld*end1_local;
 		end2_world = capsuleInWorld*end2_local;
@@ -180,7 +180,19 @@ namespace Sai2COPSim {
 			double p2p1d2 = capBcenterToA.dot(capBaxisToA);
 			double z1 = -1.0/Delta*(p2p1d1 - temp*p2p1d2);
 			double z2 = -1.0/Delta*(temp*p2p1d1 - p2p1d2);
-
+			if(abs(z1) > 0.5*capAlength && abs(z2) > 0.5*capBlength) {
+				double z1v = abs(z1) - 0.5*capAlength;
+				double z2v = abs(z2) - 0.5*capBlength;
+				if(z1v >= z2v) {
+					// capsule A should be end point, capsule B can be anywhere
+					z1 = z1/abs(z1) * 0.5*capAlength;
+					z2 = -(capBcenterToA - Vector3d(z1, 0.0, 0.0)).dot(capBaxisToA);
+				} else {
+					// capsule B should be end point, capsule A can be anywhere
+					z2 = z2/abs(z2) * 0.5*capBlength;
+					z1 = capBcenterToA(0) + z2*capBaxisToA(0);
+				}
+			}
 			if(abs(z1) > 0.5*capAlength) {
 				// clamp z1
 				z1 = z1/abs(z1) * 0.5*capAlength;
@@ -191,6 +203,7 @@ namespace Sai2COPSim {
 			}
 			ptA << z1, 0.0, 0.0;
 			ptB = capBcenterToA + z2*capBaxisToA;
+			// std::cout << ptA.transpose() << " - " << ptB.transpose() << std::endl;
 		}
 
 		// set normal and constraint directions for point contact
