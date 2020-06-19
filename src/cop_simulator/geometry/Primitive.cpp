@@ -14,11 +14,11 @@ PlanePrimitive::PlanePrimitive(const std::string& name, const Eigen::Vector3d& p
 		std::cerr << planeNormal << std::endl;
 		throw(std::runtime_error("Plane normal not unit vector"));
 	}
-	// TODO: remove the below once the contact solver can handle non-Z normals
-	if(planeNormal.dot(Vector3d(0.0, 0.0, 1.0)) < 0.999999999) {
-		std::cerr << planeNormal << std::endl;
-		throw(std::runtime_error("Plane normal not +Z"));
-	}
+	// // TODO: remove the below once the contact solver can handle non-Z normals
+	// if(planeNormal.dot(Vector3d(0.0, 0.0, 1.0)) < 0.999999999) {
+	// 	std::cerr << planeNormal << std::endl;
+	// 	throw(std::runtime_error("Plane normal not +Z"));
+	// }
 	_name = name;
 	_type = GeometryType::Plane;
 	_props = new PlaneProperties();
