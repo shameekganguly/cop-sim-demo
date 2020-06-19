@@ -9,6 +9,7 @@ namespace Sai2COPSim {
 
 PlanePrimitive::PlanePrimitive(const std::string& name, const Eigen::Vector3d& planeNormal, const Eigen::Vector3d& planePoint)
 {
+	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));
 	if(abs(planeNormal.norm() - 1.0) > 1e-10) {
 		std::cerr << planeNormal << std::endl;
 		throw(std::runtime_error("Plane normal not unit vector"));
@@ -18,6 +19,7 @@ PlanePrimitive::PlanePrimitive(const std::string& name, const Eigen::Vector3d& p
 		std::cerr << planeNormal << std::endl;
 		throw(std::runtime_error("Plane normal not +Z"));
 	}
+	_name = name;
 	_type = GeometryType::Plane;
 	_props = new PlaneProperties();
 	_props->point = planePoint;
@@ -40,14 +42,16 @@ void PlanePrimitive::setPlaneProperties(PlaneProperties* props) {
 
 CapsulePrimitive::CapsulePrimitive(const std::string& name, double radius, double length)
 {
+	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));
 	if(radius < 0.001) {
 		std::cerr << radius << std::endl;
 		throw(std::runtime_error("Radius too small."));
 	}
-	if(length < radius*0.01) {
+	if(length < radius*0.01 || length < 0.001) {
 		std::cerr << length << std::endl;
 		throw(std::runtime_error("Length too small."));
 	}
+	_name = name;
 	_type = GeometryType::Capsule;
 	_props = new CapsuleProperties();
 	_props->radius = radius;
@@ -62,7 +66,7 @@ void CapsulePrimitive::setCapsuleProperties(CapsuleProperties* props) {
 		std::cerr << props->radius << std::endl;
 		throw(std::runtime_error("Radius too small."));
 	}
-	if(props->length < props->radius*0.01) {
+	if(props->length < props->radius*0.01 || props->length < 0.001) {
 		std::cerr << props->length << std::endl;
 		throw(std::runtime_error("Length too small."));
 	}
