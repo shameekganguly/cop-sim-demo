@@ -12,6 +12,7 @@ namespace Sai2COPSim {
 // Constants used
 namespace PrimitiveAlgorithmicConstants {
 	const double MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD = 6e-5; //m
+	const double MIN_HIGHER_PAIR_CONTACT_EXTENT_ANY_DIR = 0.001; //m
 };
 
 enum ContactType {
@@ -31,7 +32,10 @@ struct PrimPrimContactInfo {
 	// TODO: for concave objects, the each contact point can have its own normal and 
 	// constraint dirs. Consider if we want to support that, or assume that each primitive
 	// is strictly convex
-	std::vector<Eigen::Vector3d> contact_points; // in world frame
+	std::vector<Eigen::Vector3d> contact_points; // closest points on either prim A or prim B in world frame
+	//TODO: do we need to be consistent about which primitive the points lie on?
+	// or do we need to return points on both bodies?
+
 	// Note: contact_points might not be set for a surface-surface contact. e.g. cylinder
 	// on plane
 	// TODO: add contact patch info.
