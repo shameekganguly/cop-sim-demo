@@ -29,6 +29,8 @@ public:
 	// NOTE: primitive ownership is with COP GeometryManager. Therefore, it is possible
 	// that the returned pointer is NULL
 	// TODO: allow primitives to be directly instantiated by ArticulatedRigidBody
+	// TODO: allow arbitrary local transform to primitive frame. we can then set
+	// primitive->_transform_in_link
 	void addPrimitive(const std::string& link_name, Primitive* primitive);
 
 	// TODO: add access functions for q, dq, jtau

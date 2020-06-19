@@ -51,6 +51,8 @@ void COPSimulator::addCapsuleObject(const std::string& articulated_body_name,
 	capsule->_is_static = false;
 	capsule->_articulated_body_name = articulated_body_name;
 	capsule->_link_name = link_name;
+	// TODO: set primitive _transform_in_link
+
 	_geom_manager._primitives.push_back(capsule);
 
 	arb->addPrimitive(link_name, capsule);
