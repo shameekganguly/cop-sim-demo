@@ -92,3 +92,4 @@ add_subdirectory(02-two-capsules)
 
 # tests
 add_subdirectory(src/lcp_solvers)
+add_subdirectory(src/cop_simulator_tests)
