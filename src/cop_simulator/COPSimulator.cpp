@@ -67,6 +67,10 @@ void COPSimulator::integrate(double dt) {
 	// set the flag from further below, such as after resolveCollisions or resolveSteadyContacts
 	// check for collisions
 	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_COLLISION_CHECK_UPDATE == 0) {
+		for(auto arb_it: _arb_manager._articulated_bodies) {
+			auto arb = arb_it.second;
+			arb->_model->updateKinematics();
+		}
 		computeWorldContactMap();
 		f_force_update_dynamics = true;
 	}
@@ -74,7 +78,13 @@ void COPSimulator::integrate(double dt) {
 	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_DYNAMICS_UPDATE == 0 || f_force_update_dynamics) {
 		for(auto arb_it: _arb_manager._articulated_bodies) {
 			auto arb = arb_it.second;
-			arb->_model->updateModel();
+			if(f_force_update_dynamics) {
+				// kinematics has just been updated, so just update dynamics
+				arb->_model->updateDynamics();
+			} else {
+				// update everything
+				arb->_model->updateModel();
+			}
 			arb->updateNonLinearJAcc();
 		}
 		// rebuild the contact model
