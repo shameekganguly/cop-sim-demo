@@ -101,21 +101,21 @@ public:
 		Eigen::MatrixXd& Lambda_inv_full_cop,
 		Eigen::VectorXd& rhs_full_cop,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
-	);
+	) const;
 
 	void getActiveConstraintCOPMatrices(
 		Eigen::MatrixXd& J_constraint_cop,
 		Eigen::MatrixXd& Lambda_inv_constraint_cop,
 		Eigen::VectorXd& rhs_constraint_cop,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
-	);
+	) const;
 
 	void getActivePtContactCollisionMatrices(
 		Eigen::MatrixXd& J_pt_contacts,
 		Eigen::MatrixXd& Lambda_inv_pt_contacts,
 		Eigen::VectorXd& rhs_pt_contacts_collision,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
-	);
+	) const;
 
 public:
 	// Pointer to the ContactIsland for which this model holds

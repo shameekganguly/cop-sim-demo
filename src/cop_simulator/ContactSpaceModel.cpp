@@ -1,5 +1,6 @@
 // ContactSpaceModel.cpp
 
+#include <iostream>
 #include "ContactSpaceModel.h"
 
 using namespace Eigen;
@@ -145,7 +146,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 				p_constr_J_start_ind += 3;
 			}
 
-
+			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
 			for(auto& pt: contact_points) {
 				Vector3d body_point = arb->worldToBodyPosition(primB->_link_name, pt);
 				arb_model->Jv(Jv, primB->_link_name, body_point);
@@ -194,7 +195,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 				p_constr_J_start_ind += 3;
 			}
 
-
+			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
 			for(auto& pt: contact_points) {
 				Vector3d body_point = arb->worldToBodyPosition(primA->_link_name, pt);
 				arb_model->Jv(Jv, primA->_link_name, body_point);
@@ -266,6 +267,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 				p_constr_J_start_ind += 3;
 			}
 
+			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
 			for(auto& pt: contact_points) {
 				Vector3d bodyA_point = arbA->worldToBodyPosition(primA->_link_name, pt);
 				Vector3d bodyB_point = arbB->worldToBodyPosition(primB->_link_name, pt);
@@ -329,6 +331,7 @@ void ContactIslandModel::updateRHSVectors() {
 		// cop_full6
 		Jseg = _cop_full6_Jacobian.block(0, arb_Jind, full6_contact_dof, dq_dof);
 		_cop_full6_rhs_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
+		// std::cout << _cop_full6_rhs_contact.transpose() << std::endl;
 
 		// cop_constraint
 		Jseg = _cop_constraint_Jacobian.block(0, arb_Jind, cop_constraint_contact_dof, dq_dof);
@@ -368,6 +371,8 @@ void ContactIslandModel::updateRHSVectors() {
 			Vector3d djv_times_dq, djw_times_dq;
 			arb_model->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
 			arb_model->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
+			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
+			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
 			// update full cop
 			_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
@@ -402,6 +407,8 @@ void ContactIslandModel::updateRHSVectors() {
 			Vector3d djv_times_dq, djw_times_dq;
 			arb_model->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
 			arb_model->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
+			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
+			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
 			// update full cop
 			_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
@@ -441,6 +448,10 @@ void ContactIslandModel::updateRHSVectors() {
 			arbB_model->updateKinematics();
 			arbB_model->JvdotTimesQdotInWorld(djv_times_dq_B, primB->_link_name, bodyB_point0);
 			arbB_model->JwdotTimesQdotInWorld(djw_times_dq_B, primB->_link_name);
+			// std::cout << "djvdqA " << djv_times_dq_A.transpose() << std::endl;
+			// std::cout << "djwdqA " << djw_times_dq_A.transpose() << std::endl;
+			// std::cout << "djvdqB " << djv_times_dq_B.transpose() << std::endl;
+			// std::cout << "djwdqB " << djw_times_dq_B.transpose() << std::endl;
 			
 
 			// update full cop RHS
@@ -467,7 +478,7 @@ void ContactIslandModel::getActiveFullCOPMatrices(
 		Eigen::VectorXd& rhs_full_cop,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map 
 		//TODO: ^consider making this a map from ContactPair.id -> row start ind in active Jacobian
-) {
+) const {
 	J_full_cop.setZero(6*_active_contacts.size(), _cop_full6_Jacobian.cols());
 	Lambda_inv_full_cop.setZero(6*_active_contacts.size(), 6*_active_contacts.size());
 	rhs_full_cop.setZero(6*_active_contacts.size());
@@ -500,7 +511,7 @@ void ContactIslandModel::getActiveConstraintCOPMatrices(
 		Eigen::MatrixXd& Lambda_inv_constraint_cop,
 		Eigen::VectorXd& rhs_constraint_cop,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
-) {
+) const {
 	uint active_J_constraint_cop_dof = 0;
 	std::vector<uint> dof_count_map;
 	for(uint cid: _active_contacts) {
@@ -556,7 +567,7 @@ void ContactIslandModel::getActivePtContactCollisionMatrices(
 		Eigen::MatrixXd& Lambda_inv_pt_contacts,
 		Eigen::VectorXd& rhs_pt_contacts_collision,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
-) {
+) const {
 	// number of active points per contact pair
 	// std::vector<uint> contact_num_active_pts;
 	uint pt_contact_active_dof = 0;
@@ -587,9 +598,9 @@ void ContactIslandModel::getActivePtContactCollisionMatrices(
 	for(auto cind1: _active_contacts) {
 		uint Jstart1_ind = _pt_contact_Jacobian_prim_start_ind[cind1];
 		for(auto pind1: _pair_state[cind1]._active_points) {
+			uint col_ind = 0;
 			for(auto cind2: _active_contacts) {
 				uint Jstart2_ind = _pt_contact_Jacobian_prim_start_ind[cind2];
-				uint col_ind = 0;
 				for(auto pind2: _pair_state[cind2]._active_points) {
 					Lambda_inv_pt_contacts.block(row_ind, col_ind, 3, 3) = _pt_contact_Lambda_inv.block(Jstart1_ind + pind1*3, Jstart2_ind + pind2*3, 3, 3);
 					col_ind += 3;
@@ -632,7 +643,7 @@ ContactSpaceModel::~ContactSpaceModel() {
 void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 	clear();
 	// loop over islands in the geometric contact map
-	for(auto geom_island_it = geom_map->_islands.begin(); geom_island_it != geom_map->_islands.begin(); geom_island_it++) {
+	for(auto geom_island_it = geom_map->_islands.begin(); geom_island_it != geom_map->_islands.end(); geom_island_it++) {
 		// create a ContactIslandModel
 		_contact_island_models.push_back(
 				ContactIslandModel(&(*geom_island_it), _arb_manager)
