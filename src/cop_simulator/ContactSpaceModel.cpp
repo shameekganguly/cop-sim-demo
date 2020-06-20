@@ -42,14 +42,6 @@ ContactIslandModel::~ContactIslandModel() {
 
 }
 
-void ContactIslandModel::resolveCollisions() {
-
-}
-
-void ContactIslandModel::resolveSteadyContacts() {
-
-}
-
 void ContactIslandModel::createContactJacobianAndLambdaInv() {
 	// Note: we create three versions of the Jacobian and LambdaInv matrices
 	// version 1: 6 dof per primitive pair including Jv and Jw
@@ -651,19 +643,19 @@ void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 	}
 }
 
-void ContactSpaceModel::resolveCollisions() {
+void ContactSpaceModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
 	// resolve collision for each island
 	for(auto& island: _contact_island_models) {
 		//TODO: implement island sleep
-		island.resolveCollisions();
+		island.resolveCollisions(friction_coeff, restitution_coeff);
 	}
 }
 
-void ContactSpaceModel::resolveSteadyContacts() {
+void ContactSpaceModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
 	// resolve steady contact for each island
 	for(auto& island: _contact_island_models) {
 		//TODO: implement island sleep
-		island.resolveSteadyContacts();
+		island.resolveSteadyContacts(friction_coeff, restitution_coeff);
 	}
 }
 

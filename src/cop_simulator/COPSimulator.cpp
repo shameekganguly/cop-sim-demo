@@ -91,11 +91,11 @@ void COPSimulator::integrate(double dt) {
 		_contact_model->build(&_contact_map);
 	}
 	// resolve collisions
-	_contact_model->resolveCollisions();
+	_contact_model->resolveCollisions(_friction_coeff, _resitution_coeff);
 
 	// TODO: integrate with substepping, including recomputation of the contact forces
 	// resolve steady contacts
-	_contact_model->resolveSteadyContacts();
+	_contact_model->resolveSteadyContacts(_friction_coeff, _resitution_coeff);
 
 	for(auto arb_it: _arb_manager._articulated_bodies) {
 		auto arb = arb_it.second;

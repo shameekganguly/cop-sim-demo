@@ -79,13 +79,13 @@ public:
 	// changes the values of ARB::_model::dq to non-colliding
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveCollisions();
+	void resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts for this island
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveSteadyContacts();
+	void resolveSteadyContacts(double friction_coeff, double restitution_coeff);
 
 	// add active Contact Pair by id
 	// returns whether the active contact list changed
@@ -116,6 +116,10 @@ public:
 		Eigen::VectorXd& rhs_pt_contacts_collision,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
 	) const;
+
+	uint numContactPoints() const {
+		return _pt_contact_Jacobian.rows() / 3;
+	}
 
 public:
 	// Pointer to the ContactIsland for which this model holds
@@ -195,13 +199,13 @@ public:
 	// changes the values of ARB::_model::dq to non-colliding
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveCollisions();
+	void resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveSteadyContacts();
+	void resolveSteadyContacts(double friction_coeff, double restitution_coeff);
 
 public:
 	// reference to sim articulated body manager
