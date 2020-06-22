@@ -18,7 +18,8 @@ namespace Sai2COPSim {
 namespace COPAlgorithmicConstants {
 	const double GEOMETRIC_CONTACT_DISTANCE_THRESHOLD = 0.003; //m
 	const long NUM_ITERS_BEFORE_COLLISION_CHECK_UPDATE = 20; //count
-	const long NUM_ITERS_BEFORE_DYNAMICS_UPDATE = 10; //count
+	const long NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE = 10; //count
+	const long NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE = 4; //count
 };
 
 class COPSimulator {

@@ -73,9 +73,11 @@ void COPSimulator::integrate(double dt) {
 		}
 		computeWorldContactMap();
 		f_force_update_dynamics = true;
+	} else {
+		// TODO: delta updates in geometry positions
 	}
 	// update contact dynamics
-	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_DYNAMICS_UPDATE == 0 || f_force_update_dynamics) {
+	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE == 0 || f_force_update_dynamics) {
 		for(auto arb_it: _arb_manager._articulated_bodies) {
 			auto arb = arb_it.second;
 			if(f_force_update_dynamics) {
@@ -90,6 +92,13 @@ void COPSimulator::integrate(double dt) {
 		// rebuild the contact model
 		_contact_model->build(&_contact_map);
 	}
+
+	// update nonlinear accelerations
+	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE == 0 && !f_force_update_dynamics) {
+		// unnecessary if f_force_update_dynamics was called
+		_contact_model->updateVelocityTerms();
+	}
+
 	// resolve collisions
 	_contact_model->resolveCollisions(_friction_coeff, _resitution_coeff);
 
@@ -101,9 +110,12 @@ void COPSimulator::integrate(double dt) {
 		auto arb = arb_it.second;
 		auto model = arb->_model;
 		auto rbdl = model->_rbdl_model;
+
 		model->_ddq = model->_M_inv * (arb->jtau_contact + arb->jtau_act) + arb->jacc_nonlinear;
+
 		Eigen::VectorXd half_dq_update(model->dof());
 		half_dq_update = model->_dq + 0.5*model->_ddq * dt;
+
 		Eigen::VectorXd last_q = model->_q;
 		
 		// for each joint
@@ -134,6 +146,7 @@ void COPSimulator::integrate(double dt) {
 	    	}
 		}
 		model->_dq += model->_ddq * dt;
+		// std::cout << arb_it.first << " q:" << model->_q.transpose() << std::endl;
 	}
 	_iterations++;	
 }
