@@ -75,8 +75,8 @@ void glfwError(int error, const char* description);
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main(int argc, char** argv) {
-	const double restitution = 0.1;
-    const double friction = 0.05;
+	const double restitution = 0.5;
+    const double friction = 0.1;
 
     // load sai2 simulation world
     // TODO: this is currently needed in order to load the base transform for each object
@@ -227,9 +227,92 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
             continue;
         }
         double loop_dt = curr_time - last_time;
-        sim->integrate(loop_dt);
-        // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primA->_name << endl;
-        // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primB->_name << endl;
+
+        try {
+            sim->integrate(loop_dt);
+            // cout << sim->_contact_map._islands.size() << endl;
+            // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primA->_name << endl;
+            // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primB->_name << endl;
+            // if(sim->_contact_map._islands.size() > 0) {
+                // cout << sim->_contact_model->_contact_island_models.size() << endl;
+                // print contact model
+                // for(const auto& c_island: sim->_contact_model->_contact_island_models) {
+                //     cout << "Island bodies: ";
+                //     for(const auto& arb_name: c_island._geom_island->_articulated_bodies) {
+                //         cout << arb_name << ", ";
+                //     }
+                //     cout << endl;
+                //     cout << "ARB index map:";
+                //     for(auto it: c_island._arb_index_map) {
+                //         cout << it.first << ": " << it.second << ", ";
+                //     }
+                //     cout << endl;
+                    // cout << "Num prim pairs: " << c_island._pair_state.size() << endl;
+                    // cout << "Num active contacts: " << c_island._active_contacts.size() << endl;
+                    // cout << "Pt ct Jacobian: " << endl;
+                    // cout << c_island._pt_contact_Jacobian << endl;
+                    // cout << "COP Full6 Jacobian: " << endl;
+                    // cout << c_island._cop_full6_Jacobian << endl;
+                    // cout << "COP Constraint Jacobian: " << endl;
+                    // cout << c_island._cop_constraint_Jacobian << endl;
+                    // cout << "Pt ct Lambda inv: " << endl;
+                    // cout << c_island._pt_contact_Lambda_inv << endl;
+                    // cout << "COP Full6 Lambda inv: " << endl;
+                    // cout << c_island._cop_full6_Lambda_inv << endl;
+                    // cout << "COP Constraint Lambda inv: " << endl;
+                    // cout << c_island._cop_constraint_Lambda_inv << endl;
+                    // cout << "Pt ct RHS: " << endl;
+                    // cout << c_island._pt_contact_rhs_coll.transpose() << endl;
+                    // cout << "COP Full6 RHS: " << endl;
+                    // cout << c_island._cop_full6_rhs_contact.transpose() << endl;
+                    // cout << "COP Constraint RHS: " << endl;
+                    // cout << c_island._cop_constraint_rhs_contact.transpose() << endl;
+                    // cout << "COP full active matrix" << endl;
+                    // Eigen::MatrixXd J_full_cop, Lambda_inv_full_cop;
+                    // Eigen::VectorXd rhs_full_cop;
+                    // std::vector<uint> Jrow_ind_to_contact_pair_map;
+                    // c_island.getActiveFullCOPMatrices(J_full_cop, Lambda_inv_full_cop, rhs_full_cop, Jrow_ind_to_contact_pair_map);
+                    // cout << "J" << endl;
+                    // cout << J_full_cop << endl;
+                    // cout << "L inv" << endl;
+                    // cout << Lambda_inv_full_cop << endl;
+                    // cout << "rhs" << endl;
+                    // cout << rhs_full_cop.transpose() << endl;
+                    // cout << "COP constraint active matrix" << endl;
+                    // Eigen::MatrixXd J_cons_cop, Lambda_inv_cons_cop;
+                    // Eigen::VectorXd rhs_cons_cop;
+                    // std::vector<uint> Jrow_ind_to_contact_pair_map;
+                    // c_island.getActiveConstraintCOPMatrices(J_cons_cop, Lambda_inv_cons_cop, rhs_cons_cop, Jrow_ind_to_contact_pair_map);
+                    // cout << "J" << endl;
+                    // cout << J_cons_cop << endl;
+                    // cout << "L inv" << endl;
+                    // cout << Lambda_inv_cons_cop << endl;
+                    // cout << "rhs" << endl;
+                    // cout << rhs_cons_cop.transpose() << endl;
+                    // cout << "Pt contact active matrix" << endl;
+                    // Eigen::MatrixXd J_pt_coll, Lambda_inv_pt_coll;
+                    // Eigen::VectorXd rhs_pt_coll;
+                    // std::vector<uint> Jrow_ind_to_contact_pair_map;
+                    // c_island.getActivePtContactCollisionMatrices(J_pt_coll, Lambda_inv_pt_coll, rhs_pt_coll, Jrow_ind_to_contact_pair_map);
+                    // cout << "J" << endl;
+                    // cout << J_pt_coll << endl;
+                    // cout << "L inv" << endl;
+                    // cout << Lambda_inv_pt_coll << endl;
+                    // cout << "rhs" << endl;
+                    // cout << rhs_pt_coll.transpose() << endl;
+
+
+                    // for(const auto& pair: c_island._pair_state) {
+                    //     cout << pair._geom_prim_pair->primA->_name << endl;
+                    //     cout << pair._geom_prim_pair->primB->_name << endl;
+                    //     cout << pair._geom_prim_pair->info.contact_points[0].transpose() << endl;
+                    // }
+            //     }
+            // }
+        } catch (exception& e) {
+            cerr << e.what() << endl;
+            break;
+        }
 
         // update last time
         last_time = curr_time;
