@@ -34,6 +34,15 @@ ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, Articul
 	// create the Contact Jacobian and Lambda Inv matrices
 	createContactJacobianAndLambdaInv();
 
+	// save active matrices to full matrices, because we start with all points active
+	// TODO: optimize by already determining which points are active
+	_cop_full6_Jacobian_active = _cop_full6_Jacobian;
+	_cop_constraint_Jacobian_active = _cop_constraint_Jacobian;
+	_pt_contact_Jacobian_active = _pt_contact_Jacobian;
+	_cop_full6_Lambda_inv_active = _cop_full6_Lambda_inv;
+	_cop_constraint_Lambda_inv_active = _cop_constraint_Lambda_inv;
+	_pt_contact_Lambda_inv_active = _pt_contact_Lambda_inv;
+
 	// update the RHS vectors
 	updateRHSVectors();
 }
@@ -119,8 +128,8 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			arb_model->Jv(Jv, primB->_link_name, body_point0);
 			arb_model->Jw(Jw, primB->_link_name);
 			// rotate:
-			Jv = p._rot_contact_frame_to_world.transpose()*Jv;
-			Jw = p._rot_contact_frame_to_world.transpose()*Jw;
+			Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+			Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
 
 			// fill in the Jacobians
 			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
@@ -142,7 +151,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			for(auto& pt: contact_points) {
 				Vector3d body_point = arb->worldToBodyPosition(primB->_link_name, pt);
 				arb_model->Jv(Jv, primB->_link_name, body_point);
-				Jv = p._rot_contact_frame_to_world.transpose()*Jv;
+				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 				p_ptct_J_start_ind += 3;
@@ -164,12 +173,15 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			// get body point for point 0
 			// this is used for the cop Jacobian
 			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, contact_points[0]);
+			// std::cout << "W point0 " << contact_points[0].transpose() << std::endl;
+			// std::cout << "B point0 " << body_point0.transpose() << std::endl;
 
 			arb_model->Jv(Jv, primA->_link_name, body_point0);
+			// std::cout <<"Jv " << Jv <<std::endl;
 			arb_model->Jw(Jw, primA->_link_name);
 			// rotate:
-			Jv = p._rot_contact_frame_to_world.transpose()*Jv;
-			Jw = p._rot_contact_frame_to_world.transpose()*Jw;
+			Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+			Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
 
 			// fill in the Jacobians
 			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
@@ -191,7 +203,8 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			for(auto& pt: contact_points) {
 				Vector3d body_point = arb->worldToBodyPosition(primA->_link_name, pt);
 				arb_model->Jv(Jv, primA->_link_name, body_point);
-				Jv = p._rot_contact_frame_to_world.transpose()*Jv;
+				// std::cout <<"pt Jv " << Jv <<std::endl;
+				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 				p_ptct_J_start_ind += 3;
@@ -232,10 +245,10 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			arbB_model->Jv(JvB, primB->_link_name, bodyB_point0);
 			arbB_model->Jw(JwB, primB->_link_name);
 			// rotate:
-			JvA = p._rot_contact_frame_to_world.transpose()*JvA;
-			JwA = p._rot_contact_frame_to_world.transpose()*JwA;
-			JvB = p._rot_contact_frame_to_world.transpose()*JvB;
-			JwB = p._rot_contact_frame_to_world.transpose()*JwB;
+			JvA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JvA;
+			JwA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JwA;
+			JvB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JvB;
+			JwB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JwB;
 
 			// fill in the Jacobians
 			// contact normal is directed from arb A to B
@@ -265,8 +278,8 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 				Vector3d bodyB_point = arbB->worldToBodyPosition(primB->_link_name, pt);
 				arbA_model->Jv(JvA, primA->_link_name, bodyA_point);
 				arbB_model->Jv(JvB, primB->_link_name, bodyB_point);
-				JvA = p._rot_contact_frame_to_world.transpose()*JvA;
-				JvB = p._rot_contact_frame_to_world.transpose()*JvB;
+				JvA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JvA;
+				JvB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JvB;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
@@ -315,7 +328,7 @@ void ContactIslandModel::updateRHSVectors() {
 	for(auto it: _arb_index_map) {
 		uint arb_Jind = it.second;
 		auto arb = _arb_manager->getBody(it.first);
-		auto arb_model = _arb_manager->getBody(it.first)->_model;
+		auto arb_model = arb->_model;
 
 		uint dq_dof = arb_model->dof();
 		MatrixXd Jseg;
@@ -464,6 +477,32 @@ void ContactIslandModel::updateRHSVectors() {
 	}
 }
 
+void ContactIslandModel::updatePtContactRHSCollVector() {
+	// collision RHS is simply dx-
+	uint pt_contact_dof = _pt_contact_Jacobian.rows();
+	_pt_contact_rhs_coll.setZero(pt_contact_dof);
+
+	MatrixXd Jseg;
+	for(auto it: _arb_index_map) {
+		uint arb_Jind = it.second;
+		auto arb = _arb_manager->getBody(it.first);
+		auto arb_model = arb->_model;
+
+		uint dq_dof = arb_model->dof();
+
+		// pt_ct for collision
+		Jseg = _pt_contact_Jacobian.block(0, arb_Jind, pt_contact_dof, dq_dof);
+		_pt_contact_rhs_coll += Jseg * arb_model->_dq; // collision RHS is simply dx-
+	}
+}
+
+void ContactIslandModel::updateBodyNonlinAccelerations() {
+	for(auto it: _arb_index_map) {
+		auto arb = _arb_manager->getBody(it.first);
+		arb->updateNonLinearJAcc();
+	}
+}
+
 void ContactIslandModel::getActiveFullCOPMatrices(
 		Eigen::MatrixXd& J_full_cop,
 		Eigen::MatrixXd& Lambda_inv_full_cop,
@@ -471,6 +510,8 @@ void ContactIslandModel::getActiveFullCOPMatrices(
 		std::vector<uint>& Jrow_ind_to_contact_pair_map 
 		//TODO: ^consider making this a map from ContactPair.id -> row start ind in active Jacobian
 ) const {
+	if(_active_contacts.size() == 0) return;
+
 	J_full_cop.setZero(6*_active_contacts.size(), _cop_full6_Jacobian.cols());
 	Lambda_inv_full_cop.setZero(6*_active_contacts.size(), 6*_active_contacts.size());
 	rhs_full_cop.setZero(6*_active_contacts.size());
@@ -504,6 +545,8 @@ void ContactIslandModel::getActiveConstraintCOPMatrices(
 		Eigen::VectorXd& rhs_constraint_cop,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
 ) const {
+	if(_active_contacts.size() == 0) return;
+
 	uint active_J_constraint_cop_dof = 0;
 	std::vector<uint> dof_count_map;
 	for(uint cid: _active_contacts) {
@@ -560,6 +603,8 @@ void ContactIslandModel::getActivePtContactCollisionMatrices(
 		Eigen::VectorXd& rhs_pt_contacts_collision,
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
 ) const {
+	if(_active_contacts.size() == 0) return;
+
 	// number of active points per contact pair
 	// std::vector<uint> contact_num_active_pts;
 	uint pt_contact_active_dof = 0;
@@ -598,6 +643,27 @@ void ContactIslandModel::getActivePtContactCollisionMatrices(
 					col_ind += 3;
 				}
 			}
+			row_ind += 3;
+		}
+	}
+}
+
+void ContactIslandModel::getActivePtContactCollisionRHSVector(
+		Eigen::VectorXd& rhs_pt_contacts_collision
+) const {
+	if(_active_contacts.size() == 0) return;
+
+	// NOTE: We assume that the active contacts have not changed since the last call to getActivePtContactCollisionMatrices
+	// Therefore, we assume that rhs_pt_contacts_collision is already the correct size
+	rhs_pt_contacts_collision.setZero(_pt_contact_Jacobian_active.rows());
+
+	uint row_ind = 0;
+	// std::cout << _pt_contact_rhs_coll.size() <<" "<< rhs_pt_contacts_collision.size() <<std::endl;
+	for(uint cid: _active_contacts) {
+		uint Jstart_ind = _pt_contact_Jacobian_prim_start_ind[cid];
+		// std::cout << cid << " " << Jstart_ind << std::endl;
+		for(uint pid: _pair_state[cid]._active_points) {
+			rhs_pt_contacts_collision.segment(row_ind, 3) = _pt_contact_rhs_coll.segment(Jstart_ind + pid*3, 3);
 			row_ind += 3;
 		}
 	}
@@ -643,6 +709,19 @@ void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 	}
 }
 
+void ContactSpaceModel::updateVelocityTerms() {
+	// update body non-linear accelerations
+	for(auto arb_it: _arb_manager->_articulated_bodies) {
+		auto arb = arb_it.second;
+		arb->updateNonLinearJAcc();
+	}
+
+	// update RHS vectors for each island
+	for(auto& island: _contact_island_models) {
+		island.updateRHSVectors();
+	}
+}
+
 void ContactSpaceModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
 	// resolve collision for each island
 	for(auto& island: _contact_island_models) {
@@ -677,8 +756,11 @@ ContactPairState::ContactPairState(uint id, const ContactPrimitivePair* geom_pri
 	_rot_contact_frame_to_world.col(2) = geom_prim_pair->info.normal_dir;
 	assert(abs(1.0 - _rot_contact_frame_to_world.determinant()) < 1e-5);
 
+	// save number of points
+	_num_contact_pts = geom_prim_pair->info.contact_points.size();
+
 	// add initial active points
-	for(uint i = 0; i < geom_prim_pair->info.contact_points.size(); i++) {
+	for(uint i = 0; i < _num_contact_pts; i++) {
 		_active_points.push_back(i);
 	}
 }

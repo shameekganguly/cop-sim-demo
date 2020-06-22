@@ -14,6 +14,14 @@
 
 namespace Sai2COPSim {
 
+// algorithmic constants
+namespace COPAlgorithmicConstants {
+	const long COLLISION_RESOLUTION_SIMULTANEOUS_MAX_ITERATIONS = 500; //count
+	const double MAX_SEPARATION_SPEED_FOR_ACTIVE_CONTACT = 1e-4; //m/s
+	const double SEPARATION_SPEED_NUMERICAL_ZERO_THRESHOLD = 1e-10; //m/s, absolute value
+	const double MIN_COLLISION_SPEED_FOR_STEADY_CONTACT = 1e-3; //m/s
+};
+
 // COP contact model for a single prim pair
 class ContactPairState {
 public:
@@ -28,6 +36,9 @@ public:
 public:
 	// id corresponding to ContactIslandModel::_index_to_geom_island_contact_list
 	uint _id;
+
+	// number of contact points
+	uint _num_contact_pts;
 
 	// position of the last computed COP, in global frame
 	Eigen::Vector3d _cop_pos;
@@ -117,6 +128,14 @@ public:
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
 	) const;
 
+	// this is an optimization required as we update the RHS vector for collisions many
+	// times during a single collision resolution cycle
+	// NOTE: if the active contact changes, then getActivePtContactCollisionMatrices must
+	// be called once first
+	void getActivePtContactCollisionRHSVector(
+		Eigen::VectorXd& rhs_pt_contacts_collision
+	) const;
+
 	uint numContactPoints() const {
 		return _pt_contact_Jacobian.rows() / 3;
 	}
@@ -139,6 +158,9 @@ public:
 	Eigen::MatrixXd _cop_full6_Jacobian;
 	Eigen::MatrixXd _cop_constraint_Jacobian;
 	Eigen::MatrixXd _pt_contact_Jacobian;
+	Eigen::MatrixXd _cop_full6_Jacobian_active;
+	Eigen::MatrixXd _cop_constraint_Jacobian_active;
+	Eigen::MatrixXd _pt_contact_Jacobian_active;
 	
 	// TODO: add constansts for COP constraint dof count (POINT = 3, LINE = 5, SURFACE = 6)
 
@@ -152,6 +174,9 @@ public:
 	Eigen::MatrixXd _cop_full6_Lambda_inv;
 	Eigen::MatrixXd _cop_constraint_Lambda_inv;
 	Eigen::MatrixXd _pt_contact_Lambda_inv;
+	Eigen::MatrixXd _cop_full6_Lambda_inv_active;
+	Eigen::MatrixXd _cop_constraint_Lambda_inv_active;
+	Eigen::MatrixXd _pt_contact_Lambda_inv_active;
 
 	// RHS vector for collisions
 	Eigen::VectorXd _pt_contact_rhs_coll;
@@ -177,8 +202,16 @@ public: //internal functions
 	// creates the full contact space Jacobian from the contact primitive pairs
 	void createContactJacobianAndLambdaInv();
 
+	// updates the RHS acceleration terms for each arb in this island
+	void updateBodyNonlinAccelerations();
+
 	// computes the RHS vectors based on last non-linear torques on the bodies
 	void updateRHSVectors();
+
+	// computes the RHS only for collisions based on updated _dq.
+	// this is an optimization over calling updateRHSVectors, required for multiple
+	// calls from resolveCollisions()
+	void updatePtContactRHSCollVector();
 };
 
 class ContactSpaceModel {
@@ -194,6 +227,9 @@ public:
 
 	// clear and rebuild this model
 	void build(const WorldContactMap* geom_map);
+
+	// update terms dependent on body velocities
+	void updateVelocityTerms();
 
 	// resolve collisions
 	// changes the values of ARB::_model::dq to non-colliding
