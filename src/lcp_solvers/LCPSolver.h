@@ -92,7 +92,8 @@ inline CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	const Eigen::VectorXd& b,
 	const Eigen::VectorXd& pre_v,
 	double epsilon,
-	double mu
+	double mu,
+	bool is_redundant_x = true
 ) {
 	// TODO: extend to beyond 2 points
 	if(Npoints != 2) {
@@ -113,18 +114,22 @@ inline CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	vsol.setZero();
 	vsol(0*3 + 2) = -epsilon * pre_v(0*3 + 2);
 	vsol(1*3 + 2) = -epsilon * pre_v(1*3 + 2);
-	// psol = A.ldlt().solve(vsol - b);
-	Eigen::MatrixXd tA(5,5);
-	Eigen::VectorXd tpsol(5);
-	Eigen::VectorXd trhs(5);
-	trhs << vsol[0] - b[0], vsol[1] - b[1], vsol[2] - b[2],
-		vsol[4] - b[4], vsol[5] - b[5];
-	tA.block(0,0,3,3) = A.block(0,0,3,3);
-	tA.block(0,3,3,2) = A.block(0,4,3,2);
-	tA.block(3,0,2,3) = A.block(4,0,2,3);
-	tA.block(3,3,2,2) = A.block(4,4,2,2);
-	tpsol = tA.ldlt().solve(trhs);
-	psol << tpsol[0]/2, tpsol[1], tpsol[2], tpsol[0]/2, tpsol[3], tpsol[4];
+	if(!is_redundant_x) {
+		psol = A.ldlt().solve(vsol - b);
+	} else {
+		Eigen::MatrixXd tA(5,5);
+		Eigen::VectorXd tpsol(5);
+		Eigen::VectorXd trhs(5);
+		trhs << vsol[0] - b[0], vsol[1] - b[1], vsol[2] - b[2],
+			vsol[4] - b[4], vsol[5] - b[5];
+		tA.block(0,0,3,3) = A.block(0,0,3,3);
+		tA.block(0,3,3,2) = A.block(0,4,3,2);
+		tA.block(3,0,2,3) = A.block(4,0,2,3);
+		tA.block(3,3,2,2) = A.block(4,4,2,2);
+		tpsol = tA.ldlt().solve(trhs);
+		psol << tpsol[0]/2, tpsol[1], tpsol[2], tpsol[0]/2, tpsol[3], tpsol[4];
+	}
+
 	if(LCP_LOG_DEBUG) std::cout <<"2 pt roll-roll psol: " << psol.transpose() << std::endl;
 	if(LCP_LOG_DEBUG) std::cout <<"2 pt roll-roll vsol: " << vsol.transpose() << std::endl;
 
@@ -238,8 +243,8 @@ inline CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 			// evaluate the no friction solution
 			psol.setZero();
 			Eigen::Matrix2d tA;
-			Eigen::Vector2d tpsol(2);
-			Eigen::Vector2d trhs(5);
+			Eigen::Vector2d tpsol;
+			Eigen::Vector2d trhs;
 			trhs << vsol[2] - b[2], vsol[5] - b[5];
 			tA(0,0) = A(2,2);
 			tA(0,1) = A(2,5);
