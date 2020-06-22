@@ -71,18 +71,19 @@ namespace Sai2COPSim {
 		ret_info.normal_dir = plane_normal_world;
 		// determine tangent directions
 		// first try the capsule axis
+		// std::cout <<"Cap rotation " << capsuleInWorld.linear() << std::endl;
 		Vector3d inter_end_axis = capsuleInWorld.linear().col(0); // local x axis
-		double testaxis1_normal_proj = abs(inter_end_axis.dot(plane_normal_world));
+		double testaxis1_normal_proj = inter_end_axis.dot(plane_normal_world);
 		Vector3d worldx_axis(1.0,0.0,0.0);
-		double testaxis2_normal_proj = abs(worldx_axis.dot(plane_normal_world));
+		double testaxis2_normal_proj = worldx_axis.dot(plane_normal_world);
 		Vector3d worldy_axis(0.0,1.0,0.0);
-		double testaxis3_normal_proj = abs(worldy_axis.dot(plane_normal_world));
-		if(testaxis1_normal_proj < 0.999) {
+		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
+		if(abs(testaxis1_normal_proj) < 0.999) {
 			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
 			// the tangent plane
 			ret_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
 			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
-		} else if(testaxis2_normal_proj < 0.999) { // test world x axis next
+		} else if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
 			ret_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
 			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
 		} else { // use world y axis
