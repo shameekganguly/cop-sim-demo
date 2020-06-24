@@ -123,6 +123,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			MatrixXd Jw(3, arb_model->dof());
 			// get body point for point 0
 			// this is used for the cop Jacobian
+			// TODO: should we consider using the centroid of the patch instead?
 			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, contact_points[0]);
 
 			arb_model->Jv(Jv, primB->_link_name, body_point0);
@@ -567,7 +568,7 @@ void ContactIslandModel::getActiveConstraintCOPMatrices(
 	rhs_constraint_cop.setZero(active_J_constraint_cop_dof);
 	int active_contacts_ind = 0;
 	Jrow_ind_to_contact_pair_map.clear(); // this is to the start of the constraint rows
-	
+
 	// fill in Jacobian and rhs
 	uint active_prim_start_Jrow_ind = 0;
 	for(uint cid: _active_contacts) {
@@ -666,6 +667,53 @@ void ContactIslandModel::getActivePtContactCollisionRHSVector(
 			rhs_pt_contacts_collision.segment(row_ind, 3) = _pt_contact_rhs_coll.segment(Jstart_ind + pid*3, 3);
 			row_ind += 3;
 		}
+	}
+}
+
+void ContactIslandModel::getActiveFullCOPRHSVector(
+	Eigen::VectorXd& rhs_full_cop,
+	std::vector<uint>& Jrow_ind_to_contact_pair_map
+) const {
+	// we assume that the correct size has been set already for Jacobian
+	rhs_full_cop.setZero(_cop_full6_Jacobian_active.rows());
+
+	int active_contacts_ind = 0;
+	Jrow_ind_to_contact_pair_map.clear();
+
+	// fill in rhs
+	for(uint cid: _active_contacts) {
+		rhs_full_cop.segment(active_contacts_ind*6, 6) = _cop_full6_rhs_contact.segment(cid*6, 6);
+		Jrow_ind_to_contact_pair_map.push_back(active_contacts_ind*6);
+		active_contacts_ind++;
+	}
+}
+
+void ContactIslandModel::getActiveConstraintCOPRHSVector(
+	Eigen::VectorXd& rhs_constraint_cop,
+	std::vector<uint>& Jrow_ind_to_contact_pair_map
+) const {
+	// we assume that the correct size has been set already for Jacobian
+	rhs_constraint_cop.setZero(_cop_constraint_Jacobian_active.rows());
+
+	int active_contacts_ind = 0;
+	Jrow_ind_to_contact_pair_map.clear(); // this is to the start of the constraint rows
+	
+	// fill in Jacobian and rhs
+	uint active_prim_start_Jrow_ind = 0;
+	for(uint cid: _active_contacts) {
+		uint J_start_ind = _cop_constraint_Jacobian_prim_start_ind[cid];
+		uint dof_count = 0;
+		if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::POINT) {
+			dof_count = 3;
+		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::LINE) {
+			dof_count = 5;
+		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::SURFACE) {
+			dof_count = 6;
+		}
+		rhs_constraint_cop.segment(active_prim_start_Jrow_ind, dof_count) = _cop_constraint_rhs_contact.segment(J_start_ind, dof_count);
+		Jrow_ind_to_contact_pair_map.push_back(active_prim_start_Jrow_ind);
+		active_prim_start_Jrow_ind += dof_count;
+		active_contacts_ind++;
 	}
 }
 

@@ -9,7 +9,7 @@
 #include <Eigen/Dense>
 #include "WorldContactMap.h"
 #include "ArticulatedRigidBodyManager.h"
-#include "COPSolver.h"
+#include "COPSolverExtended.h"
 #include "lcp_solvers/LCPSolver.h"
 
 namespace Sai2COPSim {
@@ -134,6 +134,17 @@ public:
 	// be called once first
 	void getActivePtContactCollisionRHSVector(
 		Eigen::VectorXd& rhs_pt_contacts_collision
+	) const;
+
+	// functions to get just the COP RHS vectors
+	void getActiveFullCOPRHSVector(
+		Eigen::VectorXd& rhs_full_cop,
+		std::vector<uint>& Jrow_ind_to_contact_pair_map
+	) const;
+
+	void getActiveConstraintCOPRHSVector(
+		Eigen::VectorXd& rhs_constraint_cop,
+		std::vector<uint>& Jrow_ind_to_contact_pair_map
 	) const;
 
 	uint numContactPoints() const {

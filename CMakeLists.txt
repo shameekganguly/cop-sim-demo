@@ -74,6 +74,7 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBody.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBodyManager.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/WorldContactMap.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSolverExtended.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactSpaceModel.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/CollisionResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/SteadyContactResolution.cpp
