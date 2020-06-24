@@ -72,6 +72,7 @@ void COPSimulator::integrate(double dt) {
 			arb->_model->updateKinematics();
 		}
 		computeWorldContactMap();
+
 		f_force_update_dynamics = true;
 	} else {
 		// TODO: delta updates in geometry positions
@@ -91,6 +92,7 @@ void COPSimulator::integrate(double dt) {
 		}
 		// rebuild the contact model
 		_contact_model->build(&_contact_map);
+		// TODO: consider persisting the COP solution? If so, rotate and displace it to the current contact patch
 	}
 
 	// update nonlinear accelerations
@@ -146,6 +148,10 @@ void COPSimulator::integrate(double dt) {
 	    	}
 		}
 		model->_dq += model->_ddq * dt;
+
+		// clear the contact torques for this body
+		arb->jtau_contact.setZero(model->dof());
+
 		// std::cout << arb_it.first << " q:" << model->_q.transpose() << std::endl;
 	}
 	_iterations++;	
