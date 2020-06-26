@@ -54,13 +54,22 @@ CollLCPPointSolution LCPSolver::solve(
 			for(uint i = 0; i < num_points; i++) {
 				if(full_v_sol(3*i + 2) < -1e-10) { //TODO: should we check for -epsilon*pre_v(3*i+2)?
 					// - once a point becomes NoContactAgain, it is not made active again
+					// std::cout <<"Full v sol: " << full_v_sol.transpose() << std::endl;
 					if(states[i] == PointState::NoContactAgain) {
-						ret_sol.result = LCPSolResult::UnimplementedCase; 
+						// ret_sol.result = LCPSolResult::UnimplementedCase;
+						// std::cout << "A: " << std::endl;
+						// std::cout << A << std::endl;
+						// std::cout << "b: " << b.transpose() <<  std::endl;
+						// std::cout << "pre_v: " << pre_v.transpose() << std::endl;
+						// std::cout << "epsilon: " << epsilon << std::endl;
 						// TODO: ^should this be no solution? hard to say because we are not doing an exhaustive search
-						return ret_sol;
+						// return ret_sol;
+
+						// force frictionless for now
+						states[i] = PointState::Rolling;
+						rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
 					} else {
-						// std::cout <<"Full v sol: " << full_v_sol.transpose() << std::endl;
-						assert(states[i] == PointState::NoContact); // shouldn't be any other state really
+						// assert(states[i] == PointState::NoContact); // shouldn't be any other state really
 						// std::cout << "Enable contact " << i << std::endl;
 						enableContact(i);
 						any_pt_penetrating = true;
@@ -122,6 +131,33 @@ CollLCPPointSolution LCPSolver::solve(
 				}
 			}
 			if(!any_pt_friction_cone_violation) {
+				solver_state = SolverState::EnforcingNonNegativeNormalForce;
+			}
+		}
+
+		if (solver_state == SolverState::EnforcingNonNegativeNormalForce) {
+			// check for normal force non-negative violation
+			// if a point violates its non-negative normal force status, it is made noContactAgain
+			bool did_disable_any_contacts = false;
+			for(uint i = 0; i < num_points; i++) {
+				if(states[i] == PointState::Rolling) {
+					// for rolling points, if friction cone is violated, then the point will
+					// eventually be sliding. so ignore the non-negative force check for now
+					Vector2d rolling_friction = full_p_sol.segment<2>(3*i);
+					if(rolling_friction.norm() - mu*abs(full_p_sol(3*i + 2)) > 1e-15) {
+						continue;
+					}
+				}
+				if(full_p_sol(3*i+2) < -1e-8) {
+					// std::cout << "TRhs: " << Trhs.segment(0, TA_size).transpose() << std::endl;
+					// std::cout << "TP sol: " << Tp_sol.transpose() << std::endl;
+					// std::cout << "Disable contact" << i << std::endl;
+					disableContact(i);
+					did_disable_any_contacts = true;
+					break;
+				}
+			}
+			if(!did_disable_any_contacts) {
 				// we are done!
 				ret_sol.p_sol = full_p_sol;
 				ret_sol.result = LCPSolResult::Success;
@@ -134,23 +170,15 @@ CollLCPPointSolution LCPSolver::solve(
 		// if a point that was previously noContactAgain has penetration, then fail for now
 
 		// solve reduced equation
-		for(uint i = 0; i < num_points; i++) {
-			// std::cout << i << " State: " << states[i] << ", ";
-		}
+		// for(uint i = 0; i < num_points; i++) {
+		// 	std::cout << i << " State: " << states[i] << ", ";
+		// }
 		// std::cout << std::endl;
+
 		composeMatrices(A, b, pre_v, epsilon, mu);
 		// std::cout << "TA" << std::endl;
 		// std::cout << TA.block(0,0,TA_size,TA_size) << std::endl;
 		solveReducedMatrices(mu, full_p_sol);
-
-		// check for normal force non-negative violation
-		// if a point violates its non-negative normal force status, it is made noContactAgain
-		for(uint i = 0; i < num_points; i++) {
-			if(full_p_sol(3*i+2) < -1e-8) {
-				// std::cout << "Disable contact" << i << std::endl;
-				disableContact(i);
-			}
-		}
 
 		// solve full equation for full_v_sol
 		full_v_sol = A*full_p_sol + b;
@@ -181,22 +209,23 @@ void LCPSolver::enableRollingFriction(uint i,
 	// try enabling all 3 axes
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::None;
 	composeMatrices(A, b, pre_v, epsilon, mu);
-	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-10) {
+	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		// TODO: think of a better way of checking
 		// std::cout << "Rolling redundancy none " << i << std::endl;
+		// std::cout << "Det: " << TA.block(0,0,TA_size,TA_size).determinant() << std::endl;
 		return;
 	}
 	// try enabling Y only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXOnly;
 	composeMatrices(A, b, pre_v, epsilon, mu);
-	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-10) {
+	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		// std::cout << "Rolling redundancy DirXOnly " << i << std::endl;
 		return;
 	}
 	// try enabling X only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirYOnly;
 	composeMatrices(A, b, pre_v, epsilon, mu);
-	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-10) {
+	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		// std::cout << "Rolling redundancy DirYOnly " << i << std::endl;
 		return;
 	}

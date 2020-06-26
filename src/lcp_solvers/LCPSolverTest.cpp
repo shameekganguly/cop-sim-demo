@@ -280,5 +280,49 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 	}
+	// test 9
+	{
+		cout << endl;
+		cout << " --- Test 9 ---" << endl;
+		VectorXd pre_v(6);
+		const double mu = 0.1;
+		pre_v << 0.00118824, 0.00191278, -0.000855545, 0.00118824, -0.00117223, -0.000874077;
+		Eigen::MatrixXd Test9Lambda_inv(6,6);
+		Test9Lambda_inv<< 1.12296, -5.48628e-06, -0.123986, 1.12303, -5.48628e-06, 0.125942,
+					-5.48628e-06, 2.23404, -0.000184815, -5.48628e-06, 1.98412, -0.000184815,
+   					-0.123986, -0.000184815, 1.12298, -0.124058, -0.000184815, 0.872976,
+     				1.12303, -5.48628e-06, -0.124058, 1.12311, -5.48628e-06, 0.126014,
+				-5.48628e-06, 1.98412, -0.000184815, -5.48628e-06, 2.23419, -0.000184815,
+    				0.125942, -0.000184815, 0.872976, 0.126014, -0.000184815, 1.12298;
+		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
+		cout << static_cast<int>(test1_sol.result) << endl;
+		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
+		auto solver = Sai2LCPSolver::LCPSolver();
+		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
+		cout << static_cast<int>(test1_sol_new.result) << endl;
+		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+	}
+	// test 10
+	{
+		cout << endl;
+		cout << " --- Test 10 ---" << endl;
+		VectorXd pre_v(6);
+		const double mu = 0.1;
+		pre_v << -7.01934e-08, -0.00129741, -4.55199e-08, -7.02126e-08, -0.00386053, -1.12357e-07;
+		Eigen::MatrixXd Test9Lambda_inv(6,6);
+		Test9Lambda_inv<< 1.12296,  -5.4884e-06,    -0.123986,      1.12303,  -5.4884e-06,     0.125942,
+ -5.4884e-06,      2.23404, -0.000184889,  -5.4884e-06,      1.98412, -0.000184889,
+   -0.123986, -0.000184889,      1.12298,    -0.124058, -0.000184889,     0.872976,
+     1.12303,  -5.4884e-06,    -0.124058,      1.12311,  -5.4884e-06,     0.126014,
+ -5.4884e-06,      1.98412, -0.000184889,  -5.4884e-06,      2.23419, -0.000184889,
+    0.125942, -0.000184889,     0.872976,     0.126014, -0.000184889,      1.12298;
+		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
+		cout << static_cast<int>(test1_sol.result) << endl;
+		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
+		auto solver = Sai2LCPSolver::LCPSolver();
+		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
+		cout << static_cast<int>(test1_sol_new.result) << endl;
+		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+	}
 	return 0;
 }

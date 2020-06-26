@@ -94,9 +94,10 @@ public: //internal variables
 		DeterminingActiveFrictionlessContacts,
 		EnforcingRollingFriction,
 		EnforcingSlidingFriction,
-		EnforcingImpendingSlip,
-		Failed,
-		Succeeded
+		EnforcingNonNegativeNormalForce
+		// EnforcingImpendingSlip,
+		// Failed,
+		// Succeeded
 	};
 
 	uint num_points;
