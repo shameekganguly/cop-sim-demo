@@ -52,7 +52,7 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::DeterminingActiveFrictionlessContacts) {
 			bool any_pt_penetrating = false;
 			for(uint i = 0; i < num_points; i++) {
-				if(full_v_sol(3*i + 2) < -1e-10) { //TODO: should we check for -epsilon*pre_v(3*i+2)?
+				if(full_v_sol(3*i + 2) < (-1e-10 + -epsilon*pre_v(3*i + 2))) { //TODO: should we check for -epsilon*pre_v(3*i+2)?
 					// - once a point becomes NoContactAgain, it is not made active again
 					// std::cout <<"Full v sol: " << full_v_sol.transpose() << std::endl;
 					if(states[i] == PointState::NoContactAgain) {
@@ -67,6 +67,7 @@ CollLCPPointSolution LCPSolver::solve(
 
 						// force frictionless for now
 						states[i] = PointState::Rolling;
+						// std::cout << "Force NoContactAgain to frictionless contact " << i << std::endl;
 						rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
 					} else {
 						// assert(states[i] == PointState::NoContact); // shouldn't be any other state really
@@ -124,7 +125,7 @@ CollLCPPointSolution LCPSolver::solve(
 					if(rolling_friction.norm() > 1e-8) {
 						rolling_sliding_directions[i] = -rolling_friction/rolling_friction.norm();
 					}
-
+					// std::cout << "Enable sliding " << i << std::endl;
 					enableSlidingFriction(i, pre_v); // this also handles impending slip
 					any_pt_friction_cone_violation = true;
 					break;
@@ -182,6 +183,7 @@ CollLCPPointSolution LCPSolver::solve(
 
 		// solve full equation for full_v_sol
 		full_v_sol = A*full_p_sol + b;
+		// std::cout << "Full v sol: " << full_v_sol.transpose() << std::endl;
 	}
 
 	// if we are here, that means the resolution failed

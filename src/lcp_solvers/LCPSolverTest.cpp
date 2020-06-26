@@ -324,5 +324,27 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 	}
+	// test 11
+	{
+		cout << endl;
+		cout << " --- Test 11 ---" << endl;
+		VectorXd pre_v(6);
+		const double mu = 0.1;
+		pre_v << 0,        0, -1.33997,        0,        0, -1.33997;
+		Eigen::MatrixXd Test9Lambda_inv(6,6);
+		Test9Lambda_inv<< 1.12201,        0,   -0.125,  1.12201,        0,    0.125,
+       0,  2.23412,        0,        0,  1.98412,        0,
+  -0.125,        0,    1.124,   -0.125,        0, 0.874001,
+ 1.12201,        0,   -0.125,  1.12201,        0,    0.125,
+       0,  1.98412,        0,        0,  2.23412,        0,
+   0.125,        0, 0.874001,    0.125,        0,    1.124;
+		CollLCPPointSolution test1_sol = solveCollLCPPoint (2, Test9Lambda_inv, pre_v, pre_v, 0.3, mu);
+		cout << static_cast<int>(test1_sol.result) << endl;
+		cout << "Psol: " << test1_sol.p_sol.transpose() << endl;
+		auto solver = Sai2LCPSolver::LCPSolver();
+		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.3, mu);
+		cout << static_cast<int>(test1_sol_new.result) << endl;
+		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+	}
 	return 0;
 }
