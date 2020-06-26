@@ -3,13 +3,14 @@
 #include <iostream>
 #include <algorithm>
 #include "ContactSpaceModel.h"
+#include "lcp_solvers/LCPSolver2.h"
 
 using namespace Eigen;
 
 namespace Sai2COPSim {
 
 void ContactIslandModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
-	if(numContactPoints() > 2) {
+	if(numContactPoints() > 10) {
 		throw(std::runtime_error("Unimplemented collision resolution case."));
 	}
 	// NOTE: currently we use a pt based solver for collisions
@@ -29,11 +30,11 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 	// TODO: think about a proper bound
 	long tryCollSolveCounter = 0;
 	// std::cout << _pair_state[0]._geom_prim_pair->primA->_name << std::endl;
-	for(auto it: _arb_index_map) {
-			auto arb_model = _arb_manager->getBody(it.first)->_model;
+	// for(auto it: _arb_index_map) {
+			// auto arb_model = _arb_manager->getBody(it.first)->_model;
 			// std::cout << it.first << std::endl;
 			// std::cout << arb_model->_dq.transpose() << std::endl;
-		}
+		// }
 	while(true) {
 		tryCollSolveCounter++;
 
@@ -91,6 +92,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 				did_update_coll_active_contacts = activateContactPair(p._id) || did_update_coll_active_contacts;
 			} else {
 				did_update_coll_active_contacts = deactivateContactPair(p._id) || did_update_coll_active_contacts;
+				// if(did_update_coll_active_contacts) std::cout << "Deactivate contact pair "  << std::endl;
 			}
 			max_num_pts_any_prim = std::max(max_num_pts_any_prim, static_cast<uint>(p._active_points.size()));
 		}
@@ -122,47 +124,62 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 		double adjusted_restitution_coeff = restitution_coeff;
 		if (max_collision_speed < COPAlgorithmicConstants::MIN_COLLISION_SPEED_FOR_STEADY_CONTACT) { 
 			// We use the fastest collision to determine the coefficient of restitution
+			// std::cout << "Force stick" << std::endl;
 			adjusted_restitution_coeff = 0.0; // force inelastic collision to bring to steady contact
 		}
 
 		// - call LCP solver. TODO: extend to more than 2 pts
 		uint num_active_contact_pts = pt_contact_rhs_coll_active.size()/3;
-		if(num_active_contact_pts == 1) {
-			_last_coll_lcp_sol = solveCollLCPOnePoint (
-				_pt_contact_Lambda_inv_active,
-				pt_contact_rhs_coll_active,
-				pt_contact_rhs_coll_active,
-				adjusted_restitution_coeff,
-				friction_coeff
-			);
-		} else if(num_active_contact_pts == 2) {
-			//TODO: extend to more comprehensive hints for redundant force dimensions
-			// check if both points are in the same prim pair
-			bool is_x_redundant = false;
-			if(max_num_pts_any_prim == 2) {
-				is_x_redundant = true;
-				// ensure that we do not have an assymetry due to numerical error
-				double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
-				v_red *= 0.5;
-				pt_contact_rhs_coll_active[0] = v_red;
-				pt_contact_rhs_coll_active[3] = v_red;	
-			}
-			//TODO: generalize above to any redundancy direction
-			_last_coll_lcp_sol = solveCollLCPPoint (
-				2,
-				_pt_contact_Lambda_inv_active,
-				pt_contact_rhs_coll_active,
-				pt_contact_rhs_coll_active,
-				adjusted_restitution_coeff,
-				friction_coeff,
-				is_x_redundant
-			);
-		}
+		// if(num_active_contact_pts == 1) {
+		// 	_last_coll_lcp_sol = solveCollLCPOnePoint (
+		// 		_pt_contact_Lambda_inv_active,
+		// 		pt_contact_rhs_coll_active,
+		// 		pt_contact_rhs_coll_active,
+		// 		adjusted_restitution_coeff,
+		// 		friction_coeff
+		// 	);
+		// } else if(num_active_contact_pts == 2) {
+		// 	// std::cout << "Line contact" << std::endl;
+		// 	//TODO: extend to more comprehensive hints for redundant force dimensions
+		// 	// check if both points are in the same prim pair
+		// 	bool is_x_redundant = false;
+		// 	if(max_num_pts_any_prim == 2) {
+		// 		is_x_redundant = true;
+		// 		// ensure that we do not have an assymetry due to numerical error
+		// 		double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
+		// 		v_red *= 0.5;
+		// 		pt_contact_rhs_coll_active[0] = v_red;
+		// 		pt_contact_rhs_coll_active[3] = v_red;	
+		// 	}
+		// 	//TODO: generalize above to any redundancy direction
+		// 	_last_coll_lcp_sol = solveCollLCPPoint (
+		// 		2,
+		// 		_pt_contact_Lambda_inv_active,
+		// 		pt_contact_rhs_coll_active,
+		// 		pt_contact_rhs_coll_active,
+		// 		adjusted_restitution_coeff,
+		// 		friction_coeff,
+		// 		is_x_redundant
+		// 	);
+		// }
+		auto solver = Sai2LCPSolver::LCPSolver();
+		// std::cout << _pt_contact_Lambda_inv_active << std::endl;
+		// std::cout << pt_contact_rhs_coll_active.transpose() << std::endl;
+		// std::cout << adjusted_restitution_coeff <<std::endl;
+		// std::cout << "Call LCP solver" << std::endl;
+		_last_coll_lcp_sol = solver.solve(
+			_pt_contact_Lambda_inv_active,
+			pt_contact_rhs_coll_active,
+			pt_contact_rhs_coll_active,
+			adjusted_restitution_coeff,
+			friction_coeff
+		);
 
 		if(num_active_contact_pts > 0) {
 			if (_last_coll_lcp_sol.result == LCPSolResult::Success) {
 				// std::cout << "LCP Impulse: " << _last_coll_lcp_sol.p_sol.transpose() << std::endl;
 				// std::cout << "Num contacts " << num_active_contact_pts << std::endl;
+				// std::cout << _pt_contact_Jacobian_active << std::endl;
 			} else {
 							std::cerr << "LCP failed with type: " << static_cast<int>(_last_coll_lcp_sol.result) << std::endl;
 		// 					cout << "Num contacts " << contact_model._activeContacts.size() << endl;
@@ -184,6 +201,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 			// std::cout << arb_model->_dq.transpose() << std::endl;
 			// std::cout << _pt_contact_Jacobian_active << std::endl;
 			arb_model->_dq += arb_model->_M_inv*Jtranspose_P.segment(arb_Jind, arb_model->dof());
+			// std::cout << "T: " << Jtranspose_P.segment(arb_Jind, arb_model->dof()).transpose() << std::endl;
 			// std::cout << arb_model->_dq.transpose() << std::endl;
 		}
 
@@ -212,6 +230,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 		std::vector<uint> temp;
 		getActiveFullCOPMatrices(_cop_full6_Jacobian_active, _cop_full6_Lambda_inv_active, cop_full_RHS_act, temp);
 		getActiveConstraintCOPMatrices(_cop_constraint_Jacobian_active, _cop_constraint_Lambda_inv_active, cop_const_RHS_act, temp);
+		//TODO: what about the last COP solution?
 	}
 
 	// // initialize COP from inelastic collision result
