@@ -80,6 +80,7 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/SteadyContactResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
+  ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver2.cpp
 )
 
 # add apps
