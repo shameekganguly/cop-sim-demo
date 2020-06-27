@@ -8,9 +8,9 @@ using namespace Eigen;
 namespace Sai2COPSim {
 
 void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
-	if(numContactPoints() > 2) {
-		throw(std::runtime_error("Unimplemented steady contact resolution case. Num contact points."));
-	}
+	// if(numContactPoints() > 2) {
+	// 	throw(std::runtime_error("Unimplemented steady contact resolution case. Num contact points."));
+	// }
 
 	if(_active_contacts.size() > 1) {
 		throw(std::runtime_error("Unimplemented steady contact resolution case. Num primitives."));
@@ -23,6 +23,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 	}
 
 	auto& prim = _pair_state[_active_contacts.front()];
+	// std::cout << prim._geom_prim_pair->primA->_name << ", " << prim._geom_prim_pair->primB->_name << std::endl;
 
 	// get RHS vectors. no need to update the complete vectors as that would have happened either 
 	// in model update or after collision resolution
@@ -182,7 +183,8 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				arbA->jtau_contact = _cop_full6_Jacobian_active.block(0, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
 			}
 		} else {
-			std::cerr << "COP solution failed" << std::endl;
+			// std::cerr << "COP solution failed" << std::endl;
+			throw(std::runtime_error("COP solution failed"));
 		}
 	}
 }

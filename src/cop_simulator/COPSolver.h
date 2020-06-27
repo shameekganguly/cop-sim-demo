@@ -25,10 +25,10 @@ enum struct COPSolResult {
 };
 
 struct ContactCOPSolution {
-	Eigen::Vector3d local_cop_pos;
-	COPContactType cop_type;
+	Eigen::Vector3d local_cop_pos; //TODO: extend to vector of Vector3d for simultaneous contacts
+	COPContactType cop_type;	//TODO: extend to vector of Vector3d for simultaneous contacts
 	Eigen::VectorXd force_sol;
-	COPSolResult result; 
+	COPSolResult result;
 
 	//ctor
 	ContactCOPSolution()
@@ -210,16 +210,16 @@ inline double getMuRotation(double mu, double dist_end1, double dist_end2) {
 
 enum struct FeasibleCOPLineResult {
 	FRSuccess = 0,
-	FRNegativeNormalForce,
-	FROtherEndPenetration,
-	FRTranslationFrictionConeViolation,
-	FRRotationFrictionViolation,
-	FRLineEndNonZeroRotationFriction,
-	FRZeroMomentViolation,
-	FRPenetrationAcceleration,
-	FRPenetrationRotationAcceleration,
-	FRTranslationFrictionNonDissipative,
-	FRRotationFrictionNonDissipative
+	FRNegativeNormalForce = 1,
+	FROtherEndPenetration = 2,
+	FRTranslationFrictionConeViolation = 3,
+	FRRotationFrictionViolation = 4,
+	FRLineEndNonZeroRotationFriction = 5,
+	FRZeroMomentViolation = 6,
+	FRPenetrationAcceleration = 7,
+	FRPenetrationRotationAcceleration = 8,
+	FRTranslationFrictionNonDissipative = 9,
+	FRRotationFrictionNonDissipative = 10
 };
 
 inline FeasibleCOPLineResult testFeasibleCOPLine(
@@ -251,7 +251,8 @@ inline FeasibleCOPLineResult testFeasibleCOPLine(
 	if(contact_type == COPContactType::LineEnd && abs(force_sol[4]) > 1e-15) {
 		return FeasibleCOPLineResult::FRLineEndNonZeroRotationFriction;
 	}
-	if(acc_sol[2] < -1e-15) {
+	if(acc_sol[2] < -1e-8) {
+		if(COP_LOG_DEBUG) std::cout << "Penetration acceleration: " << acc_sol.transpose() << std::endl;
 		return FeasibleCOPLineResult::FRPenetrationAcceleration;
 	}
 	// if(contact_type == COPContactType::LineCenter && acc_sol[2] < 1e-15 && abs(acc_sol[3]) > 1e-15) {
