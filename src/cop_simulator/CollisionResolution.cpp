@@ -130,50 +130,51 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 
 		// - call LCP solver. TODO: extend to more than 2 pts
 		uint num_active_contact_pts = pt_contact_rhs_coll_active.size()/3;
-		// if(num_active_contact_pts == 1) {
-		// 	_last_coll_lcp_sol = solveCollLCPOnePoint (
-		// 		_pt_contact_Lambda_inv_active,
-		// 		pt_contact_rhs_coll_active,
-		// 		pt_contact_rhs_coll_active,
-		// 		adjusted_restitution_coeff,
-		// 		friction_coeff
-		// 	);
-		// } else if(num_active_contact_pts == 2) {
-		// 	// std::cout << "Line contact" << std::endl;
-		// 	//TODO: extend to more comprehensive hints for redundant force dimensions
-		// 	// check if both points are in the same prim pair
-		// 	bool is_x_redundant = false;
-		// 	if(max_num_pts_any_prim == 2) {
-		// 		is_x_redundant = true;
-		// 		// ensure that we do not have an assymetry due to numerical error
-		// 		double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
-		// 		v_red *= 0.5;
-		// 		pt_contact_rhs_coll_active[0] = v_red;
-		// 		pt_contact_rhs_coll_active[3] = v_red;	
-		// 	}
-		// 	//TODO: generalize above to any redundancy direction
-		// 	_last_coll_lcp_sol = solveCollLCPPoint (
-		// 		2,
-		// 		_pt_contact_Lambda_inv_active,
-		// 		pt_contact_rhs_coll_active,
-		// 		pt_contact_rhs_coll_active,
-		// 		adjusted_restitution_coeff,
-		// 		friction_coeff,
-		// 		is_x_redundant
-		// 	);
-		// }
-		auto solver = Sai2LCPSolver::LCPSolver();
-		// std::cout << _pt_contact_Lambda_inv_active << std::endl;
-		// std::cout << pt_contact_rhs_coll_active.transpose() << std::endl;
-		// std::cout << adjusted_restitution_coeff <<std::endl;
-		// std::cout << "Call LCP solver" << std::endl;
-		_last_coll_lcp_sol = solver.solve(
-			_pt_contact_Lambda_inv_active,
-			pt_contact_rhs_coll_active,
-			pt_contact_rhs_coll_active,
-			adjusted_restitution_coeff,
-			friction_coeff
-		);
+		if(num_active_contact_pts == 1) {
+			_last_coll_lcp_sol = solveCollLCPOnePoint (
+				_pt_contact_Lambda_inv_active,
+				pt_contact_rhs_coll_active,
+				pt_contact_rhs_coll_active,
+				adjusted_restitution_coeff,
+				friction_coeff
+			);
+		} else if(num_active_contact_pts == 2) {
+			// std::cout << "Line contact" << std::endl;
+			//TODO: extend to more comprehensive hints for redundant force dimensions
+			// check if both points are in the same prim pair
+			bool is_x_redundant = false;
+			if(max_num_pts_any_prim == 2) {
+				is_x_redundant = true;
+				// ensure that we do not have an assymetry due to numerical error
+				double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
+				v_red *= 0.5;
+				pt_contact_rhs_coll_active[0] = v_red;
+				pt_contact_rhs_coll_active[3] = v_red;	
+			}
+			//TODO: generalize above to any redundancy direction
+			_last_coll_lcp_sol = solveCollLCPPoint (
+				2,
+				_pt_contact_Lambda_inv_active,
+				pt_contact_rhs_coll_active,
+				pt_contact_rhs_coll_active,
+				adjusted_restitution_coeff,
+				friction_coeff,
+				is_x_redundant
+			);
+		} else {
+			auto solver = Sai2LCPSolver::LCPSolver();
+			// std::cout << _pt_contact_Lambda_inv_active << std::endl;
+			// std::cout << pt_contact_rhs_coll_active.transpose() << std::endl;
+			// std::cout << adjusted_restitution_coeff <<std::endl;
+			// std::cout << "Call LCP solver" << std::endl;
+			_last_coll_lcp_sol = solver.solve(
+				_pt_contact_Lambda_inv_active,
+				pt_contact_rhs_coll_active,
+				pt_contact_rhs_coll_active,
+				adjusted_restitution_coeff,
+				friction_coeff
+			);
+		}
 
 		if(num_active_contact_pts > 0) {
 			if (_last_coll_lcp_sol.result == LCPSolResult::Success) {
