@@ -52,7 +52,12 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::DeterminingActiveFrictionlessContacts) {
 			bool any_pt_penetrating = false;
 			for(uint i = 0; i < num_points; i++) {
-				if(full_v_sol(3*i + 2) < (-1e-10 + -epsilon*pre_v(3*i + 2))) { //TODO: should we check for -epsilon*pre_v(3*i+2)?
+				if(full_v_sol(3*i + 2) < (-1e-10 + -epsilon*pre_v(3*i + 2))) {
+					// we ignore points where pre_v is positive
+					// TODO: think more about this. currently, it often causes failure to find a solution
+					if(pre_v(3*i+2) > 1e-10) {
+						continue;
+					}
 					// - once a point becomes NoContactAgain, it is not made active again
 					// std::cout <<"Full v sol: " << full_v_sol.transpose() << std::endl;
 					if(states[i] == PointState::NoContactAgain) {
@@ -122,6 +127,7 @@ CollLCPPointSolution LCPSolver::solve(
 
 				if(rolling_friction.norm() - mu*abs(full_p_sol(3*i + 2)) > 1e-15) {
 					// save current rolling direction for this point
+					// std::cout << "Full p sol " << full_p_sol.transpose() << std::endl;
 					if(rolling_friction.norm() > 1e-8) {
 						rolling_sliding_directions[i] = -rolling_friction/rolling_friction.norm();
 					}
@@ -151,7 +157,6 @@ CollLCPPointSolution LCPSolver::solve(
 				}
 				if(full_p_sol(3*i+2) < -1e-8) {
 					// std::cout << "TRhs: " << Trhs.segment(0, TA_size).transpose() << std::endl;
-					// std::cout << "TP sol: " << Tp_sol.transpose() << std::endl;
 					// std::cout << "Disable contact" << i << std::endl;
 					disableContact(i);
 					did_disable_any_contacts = true;
@@ -179,7 +184,9 @@ CollLCPPointSolution LCPSolver::solve(
 		composeMatrices(A, b, pre_v, epsilon, mu);
 		// std::cout << "TA" << std::endl;
 		// std::cout << TA.block(0,0,TA_size,TA_size) << std::endl;
+		// std::cout << "Trhs: " <<  Trhs.segment(0, TA_size).transpose() << std::endl;
 		solveReducedMatrices(mu, full_p_sol);
+		// std::cout << "TP sol: " << Tp_sol.transpose() << std::endl;
 
 		// solve full equation for full_v_sol
 		full_v_sol = A*full_p_sol + b;
@@ -526,7 +533,7 @@ void LCPSolver::solveReducedMatrices(
 	// can be computed at a slow model update rate
 	assert(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-15);
 	
-	Tp_sol = TA.block(0,0,TA_size,TA_size).householderQr().solve(Trhs.segment(0,TA_size));
+	Tp_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
 
 	// reassemble full_p_sol
 	full_p_sol.setZero();
