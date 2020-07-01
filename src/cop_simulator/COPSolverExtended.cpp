@@ -36,7 +36,7 @@ ContactCOPSolution COPSolver::solveStartWithLastCOP(
 	);
 }
 
-static void getCOPLineContactDisplacedMatricesExtended(
+void COPSolver::getCOPLineContactDisplacedMatricesExtended(
 	Eigen::MatrixXd& A_disp,
 	Eigen::VectorXd& rhs_disp,
 	Eigen::Vector3d& lin_vel_disp,
@@ -142,7 +142,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 
 	// search for solution starting from centroid
 	while (iter_ind < max_iters) {
-		// if(COP_LOG_DEBUG) std::cout << "COPSolver: iters: " << iter_ind << std::endl;
+		if(COP_LOG_DEBUG) std::cout << "COPSolver: iters: " << iter_ind << std::endl;
 		iter_ind++;
 		local_sol_point << signed_distance_from_point0, 0, 0;
 		double dist1 = (local_sol_point).norm();
@@ -210,7 +210,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 				f_sol << - mu*tsol[0]*slip_vel/slip_vel.norm(),
 							tsol,
 							- mu_rot*rotation_sign*tsol[0];
-				// if(COP_LOG_DEBUG) std::cout << "COPSolver: trans & rot sliding force sol : " << f_sol.transpose() << std::endl;
+				if(COP_LOG_DEBUG) std::cout << "COPSolver: trans & rot sliding force sol : " << f_sol.transpose() << std::endl;
 
 			} else if (!fForceIgnoreSlip && slip_vel.norm() > 1e-6 && abs(rotation_slip) <= 1e-8) {
 				// slip velocity on translation only. rotation velocity is zero
@@ -517,6 +517,920 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 	ret_sol.result = COPSolResult::NoSolution;
 	if(COP_LOG_DEBUG) std::cout << "No cop sol!" << std::endl;
 	return ret_sol;
+}
+
+ContactCOPSolution COPSolver::solvePtOnly(
+		double friction_coeff,
+		const Eigen::MatrixXd& A_constraint, // 3x3 constraint inertia matrix
+		const Eigen::Vector3d& rhs_constraint,
+		const Eigen::Vector3d& linear_contact_velocity
+) {
+	double mu = friction_coeff;
+	// check for separating contact
+	ContactCOPSolution ret_sol;
+	if(rhs_constraint[2] > -1e-8) {
+		ret_sol.force_sol.setZero(3);
+		ret_sol.local_cop_pos.setZero();
+		ret_sol.result = COPSolResult::Success;
+		return ret_sol;
+	}
+	Vector2d slip_dir = linear_contact_velocity.segment<2>(0);
+	if(slip_dir.norm() > 1e-6) {
+		point_state = FrictionState::Sliding;
+		point_slip_dir = slip_dir/slip_dir.norm();
+	} else {
+		point_state = FrictionState::Rolling;
+	}
+
+	if(point_state == FrictionState::Sliding) {
+		double trhs_scalar = -rhs_constraint[2];
+		double tA_scalar = A_constraint(2,2) 
+					- mu*A_constraint.block<1,2>(2, 0).dot(point_slip_dir);
+		double tsol_scalar = trhs_scalar/tA_scalar;
+		Tf_sol.setZero(3);
+		Tf_sol << - mu*tsol_scalar*point_slip_dir,
+					tsol_scalar;
+	} else {
+		// slip velocity on rotation only. translation slip velocity is zero
+		Tf_sol = A_constraint.ldlt().solve(-rhs_constraint);
+	}
+	if(Tf_sol[2] < -1e-8) { // Painleves condition
+		ret_sol.result = COPSolResult::NoSolution;
+		return ret_sol;
+	}
+	if(Tf_sol.segment<2>(0).norm() > mu*abs(Tf_sol[2]) + 1e-15) {
+		point_rolling_dir = -Tf_sol.segment<2>(0);
+		point_rolling_dir /= point_rolling_dir.norm();
+		// finally try an impending slip sol
+		// TODO: use correct impending slip direction estimate
+		double trhs_scalar = -rhs_constraint[2];
+		double tA_scalar = A_constraint(2,2) 
+					- mu*A_constraint.block<1,2>(2, 0).dot(point_rolling_dir);
+		double tsol_scalar = trhs_scalar/tA_scalar;
+		Tf_sol.setZero(3);
+		Tf_sol << - mu*tsol_scalar*point_rolling_dir,
+					tsol_scalar;
+	}
+	ret_sol.force_sol = Tf_sol;
+	ret_sol.local_cop_pos.setZero();
+	ret_sol.result = COPSolResult::Success;
+	return ret_sol;
+}
+
+
+static void getCOPLineAndPtContactDisplacedMatricesExtended (
+	Eigen::MatrixXd& A_disp,
+	Eigen::VectorXd& rhs_disp,
+	Eigen::Vector3d& lin_vel_disp,
+	double signed_dist,
+	const Eigen::MatrixXd& A,
+	const Eigen::VectorXd& rhs,
+	const Eigen::Vector3d& line_omega_bodyA,
+	const Eigen::Vector3d& line_omega_bodyB,
+	const Eigen::Vector3d& line_lin_vel,
+	uint line_start_row_id,
+	uint pt_start_row_id
+) {
+	// if(COP_LOG_DEBUG) std::cout << "COP solver: getCOPLineContactDisplacedMatricesExtended: signed_distance_last_point: " << signed_distance_last_point << std::endl;
+	MatrixXd cross_mat(5,5);
+	cross_mat.setZero();
+	cross_mat.block<3,3>(0,0) = Eigen::Matrix3d::Identity();
+	cross_mat.block<3,2>(0,3) << 0,	0,
+				0, signed_dist,
+				-signed_dist, 0;
+	cross_mat.block<2,2>(3,3) = Eigen::Matrix2d::Identity();
+
+	// compute A matrix at new position
+	A_disp.setZero(A.rows(), A.cols());
+	A_disp.block<5,5>(line_start_row_id, line_start_row_id) = 
+		cross_mat*A.block<5,5>(line_start_row_id, line_start_row_id)*cross_mat.transpose();
+	A_disp.block<3,3>(pt_start_row_id, pt_start_row_id) = 
+		A.block<3,3>(pt_start_row_id, pt_start_row_id);
+	A_disp.block<5,3>(line_start_row_id, pt_start_row_id) =
+		cross_mat*A.block<5,3>(line_start_row_id, pt_start_row_id);
+	A_disp.block<3,5>(pt_start_row_id, line_start_row_id) =
+		A.block<3,5>(pt_start_row_id, line_start_row_id)*cross_mat.transpose();
+
+	// compute RHS at new position
+	rhs_disp.setZero(rhs.size());
+	rhs_disp.segment<5>(line_start_row_id) = cross_mat*rhs.segment<5>(line_start_row_id);
+	rhs_disp.segment<3>(pt_start_row_id) = rhs.segment<3>(pt_start_row_id);
+
+	// add the omega x (omega x r) component
+	Matrix3d rcross;
+	rcross << 0, 0, 0,
+			  0, 0, -signed_dist,
+			  0, signed_dist, 0;
+	rhs_disp.segment<3>(line_start_row_id) += 
+		line_omega_bodyB.cross(-rcross * line_omega_bodyB) 
+		- line_omega_bodyA.cross(-rcross * line_omega_bodyA);
+	lin_vel_disp = line_lin_vel + rcross*(line_omega_bodyB - line_omega_bodyA);
+}
+
+// Solve for COPs with one point contact and one line contact:
+ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
+	double friction_coeff,
+	const Eigen::MatrixXd& A_constraint,
+	const Eigen::VectorXd& rhs_constraint, // 6 defined at point 0. Includes Jdot_qdot
+	const std::vector<std::vector<Eigen::Vector3d>>& boundary_points, // points are in the COP frame with point0 being origin
+	const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
+	const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
+	const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+	const std::vector<Eigen::Vector3d>& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+	const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+	//^ expected to be zero in the z direction, but we don't explicitly check
+) {
+	assert(contact_types.size() == 2);
+
+	pt_start_row_id = 0;
+	line_start_row_id = 0;
+	uint vector_line_ind = 0;
+	uint vector_pt_ind = 0;
+
+	if(contact_types[0] == ContactType::POINT) {
+		assert(contact_types[1] == ContactType::LINE);
+		pt_start_row_id = patch_indices[0];
+		line_start_row_id = patch_indices[1];
+		vector_line_ind = 1;
+		vector_pt_ind = 0;
+	} else if(contact_types[0] == ContactType::LINE) {
+		assert(contact_types[1] == ContactType::POINT);
+		pt_start_row_id = patch_indices[1];
+		line_start_row_id = patch_indices[0];
+		vector_line_ind = 0;
+		vector_pt_ind = 1;
+	} else {
+		throw(std::runtime_error("Unsupported types"));
+	}
+
+	// check if all normal accelerations are > 0. if so, we are done
+	double pt1_end_dist = boundary_points[vector_line_ind][1](0);
+	if(rhs_constraint(pt_start_row_id+2) > -1e-8 &&
+		rhs_constraint(line_start_row_id+2) > -1e-8 &&
+		(rhs_constraint(line_start_row_id+2) - rhs_constraint(line_start_row_id+3)*pt1_end_dist) > -1e-8
+	) {
+		// std::cout << "Both contacts separating, optimized sol" << std::endl;
+		ContactCOPSolution ret_sol;
+		ret_sol.result = COPSolResult::Success;
+		ret_sol.force_sol = VectorXd::Zero(8);
+		ret_sol.local_cop_pos.setZero();
+		return ret_sol;
+	}
+
+	// if b[pt contact normal] > 0, test with pt contact inactive. 
+	// - simply call the 1 pt line contact solver with reduced matrices
+	// - check if pt contact is accelerating as a result. if not, we are done
+	if(rhs_constraint(pt_start_row_id+2) > -1e-8) {
+		// std::cout << "Pt contacts separating, optimized sol" << std::endl;
+		std::vector<std::vector<Eigen::Vector3d>> lb_pts;
+		lb_pts.push_back(boundary_points[vector_line_ind]);
+		std::vector<uint> ptch_inds;
+		ptch_inds.push_back(patch_indices[vector_line_ind]);
+		std::vector<ContactType> ctype_inds;
+		ctype_inds.push_back(contact_types[vector_line_ind]);
+		std::vector<Eigen::Vector3d> omAs, omBs, lvs;
+		omAs.push_back(omega_bodyA[vector_line_ind]);
+		omBs.push_back(omega_bodyB[vector_line_ind]);
+		lvs.push_back(linear_contact_velocity[vector_line_ind]);
+		ContactCOPSolution line_only_sol = solveStartWithPatchCentroid(
+												friction_coeff,
+												A_constraint.block<5,5>(line_start_row_id, line_start_row_id),
+												rhs_constraint.segment<5>(line_start_row_id),
+												lb_pts,
+												ptch_inds,
+												ctype_inds,
+												omAs,
+												omBs,
+												lvs
+											);
+		if(line_only_sol.result == COPSolResult::Success) {
+			// check if line sol causes penetration at pt
+			VectorXd fsol_pt0 = VectorXd::Zero(8);
+			fsol_pt0.segment<5>(line_start_row_id) = line_only_sol.force_sol;
+			fsol_pt0(line_start_row_id+3) -= line_only_sol.local_cop_pos(0)*line_only_sol.force_sol(2);
+			fsol_pt0(line_start_row_id+4) += line_only_sol.local_cop_pos(0)*line_only_sol.force_sol(1);
+			double pta = A_constraint.row(pt_start_row_id+2).dot(fsol_pt0) + rhs_constraint(pt_start_row_id+2);
+			if(pta >= -1e-8) { // pt contact can be inactive
+				ContactCOPSolution ret_sol;
+				ret_sol.force_sol.setZero(8);
+				ret_sol.force_sol.segment<5>(line_start_row_id) = line_only_sol.force_sol;
+				ret_sol.local_cop_pos = line_only_sol.local_cop_pos;
+				ret_sol.result = COPSolResult::Success;
+				ret_sol.cop_type = line_only_sol.cop_type;
+				return ret_sol;
+			}
+		} else {
+			// how can this fail? TODO: maybe the line+pt sol can still work?
+			return line_only_sol;
+		}
+	}
+
+	// if b[line contact normal] > 0, test with line contact inactive.
+	// - check if penetration acceleration occurs at any of the line contact test points
+	// - if not, we are done
+	if(rhs_constraint(line_start_row_id+2) > -1e-8 && 
+			(rhs_constraint(line_start_row_id+2) - rhs_constraint(line_start_row_id+3)*pt1_end_dist) > -1e-8
+			// TODO: this does not take into account the w x (w x r) term shift to the other point
+	) {
+		// std::cout << "Line contacts separating, optimized sol" << std::endl;
+		ContactCOPSolution pt_only_sol = solvePtOnly(
+												friction_coeff,
+												A_constraint.block<3,3>(pt_start_row_id, pt_start_row_id),
+												rhs_constraint.segment<3>(pt_start_row_id),
+												linear_contact_velocity[vector_pt_ind]
+											);
+		if(pt_only_sol.result == COPSolResult::Success) {
+			Vector2d line_a = A_constraint.block<2,3>(line_start_row_id+2,pt_start_row_id)*(pt_only_sol.force_sol) 
+								+ rhs_constraint.segment<2>(line_start_row_id+2);
+			if(line_a(0) > -1e-8 && 
+				(line_a(0) - line_a(1)*pt1_end_dist) > -1e-8
+			) {
+				ContactCOPSolution ret_sol;
+				ret_sol.force_sol.setZero(8);
+				ret_sol.force_sol.segment<3>(pt_start_row_id) = pt_only_sol.force_sol;
+				ret_sol.local_cop_pos = Vector3d::Zero();
+				ret_sol.result = COPSolResult::Success;
+				return ret_sol;
+			}
+		} else {
+			// how can this fail? TODO: maybe the line+pt sol can still work?
+			return pt_only_sol;	
+		}
+	}
+
+	// select starting point for line contact
+	// set initial line-COP state to LineCenter
+	 // we assume that contact line segment is along x-axis, but do not know the direction
+	Eigen::Vector3d point0_to_point1_dir = boundary_points[vector_line_ind][1];
+	point0_to_point1_dir /= point0_to_point1_dir.norm(); // is either (1,0,0) or (-1,0,0)
+
+	// compute the patch centroid
+	Vector3d patch_centroid_point = boundary_points[vector_line_ind][1]/2.0;
+	double signed_distance_from_point0 = patch_centroid_point.dot(Vector3d(1, 0, 0));
+	// ^+ve in +x dir, -ve in -x dir
+
+	// compute all matrices in the global COP frame, displaced to the patch centroid point
+	double max_signed_dist = 0.0;
+	double min_signed_dist = 0.0;
+	if(signed_distance_from_point0 > 0) {
+		max_signed_dist = 2*signed_distance_from_point0;
+	} else {
+		min_signed_dist = 2*signed_distance_from_point0;
+	}
+
+	// compute line rotational slip
+	line_rotation_slip_dir = omega_bodyB[vector_line_ind][2] - omega_bodyA[vector_line_ind][2];
+	if(abs(line_rotation_slip_dir) > 1e-8) {
+		line_rotational_state = FrictionState::Sliding;
+		line_rotation_slip_dir /= abs(line_rotation_slip_dir);
+	} else {
+		// initialize to rolling
+		line_rotational_state = FrictionState::Rolling;
+	}
+
+	// compute point translation slip
+	// save rolling slip and translation slip behavior in point contact.
+	point_slip_dir = linear_contact_velocity[vector_pt_ind].segment<2>(0);
+	if (point_slip_dir.norm() > 1e-6) {
+		point_state = FrictionState::Sliding;
+		point_slip_dir /= point_slip_dir.norm();
+	} else {
+		// initialize to rolling
+		point_state = FrictionState::Rolling;
+	}
+
+	const int max_iters = 40;
+	int iter_ind = 0;
+	Eigen::MatrixXd A_disp(8, 8);
+	Eigen::VectorXd rhs_disp(8);
+	Vector3d lin_vel_disp;
+	bool fForceLineCenter = false;
+	bool fForceIgnoreSlip = false;
+	Eigen::VectorXd full_f_sol(8), full_a_sol(8);
+	ContactCOPSolution ret_sol;
+	double mu_rot;
+	const double mu = friction_coeff;
+	Vector3d local_line_cop_sol_point;
+	
+	// initial internal matrices
+	TA = A_constraint;
+	Trhs = rhs_constraint;
+	TA_size = 0;
+
+	bool did_update_cop_pos = true;
+	while (iter_ind < max_iters) {
+		iter_ind++;
+
+		// if line-cop position was updated, update displaced terms
+		if(did_update_cop_pos) {
+			did_update_cop_pos = false;
+
+			local_line_cop_sol_point << signed_distance_from_point0, 0, 0;
+			double dist1 = (local_line_cop_sol_point).norm();
+			double dist2 = (local_line_cop_sol_point - boundary_points[vector_line_ind][1]).norm();
+			// check whether we are on the boundary or inside the contact segment
+			if(fForceLineCenter) {
+				line_cop_type = COPContactType::LineCenter;
+			} else {
+				if(dist1 < 1e-15 || dist2 < 1e-15) {
+					line_cop_type = COPContactType::LineEnd;
+				} else {
+					line_cop_type = COPContactType::LineCenter;
+				}
+			}
+
+			// get displaced matrices
+			getCOPLineAndPtContactDisplacedMatricesExtended(
+				A_disp, rhs_disp, lin_vel_disp,
+				signed_distance_from_point0,
+				A_constraint, rhs_constraint,
+				omega_bodyA[vector_line_ind], omega_bodyB[vector_line_ind],
+				linear_contact_velocity[vector_line_ind],
+				line_start_row_id, pt_start_row_id
+			);
+
+			// compute mu_rotation
+			mu_rot = getMuRotation(mu, dist1, dist2);
+
+			// get line translational slip velocities at current COP
+			if(!fForceIgnoreSlip) {
+				line_translation_slip_dir = lin_vel_disp.segment<2>(0);
+				if (line_translation_slip_dir.norm() > 1e-6) {
+					line_translation_state = FrictionState::Sliding;
+					line_translation_slip_dir /= line_translation_slip_dir.norm();
+				} else {
+					// initialize to rolling
+					line_translation_state = FrictionState::Rolling;
+					// if rolling at line-COP, set fForceIgnoreSlip true
+					fForceIgnoreSlip = true;
+				}
+			}
+		}
+
+		// solve with current state
+		computeMatrices(A_disp, rhs_disp, mu, mu_rot);
+		solve(mu, mu_rot, full_f_sol);
+		full_a_sol = A_disp * full_f_sol + rhs_disp;
+
+		// check for normal force violation
+		if(full_f_sol(line_start_row_id+2) < -1e-8 || full_f_sol(pt_start_row_id+2) < 1e-8) {
+			// TODO: think about disabling a contact
+			ret_sol.result = COPSolResult::UnimplementedCase;
+			return ret_sol;
+		}
+
+		// point: check for friction cone violation
+		if(point_state == FrictionState::Rolling) {
+			Vector2d rolling_force = full_f_sol.segment<2>(pt_start_row_id);
+			if(rolling_force.norm() > mu*full_f_sol(pt_start_row_id+2) + 1e-15) {
+				// save impending direction
+				// TODO: proper impending slip direction
+				point_rolling_dir = -rolling_force/rolling_force.norm();
+				// switch point state to impending dir
+				point_state = FrictionState::Impending;
+				continue;
+			}
+		}
+		// point: check for impending slip wrong rolling direction
+		if(point_state == FrictionState::Impending) {
+			Vector2d friction_force = full_f_sol.segment<2>(pt_start_row_id);
+			Vector2d slip_accel = full_a_sol.segment<2>(pt_start_row_id);
+			if(slip_accel.dot(friction_force) > 1e-8) {
+				// switch back to rolling so that we recompute the rolling force
+				point_state = FrictionState::Rolling;
+				continue;
+			}
+		}
+		// line: check for translation friction cone violation
+		if(line_translation_state == FrictionState::Rolling) {
+			Vector2d rolling_force = full_f_sol.segment<2>(line_start_row_id);
+			if(rolling_force.norm() > mu*full_f_sol(line_start_row_id+2) + 1e-15) {
+				// save impending direction
+				// TODO: proper impending slip direction
+				line_translation_rolling_dir = -rolling_force/rolling_force.norm();
+				// switch point state to impending dir
+				line_translation_state = FrictionState::Impending;
+				continue;
+			}
+		}
+		// line: check for impending translation slip wrong rolling direction
+		if(line_translation_state == FrictionState::Impending) {
+			Vector2d friction_force = full_f_sol.segment<2>(line_start_row_id);
+			Vector2d slip_accel = full_a_sol.segment<2>(line_start_row_id);
+			if(slip_accel.dot(friction_force) > 1e-8) {
+				// switch back to rolling so that we recompute the rolling force
+				line_translation_state = FrictionState::Rolling;
+				continue;
+			}
+		}
+		// line: check for rotation friction limit violation
+		if(line_rotational_state == FrictionState::Rolling) {
+			double rolling_force = full_f_sol(line_start_row_id+4);
+			if(abs(rolling_force) > mu_rot*full_f_sol(line_start_row_id+2) + 1e-15) {
+				// save impending direction
+				line_rotation_rolling_dir = -rolling_force/abs(rolling_force);
+				// switch point state to impending dir
+				line_rotational_state = FrictionState::Impending;
+				continue;
+			}
+		}
+		// line: check for impending rotational slip wrong rolling direction
+		if(line_rotational_state == FrictionState::Impending) {
+			double rolling_force = full_f_sol(line_start_row_id+4);
+			double rolling_acc = full_a_sol(line_start_row_id+4);
+			if(rolling_acc*rolling_force > 1e-8) {
+				// switch back to rolling so that we recompute the rolling force
+				line_rotational_state = FrictionState::Rolling;
+				continue;
+			}
+		}
+
+		// - check for other end penetration. if so, force line center solution. print to cerr.
+		// - we dont expect this case since we start from the patch center point currently.
+		if(line_cop_type == COPContactType::LineEnd) {
+			// TODO: handle w x (w x r) term correctly
+			double acc_end1 = full_a_sol[line_start_row_id+2] + 
+								full_a_sol[line_start_row_id+3]*signed_distance_from_point0;
+			double acc_end2 = full_a_sol[line_start_row_id+2] -
+								full_a_sol[line_start_row_id+3]*(boundary_points[vector_line_ind][1](0) - signed_distance_from_point0);
+			if(acc_end1 < -1e-8 || acc_end2 < -1e-8) {
+				std::cerr << "Other end penetration occurred." << std::endl;
+				fForceLineCenter = true;
+				continue;
+			}
+		}
+
+		// - check if zero moment condition is violated for line contact,
+		if(line_cop_type == COPContactType::LineCenter) {
+			if(abs(full_f_sol[line_start_row_id+3]) > 1e-3) {
+				// std::cout << "Full F sol line: " << full_f_sol.segment<5>(line_start_row_id).transpose() << std::endl;
+				// - - if so, compute distance to new line-COP.
+				double dist_move_cop = -full_f_sol[line_start_row_id+3]/fmax(full_f_sol[line_start_row_id+2], 1e-5);
+				// - - if distance to new line-COP is very small, continue to check other violations
+				if(abs(dist_move_cop) > 0.01) {// TODO: integrate bisection search and lower this threshold
+					signed_distance_from_point0 += dist_move_cop;
+					did_update_cop_pos = true;
+					continue;
+				}
+				// - - if distance is small, check first if we are currently doing a binary search
+				// - - if so, continue binary search with point state fixed.
+				// - - if not, check last line-COP moment. if we switch moment directions, start binary 
+				// - - search with point state fixed.
+			}
+		}
+
+		ret_sol.force_sol = full_f_sol;
+		ret_sol.result = COPSolResult::Success;
+		ret_sol.local_cop_pos = local_line_cop_sol_point;
+		ret_sol.cop_type = line_cop_type;
+		return ret_sol;
+	}
+	std::cerr << "solveStartWithPatchCentroidOnePointOneLine failed to converge" << std::endl;
+	ret_sol.result = COPSolResult::NoSolution;
+	return ret_sol;
+}
+
+void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::VectorXd& rhs_disp, double mu, double mu_rot) {
+	TA_size = 0;
+	uint lrid = line_start_row_id;
+	uint prid = pt_start_row_id;
+
+	//TODO: code simplifications (expected ~50% code reduction):
+	// - compute slip directions for point, line-translation and line-rotation only once
+	// at the beginning
+	// - compute the independent blocks of the matrices and the rhs vectors first
+	// - - might need to compute the block sizes first for this
+	// - compute the TA coupling blocks
+
+	if(point_state == FrictionState::Sliding || point_state == FrictionState::Impending) {
+		Vector2d pt_slip_dir;
+		if(point_state == FrictionState::Sliding) {
+			pt_slip_dir = point_slip_dir;
+		} else {
+			pt_slip_dir = point_rolling_dir;
+		}
+
+		if(line_cop_type == COPContactType::LineCenter) {
+			// line: both translation and rolling friction forces are limited
+			if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending) &&
+				(line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending)
+			) {
+				Vector2d ltslip_dir;
+				double lrslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+				if(line_rotational_state == FrictionState::Sliding) {
+					lrslip_dir = line_rotation_slip_dir;
+				} else {
+					lrslip_dir = line_rotation_rolling_dir;
+				}
+
+				Trhs.segment<2>(0) = -rhs_disp.segment<2>(lrid+2);
+				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2) 
+							- mu*A_disp.block<2,2>(lrid+2, lrid+0)*(ltslip_dir)
+							- mu_rot*lrslip_dir*A_disp.block<2,1>(lrid+2,lrid+4);
+				TA.block<2,1>(0,1) = A_disp.block<2,1>(lrid+2,lrid+3);
+
+				// pt stuff
+				Trhs(2) = -rhs_disp(prid+2);
+				TA(2,2) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA.block<2,1>(0,2) = A_disp.block<2,1>(lrid+2, prid+2)
+							- mu*A_disp.block<2,2>(lrid+2,prid+0)*(pt_slip_dir);
+				TA(2,0) = A_disp(prid+2, lrid+2)
+							- mu*A_disp.block<1,2>(prid+2,lrid+0)*(ltslip_dir)
+							- mu_rot*lrslip_dir*A_disp(prid+2,lrid+4);
+				TA(2,1) = A_disp(prid+2, lrid+3);
+				TA_size = 3;
+			}
+			// line: translation forces are limited, rolling forces are not
+			else if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending) &&
+				line_rotational_state == FrictionState::Rolling
+			) {
+				Vector2d ltslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+
+				// line stuff			
+				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid+2);
+				TA.block<3,1>(0,0) = A_disp.block<3,1>(lrid+2,lrid+2)
+							- mu*A_disp.block<3,2>(lrid+2, lrid+0)*(ltslip_dir);
+				TA.block<3,2>(0,1) = A_disp.block<3,2>(lrid+2,lrid+3);
+
+				// pt stuff
+				Trhs(3) = -rhs_disp(prid+2);
+				TA(3,3) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA.block<3,1>(0,3) = A_disp.block<3,1>(lrid+2, prid+2)
+							- mu*A_disp.block<3,2>(lrid+2,prid+0)*(pt_slip_dir);
+				TA(3,0) = A_disp(prid+2, lrid+2)
+							- mu*A_disp.block<1,2>(prid+2,lrid+0)*(ltslip_dir);
+				TA.block<1,2>(3,1) = A_disp.block<1,2>(prid+2,lrid+3);
+				TA_size = 4;
+			}
+			// line: rotational forces are limited, translation forces are not
+			else if((line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending) &&
+				line_translation_state == FrictionState::Rolling
+			) {
+				double lrslip_dir;
+
+				if(line_rotational_state == FrictionState::Sliding) {
+					lrslip_dir = line_rotation_slip_dir;
+				} else {
+					lrslip_dir = line_rotation_rolling_dir;
+				}
+
+				// line stuff
+				Trhs.segment<4>(0) = -rhs_disp.segment<4>(lrid);
+				TA.block<4,2>(0,0) = A_disp.block<4,2>(lrid+0,lrid+0);
+				TA.block<4,1>(0,2) = A_disp.block<4,1>(lrid+0,lrid+2)
+									- mu_rot*lrslip_dir*A_disp.block<4,1>(lrid+0,lrid+4);
+				TA.block<4,1>(0,3) = A_disp.block<4,1>(lrid+0,lrid+3);
+
+				// pt stuff
+				Trhs(4) = -rhs_disp(prid+2);
+				TA(4,4) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA.block<4,1>(0,4) = A_disp.block<4,1>(lrid+0, prid+2)
+							- mu*A_disp.block<4,2>(lrid+0,prid+0)*(pt_slip_dir);
+				TA.block<1,2>(4,0) = A_disp.block<1,2>(prid+2, lrid+0);
+				TA(4,2) = A_disp(prid+2, lrid+2)
+							- mu_rot*lrslip_dir*A_disp(prid+2,lrid+4);
+				TA(4,3) = A_disp(prid+2, lrid+3);
+				TA_size = 5;
+			}
+			// line: translational and rotational forces are not limited
+			else if(line_rotational_state == FrictionState::Rolling &&
+				line_translation_state == FrictionState::Rolling
+			) {
+				// line stuff
+				Trhs.segment<5>(0) = -rhs_disp.segment<5>(lrid);
+				TA.block<5,5>(0,0) = A_disp.block<5,5>(lrid+0,lrid+0);
+
+				// pt stuff
+				Trhs(5) = -rhs_disp(prid+2);
+				TA(5,5) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA.block<5,1>(0,5) = A_disp.block<5,1>(lrid+0, prid+2)
+							- mu*A_disp.block<5,2>(lrid+0,prid+0)*(pt_slip_dir);
+				TA.block<1,5>(5,0) = A_disp.block<1,5>(prid+2, lrid+0);
+				TA_size = 6;
+			} else {
+				throw(std::runtime_error("Unimplemented case"));
+			}
+		} else if(line_cop_type == COPContactType::LineEnd) {
+			// TODO: combine with simple 2-pt solution
+			if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending)
+			) {
+				Vector2d ltslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+
+				Trhs(0) = -rhs_disp(lrid+2);
+				TA(0,0) = A_disp(lrid+2,lrid+2) 
+							- mu*A_disp.block<1,2>(lrid+2, lrid+0)*(ltslip_dir);
+
+				// pt stuff
+				Trhs(1) = -rhs_disp(prid+2);
+				TA(1,1) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA(0,1) = A_disp(lrid+2, prid+2)
+							- mu*A_disp.block<1,2>(lrid+2,prid+0)*(pt_slip_dir);
+				TA(1,0) = A_disp(prid+2, lrid+2)
+							- mu*A_disp.block<1,2>(prid+2,lrid+0)*(ltslip_dir);
+				TA_size = 2;
+			} else { // rolling at the line end point
+				// line stuff
+				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid);
+				TA.block<3,3>(0,0) = A_disp.block<3,3>(lrid+0,lrid+0);
+
+				// pt stuff
+				Trhs(3) = -rhs_disp(prid+2);
+				TA(3,3) = A_disp(prid+2, prid+2)
+							- mu*A_disp.block<1,2>(prid+2,prid+0)*(pt_slip_dir);
+
+				// coupling stuff
+				TA.block<3,1>(0,3) = A_disp.block<3,1>(lrid+0, prid+2)
+							- mu*A_disp.block<3,2>(lrid+0,prid+0)*(pt_slip_dir);
+				TA.block<1,3>(3,0) = A_disp.block<1,3>(prid+2, lrid+0);
+				TA_size = 4;
+			}
+		}
+	} else if(point_state == FrictionState::Rolling) {
+		if(line_cop_type == COPContactType::LineCenter) {
+			// line: both translation and rolling friction forces are limited
+			if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending) &&
+				(line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending)
+			) {
+				Vector2d ltslip_dir;
+				double lrslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+				if(line_rotational_state == FrictionState::Sliding) {
+					lrslip_dir = line_rotation_slip_dir;
+				} else {
+					lrslip_dir = line_rotation_rolling_dir;
+				}
+
+				// line stuff
+				Trhs.segment<2>(0) = -rhs_disp.segment<2>(lrid+2);
+				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2) 
+							- mu*A_disp.block<2,2>(lrid+2, lrid+0)*(ltslip_dir)
+							- mu_rot*lrslip_dir*A_disp.block<2,1>(lrid+2,lrid+4);
+				TA.block<2,1>(0,1) = A_disp.block<2,1>(lrid+2,lrid+3);
+
+				// pt stuff
+				Trhs.segment<3>(2) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(2,2) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<2,3>(0,2) = A_disp.block<2,3>(lrid+2, prid+0);
+				TA.block<3,1>(2,0) = A_disp.block<3,1>(prid+0, lrid+2)
+							- mu*A_disp.block<3,2>(prid+0,lrid+0)*(ltslip_dir)
+							- mu_rot*lrslip_dir*A_disp.block<3,1>(prid+0,lrid+4);
+				TA.block<3,1>(2,1) = A_disp.block<3,1>(prid+0, lrid+3);
+				TA_size = 5;
+			}
+			// line: translation forces are limited, rolling forces are not
+			else if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending) &&
+				line_rotational_state == FrictionState::Rolling
+			) {
+				Vector2d ltslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+
+				// line stuff			
+				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid+2);
+				TA.block<3,1>(0,0) = A_disp.block<3,1>(lrid+2,lrid+2)
+							- mu*A_disp.block<3,2>(lrid+2, lrid+0)*(ltslip_dir);
+				TA.block<3,2>(0,1) = A_disp.block<3,2>(lrid+2,lrid+3);
+
+				// pt stuff
+				Trhs.segment<3>(3) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(3,3) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<3,3>(0,3) = A_disp.block<3,3>(lrid+2, prid+0);
+				TA.block<3,1>(3,0) = A_disp.block<3,1>(prid+0, lrid+2)
+							- mu*A_disp.block<3,2>(prid+0,lrid+0)*(ltslip_dir);
+				TA.block<3,2>(3,1) = A_disp.block<3,2>(prid+0,lrid+3);
+				TA_size = 6;
+			}
+			// line: rotational forces are limited, translation forces are not
+			else if((line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending) &&
+				line_translation_state == FrictionState::Rolling
+			) {
+				double lrslip_dir;
+
+				if(line_rotational_state == FrictionState::Sliding) {
+					lrslip_dir = line_rotation_slip_dir;
+				} else {
+					lrslip_dir = line_rotation_rolling_dir;
+				}
+
+				// line stuff
+				Trhs.segment<4>(0) = -rhs_disp.segment<4>(lrid);
+				TA.block<4,2>(0,0) = A_disp.block<4,2>(lrid+0,lrid+0);
+				TA.block<4,1>(0,2) = A_disp.block<4,1>(lrid+0,lrid+2)
+									- mu_rot*lrslip_dir*A_disp.block<4,1>(lrid+0,lrid+4);
+				TA.block<4,1>(0,3) = A_disp.block<4,1>(lrid+0,lrid+3);
+
+				// pt stuff
+				Trhs.segment<3>(4) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(4,4) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<4,3>(0,4) = A_disp.block<4,3>(lrid+0, prid+0);
+				TA.block<3,2>(4,0) = A_disp.block<3,2>(prid+0, lrid+0);
+				TA.block<3,1>(4,2) = A_disp.block<3,1>(prid+0, lrid+2)
+							- mu_rot*lrslip_dir*A_disp.block<3,1>(prid+0,lrid+4);
+				TA.block<3,1>(4,3) = A_disp.block<3,1>(prid+0, lrid+3);
+				TA_size = 7;
+			}
+			// line: translational and rotational forces are not limited
+			else if(line_rotational_state == FrictionState::Rolling &&
+				line_translation_state == FrictionState::Rolling
+			) {
+				// line stuff
+				Trhs.segment<5>(0) = -rhs_disp.segment<5>(lrid);
+				TA.block<5,5>(0,0) = A_disp.block<5,5>(lrid+0,lrid+0);
+
+				// pt stuff
+				Trhs.segment<3>(5) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(5,5) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<5,3>(0,5) = A_disp.block<5,3>(lrid+0, prid+0);
+				TA.block<3,5>(5,0) = A_disp.block<3,5>(prid+0, lrid+0);
+				TA_size = 8;
+			} else {
+				throw(std::runtime_error("Unimplemented case"));
+			}
+		} else if(line_cop_type == COPContactType::LineEnd) {
+			// TODO: combine with simple 2-pt solution
+			if((line_translation_state == FrictionState::Sliding ||
+				line_translation_state == FrictionState::Impending)
+			) {
+				Vector2d ltslip_dir;
+
+				if(line_translation_state == FrictionState::Sliding) {
+					ltslip_dir = line_translation_slip_dir;
+				} else {
+					ltslip_dir = line_translation_rolling_dir;
+				}
+
+				Trhs(0) = -rhs_disp(lrid+2);
+				TA(0,0) = A_disp(lrid+2,lrid+2) 
+							- mu*A_disp.block<1,2>(lrid+2, lrid+0)*(ltslip_dir);
+
+				// pt stuff
+				Trhs.segment<3>(1) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(1,1) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<1,3>(0,1) = A_disp.block<1,3>(lrid+2, prid+0);
+				TA.block<3,1>(1,0) = A_disp.block<3,1>(prid+0, lrid+2)
+							- mu*A_disp.block<3,2>(prid+0,lrid+0)*(ltslip_dir);
+				TA_size = 4;
+			} else { // rolling at the line end point
+				// line stuff
+				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid);
+				TA.block<3,3>(0,0) = A_disp.block<3,3>(lrid+0,lrid+0);
+
+				// pt stuff
+				Trhs.segment<3>(3) = -rhs_disp.segment<3>(prid+0);
+				TA.block<3,3>(3,3) = A_disp.block<3,3>(prid+0, prid+0);
+
+				// coupling stuff
+				TA.block<3,3>(0,3) = A_disp.block<3,3>(lrid+0, prid+0);
+				TA.block<3,3>(3,0) = A_disp.block<3,3>(prid+0, lrid+0);
+				TA_size = 6;
+			}
+		}
+	} else {
+		throw(std::runtime_error("Unimplemented case"));
+	}
+}
+
+void COPSolver::solve(double mu, double mu_rot, Eigen::VectorXd& full_f_sol) {
+	Tf_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
+	
+	uint lrid = line_start_row_id;
+	uint prid = pt_start_row_id;
+
+
+	// get line solution
+	Vector2d ltslip_dir;
+	double lrslip_dir;
+
+	if(line_translation_state == FrictionState::Sliding) {
+		ltslip_dir = line_translation_slip_dir;
+	} else {
+		ltslip_dir = line_translation_rolling_dir;
+	}
+	if(line_rotational_state == FrictionState::Sliding) {
+		lrslip_dir = line_rotation_slip_dir;
+	} else {
+		lrslip_dir = line_rotation_rolling_dir;
+	}
+
+	uint tp_ind = 0;
+
+	if(line_cop_type == COPContactType::LineCenter) {
+		if(line_translation_state == FrictionState::Sliding ||
+			line_translation_state == FrictionState::Impending
+		) {
+			full_f_sol.segment<2>(lrid+0) = -mu*Tf_sol(0)*ltslip_dir;
+			full_f_sol.segment<2>(lrid+2) = Tf_sol.segment<2>(0);
+			if(line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending
+			) {
+				full_f_sol(lrid+4) = -mu_rot*Tf_sol(0)*lrslip_dir;
+				tp_ind = 2;
+			} else { // rotation rolling
+				full_f_sol(lrid+4) = Tf_sol(2);
+				tp_ind = 3;
+			}
+		} else { // translation rolling
+			full_f_sol.segment<4>(lrid+0) = Tf_sol.segment<4>(0);
+			if(line_rotational_state == FrictionState::Sliding ||
+				line_rotational_state == FrictionState::Impending
+			) {
+				full_f_sol(lrid+4) = -mu_rot*Tf_sol(2)*lrslip_dir;
+				tp_ind = 4;
+			} else { // rotation rolling
+				full_f_sol(lrid+4) = Tf_sol(4);
+				tp_ind = 5;
+			}
+		}
+	} else if(line_cop_type == COPContactType::LineEnd) {
+		full_f_sol.segment<2>(lrid+3) = Vector2d::Zero();
+		if(line_translation_state == FrictionState::Sliding ||
+			line_translation_state == FrictionState::Impending
+		) {
+			full_f_sol.segment<2>(lrid+0) = -mu*Tf_sol(0)*ltslip_dir;
+			full_f_sol(lrid+2) = Tf_sol(0);
+			tp_ind = 1;
+		} else { // translation rolling
+			full_f_sol.segment<3>(lrid+0) = Tf_sol.segment<3>(0);
+			tp_ind = 3;
+		}
+	}
+
+	// get point solution
+	Vector2d pt_slip_dir;
+	if(point_state == FrictionState::Sliding) {
+		pt_slip_dir = point_slip_dir;
+	} else {
+		pt_slip_dir = point_rolling_dir;
+	}
+	if(point_state == FrictionState::Sliding ||
+		point_state == FrictionState::Impending
+	) {
+		full_f_sol.segment<2>(prid+0) = -mu*Tf_sol(tp_ind+0)*pt_slip_dir;
+		full_f_sol(prid+2) = Tf_sol(tp_ind+0);
+	} else {// pt rolling
+		full_f_sol.segment<3>(prid+0) = Tf_sol.segment<3>(tp_ind+0);
+	}
 }
 
 }
