@@ -32,6 +32,18 @@ namespace Sai2COPSim {
 				*(dynamic_cast<const CapsulePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const CapsulePrimitive*>(primB)), primBinWorld
 			);
+		} else if(primA->_type == Primitive::GeometryType::Cylinder && primB->_type == Primitive::GeometryType::Plane) {
+			auto ret_info = distancePlaneCylinder(
+				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
+				*(dynamic_cast<const CylinderPrimitive*>(primA)), primAinWorld
+			);
+			ret_info.flipNormal();
+			return ret_info;
+		} else if(primB->_type == Primitive::GeometryType::Cylinder && primA->_type == Primitive::GeometryType::Plane) {
+			return distancePlaneCylinder(
+				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
+				*(dynamic_cast<const CylinderPrimitive*>(primB)), primBinWorld
+			);
 		} else {
 			std::cerr << "PrimA type: " << primA->_type << std::endl;
 			std::cerr << "PrimB type: " << primB->_type << std::endl;
@@ -243,5 +255,109 @@ namespace Sai2COPSim {
 			pt = capsuleAInWorld*pt;
 		}
 		return ret_info;
+	}
+
+	PrimPrimContactInfo PrimPrimDistance::distancePlaneCylinder(
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const CylinderPrimitive& cylinder, Eigen::Affine3d cylinderInWorld
+	) {
+		assert(cylinder._props != NULL);
+		assert(plane._props != NULL);
+
+		double cylinder_len = cylinder._props->height;
+		// std::cout << "Height: " << cylinder_len << std::endl;
+		double cylinder_radius = cylinder._props->radius;
+		Vector3d plane_point = plane._props->point;
+		Vector3d plane_normal = plane._props->normal;
+
+		Vector3d endA_world, endB_world;
+		Vector3d endA_local(0.0, 0.0, 0.0);
+		Vector3d endB_local(0.0, 0.0, cylinder_len);
+		endA_world = cylinderInWorld*endA_local;
+		endB_world = cylinderInWorld*endB_local;
+		Vector3d cylinder_axis = cylinderInWorld.linear().col(2);
+
+		Vector3d plane_point_world = planeInWorld*plane_point;
+		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
+
+		PrimPrimContactInfo ret_info;
+		ret_info.normal_dir = plane_normal_world;
+
+		// determine tangent directions
+		// first try the cylinder axis
+		// std::cout <<"Cylinder rotation " << cylinderInWorld.linear() << std::endl;
+		Vector3d inter_end_axis = cylinder_axis; // local z axis
+		double testaxis1_normal_proj = inter_end_axis.dot(plane_normal_world);
+		Vector3d worldx_axis(1.0,0.0,0.0);
+		double testaxis2_normal_proj = worldx_axis.dot(plane_normal_world);
+		Vector3d worldy_axis(0.0,1.0,0.0);
+		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
+		if(abs(testaxis1_normal_proj) < 0.999) {
+			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
+			// the tangent plane
+			ret_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
+			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+		} else if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
+			ret_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+		} else { // use world y axis
+			ret_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+		}
+		ret_info.constraint_dir2 = ret_info.normal_dir.cross(ret_info.constraint_dir1);
+
+		// check for line contact
+		if(abs(cylinder_axis.dot(plane_normal_world)) < 
+			PrimitiveAlgorithmicConstants::MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD
+		) {
+			ret_info.type = ContactType::LINE;
+			// if(LOG_DEBUG) cout << "Line contact " << endl;
+			ret_info.contact_points.push_back(endA_world - cylinder_radius * plane_normal_world);
+			ret_info.contact_points.push_back(endB_world - cylinder_radius * plane_normal_world);
+			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world) - cylinder_radius;
+			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world) - cylinder_radius;
+			ret_info.min_distance = fmin(endA_distance, endB_distance);
+			return ret_info;
+		}
+		// check for end surface contact
+		if(abs(cylinder_axis.dot(plane_normal_world)) > 0.999) {
+			ret_info.type = ContactType::SURFACE;
+			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world);
+			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world);
+			//TODO: add contact patch
+			// if(LOG_DEBUG) cout << "Line contact " << endl;
+			if(endA_distance < endB_distance) {
+				// add FaceA points to contact points
+				for(auto& pt: cylinder._faceA_points) {
+					ret_info.contact_points.push_back(cylinderInWorld*pt);
+				}
+			} else {
+				// add FaceB points to contact points
+				for(auto& pt: cylinder._faceB_points) {
+					ret_info.contact_points.push_back(cylinderInWorld*pt);
+				}
+			}
+			ret_info.min_distance = fmin(endA_distance, endB_distance);
+			return ret_info;
+		}
+		// last case: point contact with circular edge
+		{
+			ret_info.type = ContactType::POINT;
+			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world);
+			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world);
+			Vector3d pt_dir = (plane_normal_world.cross(cylinder_axis)).cross(cylinder_axis);
+			pt_dir /= pt_dir.norm();
+			Vector3d close_pt;
+			if(endA_distance < endB_distance) {
+				// pt contact on face A
+				close_pt = endA_world + cylinder_radius * pt_dir;
+			} else {
+				// pt contact on face B
+				close_pt = endB_world + cylinder_radius * pt_dir;
+			}
+			ret_info.contact_points.push_back(close_pt);
+			ret_info.min_distance = (close_pt - plane_point_world).dot(plane_normal_world);
+			return ret_info;
+		}
 	}
 }

@@ -51,10 +51,11 @@ struct PrimPrimContactInfo {
 struct CapsuleProperties;
 struct PlaneProperties;
 struct SphereProperties;
+struct CylinderProperties;
 
 class Primitive {
 public:
-	enum GeometryType { Undefined, Plane, Sphere, Capsule };
+	enum GeometryType { Undefined, Plane, Sphere, Capsule, Cylinder };
 
 public:
 	// base constructor
@@ -82,6 +83,10 @@ public:
 	// virtual sphere props
 	virtual void setSphereProperties(SphereProperties* props) { }
 	virtual SphereProperties* getSphereProperties() { return NULL; }
+
+	// virtual cylinder props
+	virtual void setCylinderProperties(CylinderProperties* props) { }
+	virtual CylinderProperties* getCylinderProperties() { return NULL; }
 
 public:
 	// ownership info. TODO: consider something more robust
@@ -143,6 +148,38 @@ public:
 	CapsuleProperties* _props;
 };
 
+// cylinder primitive
+// cylinder is assumed to be aligned with +Z axis to be consistent with chai.
+// TODO: consider changing this in future.
+// Also, local frame is at faceA of the cylinder.
+struct CylinderProperties {
+	double radius;
+	double height;
+	uint num_points; // number of points on a face for collision testing
+};
+
+class CylinderPrimitive: public Primitive {
+public:
+	CylinderPrimitive(const std::string& name, double radius, double height, uint num_points);
+
+	~CylinderPrimitive() {
+		delete _props;
+	}
+
+	virtual void setCylinderProperties(CylinderProperties* props);
+
+	virtual CylinderProperties* getCylinderProperties() { return _props; }
+
+public:
+	CylinderProperties* _props;
+	// FaceA and FaceB points in local frame
+	std::vector<Eigen::Vector3d> _faceA_points;
+	std::vector<Eigen::Vector3d> _faceB_points;
+
+private:
+	void computeFacePoints();
+};
+
 // --------- distance computations. static functions ----------
 class PrimPrimDistance {
 public:
@@ -164,6 +201,14 @@ public:
 		const CapsulePrimitive& capsuleA, Eigen::Affine3d capsuleAInWorld,
 		const CapsulePrimitive& capsuleB, Eigen::Affine3d capsuleBInWorld
 	);
+
+	static PrimPrimContactInfo distancePlaneCylinder(
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const CylinderPrimitive& cylinder, Eigen::Affine3d cylinderInWorld
+	);
+
+	// TODO: Cylinder capsule
+	// TODO: Cylinder cylinder
 };
 
 }

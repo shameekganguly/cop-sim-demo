@@ -25,10 +25,12 @@ void printPrimPrimInfo(const PrimPrimContactInfo& info) {
 
 void testPlaneCapsuleDistance();
 void testCapsuleCapsuleDistance();
+void testPlaneCylinderDistance();
 
 int main (int argc, char** argv) {
-	testPlaneCapsuleDistance();
+	// testPlaneCapsuleDistance();
 	// testCapsuleCapsuleDistance();
+	testPlaneCylinderDistance();
 	return 0;
 }
 
@@ -356,6 +358,88 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);	
+		printPrimPrimInfo(info);
+	}
+}
+
+void testPlaneCylinderDistance() {
+	cout << "000000000000 ----- PLANE - CYLINDER ----- 000000000000" << endl;
+	{
+		// test distance between z-plane and cylinder
+		cout << "--- TEST 1 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.5;
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder
+		cout << "--- TEST 2 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.5;
+		cylTF.linear() << 0.0, -1.0, 0.0,
+							1.0, 0.0, 0.0,
+							0.0, 0.0, 1.0;
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder: line contact
+		cout << "--- TEST 3 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.5;
+		cylTF.linear() << 1.0, 0.0, 0.0,
+							0.0, 0.0, -1.0,
+							0.0, 1.0, 0.0;
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder: inverted plane contact
+		cout << "--- TEST 4 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.5;
+		cylTF.linear() << 1.0, 0.0, 0.0,
+							0.0, -1.0, 0.0,
+							0.0, 0.0, -1.0;
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder: point contact, no intersection
+		cout << "--- TEST 5 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.5;
+		cylTF.linear() << 1.0, 0.0, 0.0,
+							0.0, cos(M_PI/4), -sin(M_PI/4),
+							0.0, sin(M_PI/4), cos(M_PI/4);
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder
+		cout << "--- TEST 6 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 6);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, -0.02;
+		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 }
