@@ -39,9 +39,18 @@ const string object_fname = "resources/02-two-capsules/capsule_object.urdf";
 const string object1_name = "Capsule1";
 const double capsule1_radius = 0.1;
 const double capsule2_radius = 0.1;
+const double capsule3_radius = 0.1;
+const double capsule4_radius = 0.1;
+const double capsule5_radius = 0.1;
 const double capsule1_length = 0.2;
 const double capsule2_length = 0.2;
+const double capsule3_length = 0.2;
+const double capsule4_length = 0.2;
+const double capsule5_length = 0.2;
 const string object2_name = "Capsule2";
+const string object3_name = "Capsule3";
+const string object4_name = "Capsule4";
+const string object5_name = "Capsule5";
 const string object_link_name = "object";
 const string box_name = "Box";
 
@@ -75,7 +84,7 @@ void glfwError(int error, const char* description);
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main(int argc, char** argv) {
-	const double restitution = 0.5;
+	const double restitution = 0.4;
     const double friction = 0.1;
 
     // load sai2 simulation world
@@ -94,6 +103,18 @@ int main(int argc, char** argv) {
     capsule2_in_world.linear() = sai2_sim->_world->getBaseNode(object2_name)->getLocalRot().eigen();
     // cout << capsule2_in_world.translation().transpose() << endl;
 
+    Affine3d capsule3_in_world;
+    capsule3_in_world.translation() = sai2_sim->_world->getBaseNode(object3_name)->getLocalPos().eigen();
+    capsule3_in_world.linear() = sai2_sim->_world->getBaseNode(object3_name)->getLocalRot().eigen();
+
+    Affine3d capsule4_in_world;
+    capsule4_in_world.translation() = sai2_sim->_world->getBaseNode(object4_name)->getLocalPos().eigen();
+    capsule4_in_world.linear() = sai2_sim->_world->getBaseNode(object4_name)->getLocalRot().eigen();
+
+    Affine3d capsule5_in_world;
+    capsule5_in_world.translation() = sai2_sim->_world->getBaseNode(object5_name)->getLocalPos().eigen();
+    capsule5_in_world.linear() = sai2_sim->_world->getBaseNode(object5_name)->getLocalRot().eigen();
+
     Affine3d static_plane_in_world;
     static_plane_in_world.translation() = sai2_sim->_world->getBaseNode(box_name)->getLocalPos().eigen();
     static_plane_in_world.linear() = sai2_sim->_world->getBaseNode(box_name)->getLocalRot().eigen();
@@ -109,16 +130,28 @@ int main(int argc, char** argv) {
     // graphics->showLinkFrame(true, object_name, object_link_name);
     graphics->showWireMeshRender(true, object1_name, object_link_name);
     graphics->showWireMeshRender(true, object2_name, object_link_name);
+    graphics->showWireMeshRender(true, object3_name, object_link_name);
+    graphics->showWireMeshRender(true, object4_name, object_link_name);
+    graphics->showWireMeshRender(true, object5_name, object_link_name);
 
     // load objects
     auto coobject1 = new Sai2Model::Sai2Model(object_fname, false, capsule1_in_world, capsule1_in_world.linear().transpose()*grav_vector);
     auto coobject2 = new Sai2Model::Sai2Model(object_fname, false, capsule2_in_world, capsule2_in_world.linear().transpose()*grav_vector);
+    auto coobject3 = new Sai2Model::Sai2Model(object_fname, false, capsule3_in_world, capsule3_in_world.linear().transpose()*grav_vector);
+    auto coobject4 = new Sai2Model::Sai2Model(object_fname, false, capsule4_in_world, capsule4_in_world.linear().transpose()*grav_vector);
+    auto coobject5 = new Sai2Model::Sai2Model(object_fname, false, capsule5_in_world, capsule5_in_world.linear().transpose()*grav_vector);
+
+    // add some initial velocity. TODO: move to parser
+    // coobject1->_dq[5] = 0.1;
 
     // set up COP sim world
     auto cop_sim = new Sai2COPSim::COPSimulator(friction, restitution);
     //TODO: test with same primitive name
     cop_sim->addCapsuleObject(object1_name, object_link_name, "capsule1", coobject1, capsule1_radius, capsule1_length);
     cop_sim->addCapsuleObject(object2_name, object_link_name, "capsule2", coobject2, capsule2_radius, capsule2_length);
+    cop_sim->addCapsuleObject(object3_name, object_link_name, "capsule3", coobject3, capsule3_radius, capsule3_length);
+    cop_sim->addCapsuleObject(object4_name, object_link_name, "capsule4", coobject4, capsule4_radius, capsule4_length);
+    cop_sim->addCapsuleObject(object5_name, object_link_name, "capsule5", coobject5, capsule5_radius, capsule5_length);
     // add plane
     cop_sim->addPlane(box_name, static_plane_in_world.linear().col(2), static_plane_in_world.translation());
 
@@ -148,6 +181,9 @@ int main(int argc, char** argv) {
         glfwGetFramebufferSize(window, &width, &height);
         graphics->updateGraphics(object1_name, coobject1);
         graphics->updateGraphics(object2_name, coobject2);
+        graphics->updateGraphics(object3_name, coobject3);
+        graphics->updateGraphics(object4_name, coobject4);
+        graphics->updateGraphics(object5_name, coobject5);
         // TODO: update force display
         // cop_force_display->update();
 
@@ -230,7 +266,10 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
 
         try {
             sim->integrate(loop_dt);
-            // cout << sim->_contact_map._islands.size() << endl;
+            // if(timer.elapsedCycles() % 100 == 0) {
+            //     cout << "Update sim" << endl;
+            //     cout << sim->_contact_map._islands.size() << endl;
+            // }
             // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primA->_name << endl;
             // cout << (sim->_contact_map._islands[0]._contact_prim_pairs.front()).primB->_name << endl;
             // if(sim->_contact_map._islands.size() > 0) {

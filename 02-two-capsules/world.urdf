@@ -23,12 +23,27 @@
 
 	<robot name="Capsule1">
 		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
-		<origin xyz="-0.0 -0.5 1.0" rpy="0 0.0 0.0" />
+		<origin xyz="-0.0 -0.0 0.11" rpy="0 0.0 0.0" />
 	</robot>
 
 	<robot name="Capsule2">
 		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
-		<origin xyz="-0.0 0.5 1.0" rpy="0 0.0 0.0" />
+		<origin xyz="-0.0 0.15 0.5" rpy="0 0.0 1.57" />
+	</robot>
+
+	<robot name="Capsule3">
+		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
+		<origin xyz="-0.7 -0.0 0.5" rpy="0 0.7 0.0" />
+	</robot>
+
+	<robot name="Capsule4">
+		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
+		<origin xyz="-0.0 -0.3 0.9" rpy="0 0.0 1.57" />
+	</robot>
+
+	<robot name="Capsule5">
+		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
+		<origin xyz="-0.7 -0.0 1.0" rpy="0 0.0 0.3" />
 	</robot>
 
 	<light name="light2" type="directional">
