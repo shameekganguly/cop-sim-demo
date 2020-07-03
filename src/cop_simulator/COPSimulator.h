@@ -44,6 +44,18 @@ void addCapsuleObject(const std::string& articulated_body_name,
 		double radius,
 		double length);
 
+// add a cylinder object
+// object->_T_world_robot is assumed to have been set already
+// cylinder is assumed to be aligned with +Z axis. local frame at the center of one end
+// face of the cylinder.
+void addCylinderObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which capsule primitive will be attached
+		const std::string& primitive_name,
+		Sai2Model::Sai2Model* object,
+		double radius,
+		double length,
+		uint num_points);
+
 // automatically sets q and dq for the objects
 void integrate(double dt);
 

@@ -26,7 +26,7 @@ void COPSimulator::addPlane(const std::string& name, const Eigen::Vector3d& plan
 	}
 	_static_objects[name] = new PlanePrimitive(name, planeNormal, planePoint);
 	_static_objects[name]->_is_static = true;
-	_geom_manager._primitives.push_back(_static_objects[name]);
+	_geom_manager.addPrimitive(_static_objects[name]);
 
 	//TODO: check if intersecting with articulated bodies, if so throw
 	//NOTE: It is ok if there is intersection with other static objects
@@ -53,9 +53,35 @@ void COPSimulator::addCapsuleObject(const std::string& articulated_body_name,
 	capsule->_link_name = link_name;
 	// TODO: set primitive _transform_in_link
 
-	_geom_manager._primitives.push_back(capsule);
+	_geom_manager.addPrimitive(capsule);
 
 	arb->addPrimitive(link_name, capsule);
+	//TODO: check if intersecting with anything, if so throw
+	//TODO: force update model
+}
+
+void COPSimulator::addCylinderObject(const std::string& articulated_body_name,
+					const std::string& link_name,
+					const std::string& primitive_name,
+					Sai2Model::Sai2Model* object,
+					double radius,
+					double length,
+					uint num_points
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+
+	// create a new cylinder primitive
+	auto cylinder = new CylinderPrimitive(primitive_name, radius, length, num_points);
+	cylinder->_is_static = false;
+	cylinder->_articulated_body_name = articulated_body_name;
+	cylinder->_link_name = link_name;
+	cylinder->_transform_in_link.translation() << 0, 0, -length/2; 
+	// to ensure that link center is at the center of the cylinder
+
+	_geom_manager.addPrimitive(cylinder);
+
+	arb->addPrimitive(link_name, cylinder);
 	//TODO: check if intersecting with anything, if so throw
 	//TODO: force update model
 }
