@@ -631,7 +631,7 @@ static void getCOPLineAndPtContactDisplacedMatricesExtended (
 ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 	double friction_coeff,
 	const Eigen::MatrixXd& A_constraint,
-	const Eigen::VectorXd& rhs_constraint, // 6 defined at point 0. Includes Jdot_qdot
+	const Eigen::VectorXd& rhs_constraint, // 5+3/ 3+5 defined at point 0. Includes Jdot_qdot
 	const std::vector<std::vector<Eigen::Vector3d>>& boundary_points, // points are in the COP frame with point0 being origin
 	const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
 	const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
@@ -1433,6 +1433,434 @@ void COPSolver::solve(double mu, double mu_rot, Eigen::VectorXd& full_f_sol) {
 		full_f_sol(prid+2) = Tf_sol(tp_ind+0);
 	} else {// pt rolling
 		full_f_sol.segment<3>(prid+0) = Tf_sol.segment<3>(tp_ind+0);
+	}
+}
+
+bool COPSolver::isAccelerationPenetrating(
+	const Eigen::Vector3d& cop_to_test_pos,
+	const Eigen::Vector3d& cop_lin_acc,
+	const Eigen::Vector3d& cop_ang_acc,
+	const Eigen::Vector3d& omegaA,
+	const Eigen::Vector3d& omegaB
+) {
+	Vector3d shift_nonlin_acc = omegaB.cross(omegaB.cross(cop_to_test_pos))
+									- omegaA.cross(omegaA.cross(cop_to_test_pos));
+	double testpt_z_acc = cop_lin_acc(2)
+							- cop_ang_acc(1)*(cop_to_test_pos)(0)
+							+ cop_ang_acc(0)*(cop_to_test_pos)(1)
+							+ shift_nonlin_acc(2);
+	return (testpt_z_acc < -1e-8);
+}
+
+static void getCOPSurfaceContactDisplacedMatrices(
+	Eigen::MatrixXd& A_disp,
+	Eigen::VectorXd& rhs_disp,
+	Eigen::Vector3d& lin_vel_disp,
+	const Eigen::Vector3d& displacement,
+	const Eigen::MatrixXd& A,
+	const Eigen::VectorXd& rhs,
+	const Eigen::Vector3d& omegaA,
+	const Eigen::Vector3d& omegaB,
+	const Eigen::Vector3d& lin_vel
+) {
+	MatrixXd transform_mat = MatrixXd::Identity(6,6);
+	transform_mat.block<3,3>(0,3) = -crossMat(displacement);
+	A_disp = transform_mat*A*transform_mat.transpose();
+	rhs_disp = transform_mat*rhs;
+	rhs_disp.segment<3>(0) += omegaB.cross(omegaB.cross(displacement))
+				- omegaA.cross(omegaA.cross(displacement));
+	lin_vel_disp = lin_vel + (omegaB - omegaA).cross(displacement);
+}
+
+static double getMuRotationSurface(double mu, double min_boundary_dist, double max_patch_extent) {
+	return 2*mu*min_boundary_dist*(max_patch_extent - min_boundary_dist)/max_patch_extent;
+}
+
+ContactCOPSolution COPSolver::solveSurfaceContact(
+	double friction_coeff,
+	const Eigen::MatrixXd& A_constraint, // defined at Contact Patch Interior point, which is also origin for COP frame.
+	const Eigen::VectorXd& rhs_constraint, // defined at Contact Patch Interior point. Includes Jdot_qdot
+	const ContactPatch& contact_patch,
+	const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
+	const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
+	const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+	const std::vector<Eigen::Vector3d>& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+	const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+	//^ expected to be zero in the z direction, but we don't explicitly check
+) {
+	// NOTE: only single surface contact solver for now.
+	Vector3d omegaA = omega_bodyA[0];
+	Vector3d omegaB = omega_bodyB[0];
+	Vector3d lin_vel = linear_contact_velocity[0];
+
+	ContactCOPSolution ret_sol;
+
+	// check for separating contact
+	if(rhs_constraint(2) > -1e-8) {
+		if(rhs_constraint.segment<2>(3).norm() < 1e-8) {
+			ret_sol.force_sol = VectorXd::Zero(6);
+			ret_sol.result = COPSolResult::Success;
+			return ret_sol;
+		} else {
+			// pick a worse case point to test for penetration due to angular acceleration
+			Vector3d faraway_test_pt = rhs_constraint.segment<3>(3).cross(Vector3d(0, 0, 1));
+			faraway_test_pt *= contact_patch.max_extent / faraway_test_pt.norm();
+			if(!isAccelerationPenetrating(
+				faraway_test_pt,
+				rhs_constraint.segment<3>(0),
+				rhs_constraint.segment<3>(3),
+				omegaA,
+				omegaB
+			)) {
+				ret_sol.force_sol = VectorXd::Zero(6);
+				ret_sol.result = COPSolResult::Success;
+				return ret_sol;
+			}
+		}
+	}
+
+	// compute rotational slip
+	patch_rotation_slip_dir = omegaB(2) - omegaA(2);
+	if(abs(patch_rotation_slip_dir) > 1e-8) {
+		patch_rotational_state = FrictionState::Sliding;
+		patch_rotation_slip_dir /= abs(patch_rotation_slip_dir);
+	} else {
+		// initialize to rolling
+		patch_rotational_state = FrictionState::Rolling;
+	}
+
+	const int max_iters = 40;
+	int iter_ind = 0;
+	Eigen::MatrixXd A_disp(6, 6);
+	Eigen::VectorXd rhs_disp(6);
+	Vector3d lin_vel_disp;
+	bool fForcePatchCenter = false;
+	bool fForceIgnoreSlip = false;
+	Eigen::VectorXd full_f_sol(6), full_a_sol(6);
+	double mu_rot;
+	const double mu = friction_coeff;
+	Vector3d cop_point = Vector3d::Zero();
+	patch_cop_type = COPContactType::PatchCenter;
+
+	// initial internal matrices
+	TA = A_constraint;
+	Trhs = rhs_constraint;
+	TA_size = 0;
+
+	bool did_update_cop_pos = true; // we set initially to true to compute mu_rot
+	while (iter_ind < max_iters) {
+		iter_ind++;
+
+		// if patch-cop position was updated, update displaced terms
+		if(did_update_cop_pos) {
+			did_update_cop_pos = false;
+
+			// get displaced matrices
+			getCOPSurfaceContactDisplacedMatrices(
+				A_disp, rhs_disp, lin_vel_disp,
+				cop_point,
+				A_constraint, rhs_constraint,
+				omegaA, omegaB,
+				lin_vel
+			);
+
+			// get min distance to patch boundary
+			auto test_result = contact_patch.testPoint(cop_point.segment<2>(0));
+
+			// debug stuff
+			if(patch_cop_type == COPContactType::PatchCenter && !fForcePatchCenter) {
+				assert(test_result.f_is_in_patch);
+				assert(test_result.min_dist_to_boundary > -1e-4);
+			} else {
+				assert(test_result.f_is_on_vertex);
+				assert(abs(test_result.min_dist_to_boundary) < 1e-4);
+			}
+
+			// compute mu_rotation //TODO: generalize getMuRotation function for patch and line
+			mu_rot = getMuRotationSurface(mu, test_result.min_dist_to_boundary, contact_patch.max_extent);
+
+			// get translational slip velocities at current COP
+			if(!fForceIgnoreSlip) {
+				patch_translation_slip_dir = lin_vel_disp.segment<2>(0);
+				if (patch_translation_slip_dir.norm() > 1e-6) {
+					patch_translation_state = FrictionState::Sliding;
+					patch_translation_slip_dir /= patch_translation_slip_dir.norm();
+				} else {
+					// initialize to rolling
+					patch_translation_state = FrictionState::Rolling;
+					// if rolling at COP, set fForceIgnoreSlip true
+					fForceIgnoreSlip = true;
+				}
+			}
+		}
+
+		// solve with current state
+		computeMatricesForSurface(A_disp, rhs_disp, mu, mu_rot);
+		solveForSurface(mu, mu_rot, full_f_sol);
+		full_a_sol = A_disp * full_f_sol + rhs_disp;
+
+		// check for normal force violation
+		if(full_f_sol(2) < -1e-8) {
+			ret_sol.result = COPSolResult::UnimplementedCase;
+			return ret_sol;
+		}
+
+		// check for translation friction cone violation
+		if(patch_translation_state == FrictionState::Rolling) {
+			Vector2d rolling_force = full_f_sol.segment<2>(0);
+			if(rolling_force.norm() > mu*full_f_sol(2) + 1e-15) {
+				// save impending direction
+				// TODO: proper impending slip direction
+				patch_translation_rolling_dir = -rolling_force/rolling_force.norm();
+				// switch point state to impending dir
+				patch_translation_state = FrictionState::Impending;
+				continue;
+			}
+		}
+		// check for impending translation slip wrong rolling direction
+		if(patch_translation_state == FrictionState::Impending) {
+			Vector2d friction_force = full_f_sol.segment<2>(0);
+			Vector2d slip_accel = full_a_sol.segment<2>(0);
+			if(slip_accel.dot(friction_force) > 1e-8) {
+				// switch back to rolling so that we recompute the rolling force
+				patch_translation_state = FrictionState::Rolling;
+				continue;
+			}
+		}
+		// check for rotation friction limit violation
+		if(patch_rotational_state == FrictionState::Rolling) {
+			double rolling_force = full_f_sol(5);
+			if(abs(rolling_force) > mu_rot*full_f_sol(2) + 1e-15) {
+				// save impending direction
+				patch_rotation_rolling_dir = -rolling_force/abs(rolling_force);
+				// switch point state to impending dir
+				patch_rotational_state = FrictionState::Impending;
+				continue;
+			}
+		}
+		// check for impending rotational slip wrong rolling direction
+		if(patch_rotational_state == FrictionState::Impending) {
+			double rolling_force = full_f_sol(5);
+			double rolling_acc = full_a_sol(5);
+			if(rolling_acc*rolling_force > 1e-8) {
+				// switch back to rolling so that we recompute the rolling force
+				patch_rotational_state = FrictionState::Rolling;
+				continue;
+			}
+		}
+
+		// - check for other end penetration. if so, force patch center solution. print to cerr.
+		// - we dont expect this case since we start from the patch center point currently.
+		if(patch_cop_type == COPContactType::PatchCurvePoint ||
+			patch_cop_type == COPContactType::PatchVertex
+		) {
+			// TODO: perhaps we need to test at one more point that is not collinear
+			// with the cop_point and the interior_point?
+			Vector3d test_disp = -cop_point;// we are testing at the interior point
+			if(isAccelerationPenetrating(test_disp,
+				full_a_sol.segment<3>(0),
+				full_a_sol.segment<3>(3),
+				omegaA,
+				omegaB
+			)) {
+				std::cerr << "Other end penetration occurred." << std::endl;
+				fForcePatchCenter = true;
+				did_update_cop_pos = true; // set this to recompute the solver matrices
+				patch_cop_type = COPContactType::PatchCenter;
+				continue;
+			}
+		}
+
+		// - check if zero moment condition is violated for patch contact,
+		if(patch_cop_type == COPContactType::PatchCenter) {
+			Vector2d violation_moment = full_f_sol.segment<2>(3);
+			if(violation_moment.norm() > 1e-3) {
+				fForcePatchCenter = false;
+				// ^reset this because we want to be able to go to a different cop
+				// position on the boundary if needed
+
+				// std::cout << "Full F sol line: " << full_f_sol.segment<5>(line_start_row_id).transpose() << std::endl;
+				// - - if so, compute distance to new line-COP.
+				double cop_disp_dist = violation_moment.norm()/fmax(full_f_sol[2], 1e-5);
+
+				// - - if distance to new line-COP is very small, we are done
+				if(abs(cop_disp_dist) > 0.01) {// TODO: integrate bisection search and lower this threshold
+					Vector2d cop_disp_dir;
+					cop_disp_dir << -violation_moment(1), violation_moment(0);
+					cop_disp_dir /= cop_disp_dir.norm();
+					double max_dist_to_bdry = contact_patch.distanceFromBoundaryAlongRay(cop_point.segment<2>(0), cop_disp_dir);
+					if(abs(cop_disp_dist) < max_dist_to_bdry) {
+						// we stay within the patch
+						cop_point.segment<2>(0) += cop_disp_dir*cop_disp_dist;
+					} else {
+						// we are on the boundary
+						cop_point.segment<2>(0) += cop_disp_dir*max_dist_to_bdry;
+						patch_cop_type = COPContactType::PatchCurvePoint;
+					}
+					did_update_cop_pos = true;
+					// std::cout << "New cop pos " << cop_point.transpose() << std::endl; 
+					continue;
+				}
+				// - - if distance is small, check first if we are currently doing a binary search
+				// - - if so, continue binary search with point state fixed.
+				// - - if not, check last COP moment. if we switch moment directions, start binary 
+				// - - search with point state fixed.
+			}
+		}
+
+		ret_sol.force_sol = full_f_sol;
+		ret_sol.result = COPSolResult::Success;
+		ret_sol.local_cop_pos = cop_point;
+		ret_sol.cop_type = patch_cop_type;
+		return ret_sol;
+	}
+	std::cerr << "solveSurfaceContact failed to converge" << std::endl;
+	ret_sol.result = COPSolResult::NoSolution;
+	return ret_sol;
+}
+
+void COPSolver::computeMatricesForSurface(const Eigen::MatrixXd& A_disp, const Eigen::VectorXd& rhs_disp, double mu, double mu_rot) {
+	TA_size = 0;
+
+	Vector2d ptslip_dir;
+	double prslip_dir;
+	if(patch_translation_state == FrictionState::Sliding) {
+		ptslip_dir = patch_translation_slip_dir;
+	} else {
+		ptslip_dir = patch_translation_rolling_dir;
+	}
+	if(patch_rotational_state == FrictionState::Sliding) {
+		prslip_dir = patch_rotation_slip_dir;
+	} else {
+		prslip_dir = patch_rotation_rolling_dir;
+	}
+
+	if(patch_cop_type == COPContactType::PatchCenter) {
+		// both translation and rotation friction forces are limited
+		if((patch_translation_state == FrictionState::Sliding ||
+			patch_translation_state == FrictionState::Impending) &&
+			(patch_rotational_state == FrictionState::Sliding ||
+			patch_rotational_state == FrictionState::Impending)
+		) {
+			Trhs.segment<3>(0) = -rhs_disp.segment<3>(2);
+			TA.block<3,1>(0,0) = A_disp.block<3,1>(2,2)
+						- mu*A_disp.block<3,2>(2, 0)*ptslip_dir
+						- mu_rot*prslip_dir*A_disp.block<3,1>(2,5);
+			TA.block<3,2>(0,1) = A_disp.block<3,2>(2,3);
+
+			TA_size = 3;
+		}
+		// translation forces are limited, rotation forces are not
+		else if((patch_translation_state == FrictionState::Sliding ||
+			patch_translation_state == FrictionState::Impending) &&
+			patch_rotational_state == FrictionState::Rolling
+		) {
+			Trhs.segment<4>(0) = -rhs_disp.segment<4>(2);
+			TA.block<3,1>(0,0) = A_disp.block<3,1>(2,2)
+						- mu*A_disp.block<3,2>(2, 0)*ptslip_dir;
+			TA.block<3,3>(0,1) = A_disp.block<3,3>(2,3);
+
+			TA_size = 4;
+		}
+		// rotational forces are limited, translation forces are not
+		else if((patch_rotational_state == FrictionState::Sliding ||
+			patch_rotational_state == FrictionState::Impending) &&
+			patch_translation_state == FrictionState::Rolling
+		) {
+			Trhs.segment<5>(0) = -rhs_disp.segment<5>(0);
+			TA.block<5,2>(0,0) = A_disp.block<5,2>(0,0);
+			TA.block<5,1>(0,2) = A_disp.block<5,1>(0,2)
+								- mu_rot*prslip_dir*A_disp.block<5,1>(0,5);
+			TA.block<5,2>(0,3) = A_disp.block<5,2>(0,3);
+
+			TA_size = 5;
+		}
+		// translational and rotational forces are not limited
+		else if(patch_rotational_state == FrictionState::Rolling &&
+			patch_translation_state == FrictionState::Rolling
+		) {
+			Trhs.segment<6>(0) = -rhs_disp;
+			TA.block<6,6>(0,0) = A_disp;
+
+			TA_size = 6;
+		}
+	} else {
+		// TODO: combine with simple 2-pt solution
+		if((patch_translation_state == FrictionState::Sliding ||
+			patch_translation_state == FrictionState::Impending)
+		) {
+			Trhs(0) = -rhs_disp(2);
+			TA(0,0) = A_disp(2,2) 
+						- mu*A_disp.block<1,2>(2, 0)*(ptslip_dir);
+
+			TA_size = 1;
+		} else { // rolling at the line end point
+			// line stuff
+			Trhs.segment<3>(0) = -rhs_disp.segment<3>(0);
+			TA.block<3,3>(0,0) = A_disp.block<3,3>(0,0);
+
+			TA_size = 3;
+		}
+	}
+}
+
+void COPSolver::solveForSurface(double mu, double mu_rot, Eigen::VectorXd& full_f_sol) {
+	if(TA_size > 1) {
+		Tf_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
+	} else {
+		Tf_sol = VectorXd::Zero(1);
+		Tf_sol(0) = Trhs(0)/TA(0,0);
+	}
+
+	Vector2d ptslip_dir;
+	double prslip_dir;
+
+	if(patch_translation_state == FrictionState::Sliding) {
+		ptslip_dir = patch_translation_slip_dir;
+	} else {
+		ptslip_dir = patch_translation_rolling_dir;
+	}
+	if(patch_rotational_state == FrictionState::Sliding) {
+		prslip_dir = patch_rotation_slip_dir;
+	} else {
+		prslip_dir = patch_rotation_rolling_dir;
+	}
+
+	uint tp_ind = 0;
+
+	if(patch_cop_type == COPContactType::PatchCenter) {
+		if(patch_translation_state == FrictionState::Sliding ||
+			patch_translation_state == FrictionState::Impending
+		) {
+			full_f_sol.segment<2>(0) = -mu*Tf_sol(0)*ptslip_dir; // fx, fy
+			full_f_sol.segment<3>(2) = Tf_sol.segment<3>(0); // fz, mx, my
+			if(patch_rotational_state == FrictionState::Sliding ||
+				patch_rotational_state == FrictionState::Impending
+			) {
+				full_f_sol(5) = -mu_rot*Tf_sol(0)*prslip_dir; // mz
+			} else { // rotation rolling
+				full_f_sol(5) = Tf_sol(3); // mz
+			}
+		} else { // translation rolling
+			full_f_sol.segment<5>(0) = Tf_sol.segment<5>(0); // fx, fy, fz, mx, my
+			if(patch_rotational_state == FrictionState::Sliding ||
+				patch_rotational_state == FrictionState::Impending
+			) {
+				full_f_sol(5) = -mu_rot*Tf_sol(2)*prslip_dir; // mz
+			} else { // rotation rolling
+				full_f_sol(5) = Tf_sol(5); // mz
+			}
+		}
+	} else {
+		full_f_sol.segment<3>(3) = Vector3d::Zero(); // mx, my, mz
+		if(patch_translation_state == FrictionState::Sliding ||
+			patch_translation_state == FrictionState::Impending
+		) {
+			full_f_sol.segment<2>(0) = -mu*Tf_sol(0)*ptslip_dir; // fx, fy
+			full_f_sol(2) = Tf_sol(0); // fz
+		} else { // translation rolling
+			full_f_sol.segment<3>(0) = Tf_sol.segment<3>(0); // fx, fy, fz
+		}
 	}
 }
 

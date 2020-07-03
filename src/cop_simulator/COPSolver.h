@@ -6,14 +6,18 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <iostream>
-//Module TODO: Move all Vector/MatrixXd to static templated Vector5d, Matrix5d
+//Module TODO: Move all Vector/MatrixXd to static templated Vector5d, Matrix5d, Vector6d, Matrix6d
 
 #define COP_LOG_DEBUG false
 
 enum struct COPContactType {
 	Unknown,
 	LineEnd,
-	LineCenter
+	LineCenter,
+	PatchCenter,
+	PatchCurvePoint,
+	PatchVertex,
+	PatchLineSegCenter
 };
 
 enum struct COPSolResult {
@@ -51,7 +55,7 @@ inline ContactCOPSolution getLCPForInelasticCollResult(
 	double end2_imp = fmax(0, local_psol[5]);
 	double cop_dist_pos0 = end2_imp/(end2_imp+end1_imp);
 	if(COP_LOG_DEBUG) std::cout << "COPSolver: getLCPForInelasticCollResult: deduced cop distance from point 0: " << cop_dist_pos0 << std::endl;
-	assert(cop_dist_pos0 < (1+1e15) && cop_dist_pos0 >= -1e-15);
+	assert(cop_dist_pos0 < (1+1e-15) && cop_dist_pos0 >= -1e-15);
 	ret_sol.local_cop_pos = local_point_list[0]*(1.0 - cop_dist_pos0) + local_point_list[1]*(cop_dist_pos0);
 	ret_sol.cop_type = (abs(abs(cop_dist_pos0 - 0.5) - 0.5) < 1e-15)? COPContactType::LineEnd : COPContactType::LineCenter;
 	// if(ret_sol.cop_type == COPContactType::LineCenter) {

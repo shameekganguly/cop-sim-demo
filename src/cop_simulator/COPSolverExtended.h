@@ -67,8 +67,21 @@ public:
 	ContactCOPSolution solveStartWithPatchCentroidOnePointOneLine( //TODO: should return a vector of ContactCOPSolution
 		double friction_coeff,
 		const Eigen::MatrixXd& A_constraint,
-		const Eigen::VectorXd& rhs_constraint, // 6 defined at point 0. Includes Jdot_qdot
+		const Eigen::VectorXd& rhs_constraint, // 5+3/ 3+5 defined at point 0. Includes Jdot_qdot
 		const std::vector<std::vector<Eigen::Vector3d>>& boundary_points, // points are in the COP frame with point0 being origin
+		const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
+		const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
+		const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+		const std::vector<Eigen::Vector3d>& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+		const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+		//^ expected to be zero in the z direction, but we don't explicitly check
+	);
+
+	ContactCOPSolution solveSurfaceContact(
+		double friction_coeff,
+		const Eigen::MatrixXd& A_constraint, // defined at Contact Patch Interior point.
+		const Eigen::VectorXd& rhs_constraint, // defined at Contact Patch Interior point. Includes Jdot_qdot
+		const ContactPatch& contact_patch,
 		const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
 		const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
 		const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
@@ -105,6 +118,17 @@ public:
 
 	void solve(double mu, double mu_rot, Eigen::VectorXd& full_f_sol);
 
+	// TODO: implement
+	// used to test if cop solution on boundary of contact patch causes interior
+	// penetration
+	static bool isAccelerationPenetrating(
+		const Eigen::Vector3d& cop_to_test_pos,
+		const Eigen::Vector3d& cop_lin_acc,
+		const Eigen::Vector3d& cop_ang_acc,
+		const Eigen::Vector3d& omegaA,
+		const Eigen::Vector3d& omegaB
+	);
+
 public: // internal variables
 	enum FrictionState {
 		Sliding,
@@ -128,11 +152,11 @@ public: // internal variables
 	uint pt_start_row_id;
 	uint line_start_row_id;
 
-	Eigen::Vector3d last_line_cop_pos;
-	double mu_rot;
-	double max_line_signed_dist;
-	double min_line_signed_dist;
-	double line_signed_dist;
+	// Eigen::Vector3d last_line_cop_pos;
+	// double mu_rot;
+	// double max_line_signed_dist;
+	// double min_line_signed_dist;
+	// double line_signed_dist;
 
 	Eigen::Vector2d point_rolling_dir;
 	Eigen::Vector2d point_slip_dir;
@@ -140,6 +164,19 @@ public: // internal variables
 	Eigen::Vector2d line_translation_slip_dir;
 	double line_rotation_rolling_dir; // +1 or -1
 	double line_rotation_slip_dir; // +1 or -1
+
+public:
+	FrictionState patch_translation_state;
+	FrictionState patch_rotational_state;
+
+	Eigen::Vector2d patch_translation_rolling_dir;
+	Eigen::Vector2d patch_translation_slip_dir;
+	double patch_rotation_slip_dir;
+	double patch_rotation_rolling_dir;
+
+	COPContactType patch_cop_type;
+	void computeMatricesForSurface(const Eigen::MatrixXd& A_disp, const Eigen::VectorXd& rhs_disp, double mu, double mu_rot);
+	void solveForSurface(double mu, double mu_rot, Eigen::VectorXd& full_f_sol);
 };
 
 }
