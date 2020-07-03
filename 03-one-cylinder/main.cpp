@@ -258,7 +258,7 @@ GLFWwindow* glfwInitialize() {
 
     // create window and make it current
     glfwWindowHint(GLFW_VISIBLE, 0);
-    GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - COP SIM 2", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - COP SIM 3", NULL, NULL);
 	glfwSetWindowPos(window, windowPosX, windowPosY);
 	glfwShowWindow(window);
     glfwMakeContextCurrent(window);
