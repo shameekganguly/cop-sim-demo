@@ -11,39 +11,48 @@ namespace Sai2COPSim {
 		constraint_dir2 *= -1.0;
 	}
 
-	PrimPrimContactInfo PrimPrimDistance::distancePrimitivePrimitive(
+	void PrimPrimDistance::distancePrimitivePrimitive(
+		PrimPrimContactInfo& prim_prim_info,
 		const Primitive* primA, Eigen::Affine3d primAinWorld,
 		const Primitive* primB, Eigen::Affine3d primBinWorld
 	) {
 		if(primA->_type == Primitive::GeometryType::Capsule && primB->_type == Primitive::GeometryType::Plane) {
-			auto ret_info = distancePlaneCapsule(
+			distancePlaneCapsule(
+				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
 				*(dynamic_cast<const CapsulePrimitive*>(primA)), primAinWorld
 			);
-			ret_info.flipNormal();
-			return ret_info;
+			prim_prim_info.flipNormal();
+			return;
 		} else if(primB->_type == Primitive::GeometryType::Capsule && primA->_type == Primitive::GeometryType::Plane) {
-			return distancePlaneCapsule(
+			distancePlaneCapsule(
+				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const CapsulePrimitive*>(primB)), primBinWorld
 			);
+			return;
 		} else if(primA->_type == Primitive::GeometryType::Capsule && primB->_type == Primitive::GeometryType::Capsule) {
-			return distanceCapsuleCapsule(
+			distanceCapsuleCapsule(
+				prim_prim_info,
 				*(dynamic_cast<const CapsulePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const CapsulePrimitive*>(primB)), primBinWorld
 			);
+			return;
 		} else if(primA->_type == Primitive::GeometryType::Cylinder && primB->_type == Primitive::GeometryType::Plane) {
-			auto ret_info = distancePlaneCylinder(
+			distancePlaneCylinder(
+				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
 				*(dynamic_cast<const CylinderPrimitive*>(primA)), primAinWorld
 			);
-			ret_info.flipNormal();
-			return ret_info;
+			prim_prim_info.flipNormal();
+			return;
 		} else if(primB->_type == Primitive::GeometryType::Cylinder && primA->_type == Primitive::GeometryType::Plane) {
-			return distancePlaneCylinder(
+			distancePlaneCylinder(
+				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const CylinderPrimitive*>(primB)), primBinWorld
 			);
+			return;
 		} else {
 			std::cerr << "PrimA type: " << primA->_type << std::endl;
 			std::cerr << "PrimB type: " << primB->_type << std::endl;
@@ -54,17 +63,34 @@ namespace Sai2COPSim {
 
 
 	// returns surface normal pointing outward from plane towards capsule
-	PrimPrimContactInfo PrimPrimDistance::distancePlaneCapsule(
+	void PrimPrimDistance::distancePlaneCapsule(
+		PrimPrimContactInfo& prim_prim_info,
 		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
 		const CapsulePrimitive& capsule, Eigen::Affine3d capsuleInWorld
 	) {
 		assert(capsule._props != NULL);
 		assert(plane._props != NULL);
 
-		double capsule_len = capsule._props->length;
-		double capsule_radius = capsule._props->radius;
+		prim_prim_info.clear();
+
 		Vector3d plane_point = plane._props->point;
 		Vector3d plane_normal = plane._props->normal;
+
+		Vector3d plane_point_world = planeInWorld*plane_point;
+		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
+
+		double capsule_len = capsule._props->length;
+		double capsule_radius = capsule._props->radius;
+
+		// TODO: this should move out to the sphere hierarchy broad phase
+		double cover_dist = (capsuleInWorld.translation() - plane_point_world).dot(plane_normal_world)
+				- 1.5*0.5*(capsule_len+2*capsule_radius);
+		if(cover_dist > 0) {
+			// std::cout << "Plane capsule cover: " << cover_dist << std::endl;
+			prim_prim_info.min_distance = (capsuleInWorld.translation() - plane_point_world).dot(plane_normal_world)
+				- 0.5*(capsule_len+2*capsule_radius);
+			return;
+		}
 
 		Vector3d end1_world, end2_world;
 		Vector3d end1_local(-capsule_len/2, 0.0, 0.0);
@@ -73,14 +99,10 @@ namespace Sai2COPSim {
 		end1_world = capsuleInWorld*end1_local;
 		end2_world = capsuleInWorld*end2_local;
 
-		Vector3d plane_point_world = planeInWorld*plane_point;
-		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
-		
 		end1_distance = (end1_world - plane_point_world).dot(plane_normal_world) - capsule_radius;
 		end2_distance = (end2_world - plane_point_world).dot(plane_normal_world) - capsule_radius;
 
-		PrimPrimContactInfo ret_info;
-		ret_info.normal_dir = plane_normal_world;
+		prim_prim_info.normal_dir = plane_normal_world;
 		// determine tangent directions
 		// first try the capsule axis
 		// std::cout <<"Cap rotation " << capsuleInWorld.linear() << std::endl;
@@ -93,42 +115,44 @@ namespace Sai2COPSim {
 		if(abs(testaxis1_normal_proj) < 0.999) {
 			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
 			// the tangent plane
-			ret_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		} else if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
-			ret_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		} else { // use world y axis
-			ret_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		}
-		ret_info.constraint_dir2 = ret_info.normal_dir.cross(ret_info.constraint_dir1);
+		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
 		if(abs(end1_distance - end2_distance) < 
 							PrimitiveAlgorithmicConstants::MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD
 		) {
-			ret_info.type = ContactType::LINE;
+			prim_prim_info.type = ContactType::LINE;
 		// 	// if(LOG_DEBUG) cout << "Line contact " << endl;
-			ret_info.contact_points.push_back(end1_world - capsule_radius * plane_normal_world);
-			ret_info.contact_points.push_back(end2_world - capsule_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(end1_world - capsule_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(end2_world - capsule_radius * plane_normal_world);
 		} else if(end1_distance < end2_distance) {
-			ret_info.type = ContactType::POINT;
+			prim_prim_info.type = ContactType::POINT;
 		// 	// if(LOG_DEBUG) cout << "End 1 contact " << endl;
-			ret_info.contact_points.push_back(end1_world - capsule_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(end1_world - capsule_radius * plane_normal_world);
 		} else {
-			ret_info.type = ContactType::POINT;
+			prim_prim_info.type = ContactType::POINT;
 		// 	// if(LOG_DEBUG) cout << "End 2 contact " << endl;
-			ret_info.contact_points.push_back(end2_world - capsule_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(end2_world - capsule_radius * plane_normal_world);
 		}
-		ret_info.min_distance = fmin(end1_distance, end2_distance);
-		return ret_info;
+		prim_prim_info.min_distance = fmin(end1_distance, end2_distance);
 	}
 
-	PrimPrimContactInfo PrimPrimDistance::distanceCapsuleCapsule(
+	void PrimPrimDistance::distanceCapsuleCapsule(
+		PrimPrimContactInfo& prim_prim_info,
 		const CapsulePrimitive& capsuleA, Eigen::Affine3d capsuleAInWorld,
 		const CapsulePrimitive& capsuleB, Eigen::Affine3d capsuleBInWorld
 	) {
 		assert(capsuleA._props != NULL);
 		assert(capsuleB._props != NULL);
+
+		prim_prim_info.clear();
 
 		double capAradius = capsuleA._props->radius;
 		double capBradius = capsuleB._props->radius;
@@ -140,7 +164,16 @@ namespace Sai2COPSim {
 		Vector3d capBaxisToA = capsuleBToCapsuleA.linear().col(0);
 		Vector3d capBcenterToA = capsuleBToCapsuleA.translation();
 
-		PrimPrimContactInfo ret_info;
+		// TODO: this should move out to the sphere hierarchy broad phase
+		double cover_dist = capBcenterToA.norm()
+				- 1.5*0.5*(capAlength+2*capAradius)
+				- 1.5*0.5*(capBlength+2*capBradius);
+		if(cover_dist > 0) {
+			// std::cout << "Capsule capsule cover: " << cover_dist << std::endl;
+			prim_prim_info.min_distance = capBcenterToA.norm() - 0.5*(capAlength+2*capAradius) - 0.5*(capBlength+2*capBradius);
+			return;
+		}
+
 		Vector3d ptA, ptB; // for point contact
 
 		// case 1: capsules are parallel to each other and close enough for line contact
@@ -148,32 +181,32 @@ namespace Sai2COPSim {
 			if(abs(capBcenterToA(0)) < 0.5*(capAlength + capBlength)) {
 				// case 1a: line contact
 				assert(capBcenterToA.norm() > 0.5*(capAradius + capBradius)); // this should not happen in practice
-				ret_info.type = ContactType::LINE;
-				ret_info.min_distance = capBcenterToA.tail(2).norm() - capAradius - capBradius;
+				prim_prim_info.type = ContactType::LINE;
+				prim_prim_info.min_distance = capBcenterToA.tail(2).norm() - capAradius - capBradius;
 				assert(capBcenterToA.tail(2).norm() > 0.5*(capAradius + capBradius)); // this should not happen in practice
 				// compute normal and constraint directions
-				ret_info.normal_dir << 0.0, capBcenterToA(1), capBcenterToA(2);
-				ret_info.normal_dir /= ret_info.normal_dir.norm();
-				ret_info.constraint_dir1 << 1.0, 0.0, 0.0;
-				ret_info.constraint_dir2 = ret_info.normal_dir.cross(ret_info.constraint_dir1);
+				prim_prim_info.normal_dir << 0.0, capBcenterToA(1), capBcenterToA(2);
+				prim_prim_info.normal_dir /= prim_prim_info.normal_dir.norm();
+				prim_prim_info.constraint_dir1 << 1.0, 0.0, 0.0;
+				prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
 				// compute overlap points for line contact
 				if(capBcenterToA(0) - capBlength/2.0 > -capAlength/2.0) {
 					Vector3d pt = capBcenterToA - Vector3d(capBlength/2.0, 0.0, 0.0);
-					ret_info.contact_points.push_back(pt - ret_info.normal_dir*capBradius);
+					prim_prim_info.contact_points.push_back(pt - prim_prim_info.normal_dir*capBradius);
 				} else {
 					Vector3d pt = Vector3d(-capAlength/2.0, 0.0, 0.0);
-					ret_info.contact_points.push_back(pt + ret_info.normal_dir*capAradius);
+					prim_prim_info.contact_points.push_back(pt + prim_prim_info.normal_dir*capAradius);
 				}
 				if (capBcenterToA(0) + capBlength/2.0 < capAlength/2.0) {
 					Vector3d pt = capBcenterToA + Vector3d(capBlength/2.0, 0.0, 0.0);
-					ret_info.contact_points.push_back(pt - ret_info.normal_dir*capBradius);
+					prim_prim_info.contact_points.push_back(pt - prim_prim_info.normal_dir*capBradius);
 				} else {
 					Vector3d pt = Vector3d(capAlength/2.0, 0.0, 0.0);
-					ret_info.contact_points.push_back(pt + ret_info.normal_dir*capAradius);
+					prim_prim_info.contact_points.push_back(pt + prim_prim_info.normal_dir*capAradius);
 				}
 			} else {
 				// case 1b: end contact
-				ret_info.type = ContactType::POINT;
+				prim_prim_info.type = ContactType::POINT;
 				if(capBcenterToA(0) >= 0) {
 					ptA << capAlength/2.0, 0.0, 0.0;
 					ptB << -capBlength/2.0, 0.0, 0.0;
@@ -185,7 +218,7 @@ namespace Sai2COPSim {
 				}
 			}
 		} else {	// case 2: point contact
-			ret_info.type = ContactType::POINT;
+			prim_prim_info.type = ContactType::POINT;
 			// compute minimum distance between the inner line segments of the two capsules
 			double temp = capBaxisToA(0);
 			double Delta = temp*temp - 1.0;
@@ -220,49 +253,51 @@ namespace Sai2COPSim {
 		}
 
 		// set normal and constraint directions for point contact
-		if(ret_info.type == ContactType::POINT) {
-			ret_info.normal_dir = ptB - ptA;
-			ret_info.min_distance = ret_info.normal_dir.norm() - capAradius - capBradius;
-			assert(ret_info.normal_dir.norm() > 0.25*(capAradius + capBradius));
-			ret_info.normal_dir /= ret_info.normal_dir.norm();
+		if(prim_prim_info.type == ContactType::POINT) {
+			prim_prim_info.normal_dir = ptB - ptA;
+			prim_prim_info.min_distance = prim_prim_info.normal_dir.norm() - capAradius - capBradius;
+			assert(prim_prim_info.normal_dir.norm() > 0.25*(capAradius + capBradius));
+			prim_prim_info.normal_dir /= prim_prim_info.normal_dir.norm();
 			// calculate constraint_dir
-			if(abs(ret_info.normal_dir(0)) < 0.999) {
+			if(abs(prim_prim_info.normal_dir(0)) < 0.999) {
 				// use capsule A x axis
-				ret_info.constraint_dir1 << 1.0, 0.0, 0.0;
-				ret_info.constraint_dir1 -= ret_info.normal_dir(0)*ret_info.normal_dir;
+				prim_prim_info.constraint_dir1 << 1.0, 0.0, 0.0;
+				prim_prim_info.constraint_dir1 -= prim_prim_info.normal_dir(0)*prim_prim_info.normal_dir;
 			} else {
 				// use capsule A y axis
-				ret_info.constraint_dir1 << 0.0, 1.0, 0.0;
-				ret_info.constraint_dir1 -= ret_info.normal_dir(1)*ret_info.normal_dir;
+				prim_prim_info.constraint_dir1 << 0.0, 1.0, 0.0;
+				prim_prim_info.constraint_dir1 -= prim_prim_info.normal_dir(1)*prim_prim_info.normal_dir;
 			}
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
-			ret_info.constraint_dir2 = ret_info.normal_dir.cross(ret_info.constraint_dir1);
-			ret_info.contact_points.push_back(ptA + ret_info.normal_dir*capAradius);
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
+			prim_prim_info.contact_points.push_back(ptA + prim_prim_info.normal_dir*capAradius);
 		} else {
 			// check line length for line contact
-			if((ret_info.contact_points[0] - ret_info.contact_points[1]).norm() <
+			if((prim_prim_info.contact_points[0] - prim_prim_info.contact_points[1]).norm() <
 					PrimitiveAlgorithmicConstants::MIN_HIGHER_PAIR_CONTACT_EXTENT_ANY_DIR) {
-				ret_info.type = ContactType::POINT;
-				ret_info.contact_points.resize(1);
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.contact_points.resize(1);
 			}
 		}
 
 		// transfer from capsuleA coordinates to world coordinates
-		ret_info.normal_dir = capsuleAInWorld.linear()*ret_info.normal_dir;
-		ret_info.constraint_dir1 = capsuleAInWorld.linear()*ret_info.constraint_dir1;
-		ret_info.constraint_dir2 = capsuleAInWorld.linear()*ret_info.constraint_dir2;
-		for(auto& pt: ret_info.contact_points) {
+		prim_prim_info.normal_dir = capsuleAInWorld.linear()*prim_prim_info.normal_dir;
+		prim_prim_info.constraint_dir1 = capsuleAInWorld.linear()*prim_prim_info.constraint_dir1;
+		prim_prim_info.constraint_dir2 = capsuleAInWorld.linear()*prim_prim_info.constraint_dir2;
+		for(auto& pt: prim_prim_info.contact_points) {
 			pt = capsuleAInWorld*pt;
 		}
-		return ret_info;
 	}
 
-	PrimPrimContactInfo PrimPrimDistance::distancePlaneCylinder(
+	void PrimPrimDistance::distancePlaneCylinder(
+		PrimPrimContactInfo& prim_prim_info,
 		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
 		const CylinderPrimitive& cylinder, Eigen::Affine3d cylinderInWorld
 	) {
 		assert(cylinder._props != NULL);
 		assert(plane._props != NULL);
+
+		prim_prim_info.clear();
 
 		double cylinder_len = cylinder._props->height;
 		// std::cout << "Height: " << cylinder_len << std::endl;
@@ -280,8 +315,7 @@ namespace Sai2COPSim {
 		Vector3d plane_point_world = planeInWorld*plane_point;
 		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
 
-		PrimPrimContactInfo ret_info;
-		ret_info.normal_dir = plane_normal_world;
+		prim_prim_info.normal_dir = plane_normal_world;
 
 		// determine tangent directions
 		// first try the cylinder axis
@@ -295,33 +329,33 @@ namespace Sai2COPSim {
 		if(abs(testaxis1_normal_proj) < 0.999) {
 			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
 			// the tangent plane
-			ret_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		} else if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
-			ret_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		} else { // use world y axis
-			ret_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
-			ret_info.constraint_dir1 /= ret_info.constraint_dir1.norm();
+			prim_prim_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		}
-		ret_info.constraint_dir2 = ret_info.normal_dir.cross(ret_info.constraint_dir1);
+		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
 
 		// check for line contact
 		if(abs(cylinder_axis.dot(plane_normal_world)) < 
 			PrimitiveAlgorithmicConstants::MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD
 		) {
-			ret_info.type = ContactType::LINE;
+			prim_prim_info.type = ContactType::LINE;
 			// if(LOG_DEBUG) cout << "Line contact " << endl;
-			ret_info.contact_points.push_back(endA_world - cylinder_radius * plane_normal_world);
-			ret_info.contact_points.push_back(endB_world - cylinder_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(endA_world - cylinder_radius * plane_normal_world);
+			prim_prim_info.contact_points.push_back(endB_world - cylinder_radius * plane_normal_world);
 			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world) - cylinder_radius;
 			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world) - cylinder_radius;
-			ret_info.min_distance = fmin(endA_distance, endB_distance);
-			return ret_info;
+			prim_prim_info.min_distance = fmin(endA_distance, endB_distance);
+			return;
 		}
 		// check for end surface contact
 		if(abs(cylinder_axis.dot(plane_normal_world)) > 0.999) {
-			ret_info.type = ContactType::SURFACE;
+			prim_prim_info.type = ContactType::SURFACE;
 			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world);
 			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world);
 			//TODO: add contact patch
@@ -329,20 +363,21 @@ namespace Sai2COPSim {
 			if(endA_distance < endB_distance) {
 				// add FaceA points to contact points
 				for(auto& pt: cylinder._faceA_points) {
-					ret_info.contact_points.push_back(cylinderInWorld*pt);
+					prim_prim_info.contact_points.push_back(cylinderInWorld*pt);
 				}
 			} else {
 				// add FaceB points to contact points
 				for(auto& pt: cylinder._faceB_points) {
-					ret_info.contact_points.push_back(cylinderInWorld*pt);
+					prim_prim_info.contact_points.push_back(cylinderInWorld*pt);
 				}
 			}
-			ret_info.min_distance = fmin(endA_distance, endB_distance);
-			return ret_info;
+
+			prim_prim_info.min_distance = fmin(endA_distance, endB_distance);
+			return;
 		}
 		// last case: point contact with circular edge
 		{
-			ret_info.type = ContactType::POINT;
+			prim_prim_info.type = ContactType::POINT;
 			double endA_distance = (endA_world - plane_point_world).dot(plane_normal_world);
 			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world);
 			Vector3d pt_dir = (plane_normal_world.cross(cylinder_axis)).cross(cylinder_axis);
@@ -355,9 +390,9 @@ namespace Sai2COPSim {
 				// pt contact on face B
 				close_pt = endB_world + cylinder_radius * pt_dir;
 			}
-			ret_info.contact_points.push_back(close_pt);
-			ret_info.min_distance = (close_pt - plane_point_world).dot(plane_normal_world);
-			return ret_info;
+			prim_prim_info.contact_points.push_back(close_pt);
+			prim_prim_info.min_distance = (close_pt - plane_point_world).dot(plane_normal_world);
+			return;
 		}
 	}
 }

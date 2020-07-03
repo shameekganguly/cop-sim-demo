@@ -16,7 +16,7 @@ struct ContactPrimitivePair {
 	Eigen::Affine3d primA_in_world;
 	Primitive* primB;
 	Eigen::Affine3d primB_in_world;
-	PrimPrimContactInfo info;
+	PrimPrimContactInfo* info;
 };
 
 class ContactIsland {

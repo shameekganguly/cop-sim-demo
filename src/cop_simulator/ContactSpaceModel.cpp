@@ -71,8 +71,8 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 	for (auto& p: _pair_state) {
 		auto p_info = p._geom_prim_pair->info;
 		full6_contact_dof += 6;
-		pt_contact_dof += p_info.contact_points.size()*3;
-		switch(p_info.type) {
+		pt_contact_dof += p_info->contact_points.size()*3;
+		switch(p_info->type) {
 			case ContactType::POINT:
 				cop_constraint_contact_dof += 3;
 				break;
@@ -106,7 +106,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 	for (auto& p: _pair_state) {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
-		auto contact_points = p._geom_prim_pair->info.contact_points;
+		auto contact_points = p._geom_prim_pair->info->contact_points;
 		if(primA->_is_static) {
 			// get ARB for p->primB
 			auto arb = _arb_manager->getBody(primB->_articulated_body_name);
@@ -138,10 +138,10 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
 				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
 				p_constr_J_start_ind += 6;
 			} else {
@@ -190,10 +190,10 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
 				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
 				p_constr_J_start_ind += 6;
 			} else {
@@ -261,11 +261,11 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 2, arbA_model->dof()) = -JwA.block(1, 0, 2, arbA_model->dof());
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 2, arbB_model->dof()) = JwB.block(1, 0, 2, arbB_model->dof());
 				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
 				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
 				p_constr_J_start_ind += 6;
@@ -356,7 +356,7 @@ void ContactIslandModel::updateRHSVectors() {
 	for (auto& p: _pair_state) {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
-		auto contact_point0 = p._geom_prim_pair->info.contact_points[0];
+		auto contact_point0 = p._geom_prim_pair->info->contact_points[0];
 		uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 		if(primA->_is_static) {
 			// get body location for primB
@@ -385,10 +385,10 @@ void ContactIslandModel::updateRHSVectors() {
 			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 
 			// update constraint cop
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 			} else { // ContactType::Point
@@ -421,10 +421,10 @@ void ContactIslandModel::updateRHSVectors() {
 			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 
 			// update constraint cop
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 			} else { // ContactType::Point
@@ -465,10 +465,10 @@ void ContactIslandModel::updateRHSVectors() {
 			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
 
 			// update constraint cop RHS
-			if(p._geom_prim_pair->info.type == ContactType::LINE) {
+			if(p._geom_prim_pair->info->type == ContactType::LINE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
 				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A)).segment<2>(1);
-			} else if(p._geom_prim_pair->info.type == ContactType::SURFACE) {
+			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
 				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
 			} else { // ContactType::Point
@@ -551,13 +551,13 @@ void ContactIslandModel::getActiveConstraintCOPMatrices(
 	uint active_J_constraint_cop_dof = 0;
 	std::vector<uint> dof_count_map;
 	for(uint cid: _active_contacts) {
-		if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::POINT) {
+		if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::POINT) {
 			active_J_constraint_cop_dof += 3;
 			dof_count_map.push_back(3);
-		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::LINE) {
+		} else if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::LINE) {
 			active_J_constraint_cop_dof += 5;
 			dof_count_map.push_back(5);
-		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::SURFACE) {
+		} else if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::SURFACE) {
 			active_J_constraint_cop_dof += 6;
 			dof_count_map.push_back(6);
 		}
@@ -703,11 +703,11 @@ void ContactIslandModel::getActiveConstraintCOPRHSVector(
 	for(uint cid: _active_contacts) {
 		uint J_start_ind = _cop_constraint_Jacobian_prim_start_ind[cid];
 		uint dof_count = 0;
-		if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::POINT) {
+		if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::POINT) {
 			dof_count = 3;
-		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::LINE) {
+		} else if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::LINE) {
 			dof_count = 5;
-		} else if(_pair_state[cid]._geom_prim_pair->info.type == ContactType::SURFACE) {
+		} else if(_pair_state[cid]._geom_prim_pair->info->type == ContactType::SURFACE) {
 			dof_count = 6;
 		}
 		rhs_constraint_cop.segment(active_prim_start_Jrow_ind, dof_count) = _cop_constraint_rhs_contact.segment(J_start_ind, dof_count);
@@ -793,19 +793,19 @@ ContactPairState::ContactPairState(uint id, const ContactPrimitivePair* geom_pri
 	assert(geom_prim_pair != NULL);
 
 	// compute the rotation matrix from the directions in the geom_prim_pair
-	_rot_contact_frame_to_world.col(0) = geom_prim_pair->info.constraint_dir1;
-	_rot_contact_frame_to_world.col(1) = geom_prim_pair->info.constraint_dir2;
+	_rot_contact_frame_to_world.col(0) = geom_prim_pair->info->constraint_dir1;
+	_rot_contact_frame_to_world.col(1) = geom_prim_pair->info->constraint_dir2;
 	//TODO: the above is dangerous. For a point contact, the primitive check might
 	// accidentally not set a proper direction. then the rotation matrix can be completely
 	// wrong. consider computing the rotation matrix directly in ContactPairState.
 	// TODO: is this robust? does the rotation matrix flip wildly sometimes? e.g. capsule
 	// becomes vertical and falls?. We should consider caching and using the rotation matrix
 	// from the last time if possible, especially for point contact
-	_rot_contact_frame_to_world.col(2) = geom_prim_pair->info.normal_dir;
+	_rot_contact_frame_to_world.col(2) = geom_prim_pair->info->normal_dir;
 	assert(abs(1.0 - _rot_contact_frame_to_world.determinant()) < 1e-5);
 
 	// save number of points
-	_num_contact_pts = geom_prim_pair->info.contact_points.size();
+	_num_contact_pts = geom_prim_pair->info->contact_points.size();
 
 	// add initial active points
 	for(uint i = 0; i < _num_contact_pts; i++) {
@@ -818,7 +818,7 @@ ContactPairState::~ContactPairState() {
 }
 
 bool ContactPairState::activateContactPoint(uint id) {
-	assert(id <= _geom_prim_pair->info.contact_points.size());
+	assert(id <= _geom_prim_pair->info->contact_points.size());
 	for(auto cind: _active_points) {
 		if(cind == id) {
 			return false;
@@ -829,7 +829,7 @@ bool ContactPairState::activateContactPoint(uint id) {
 }
 
 bool ContactPairState::deactivateContactPoint(uint id) {
-	assert(id <= _geom_prim_pair->info.contact_points.size());
+	assert(id <= _geom_prim_pair->info->contact_points.size());
 	uint pre_size = _active_points.size();
 	_active_points.remove(id);
 	return pre_size != _active_points.size();

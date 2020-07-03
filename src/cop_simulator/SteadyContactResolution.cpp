@@ -62,13 +62,13 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 		// add boundary points in COP frame //TODO: move this to ContactModel get active matrices
 		boundary_points.push_back(std::vector<Vector3d>());
 		uint bpsize = boundary_points.size();
-		Vector3d pt0 = prim._geom_prim_pair->info.contact_points[0];
-		for(auto pt: prim._geom_prim_pair->info.contact_points) { //TODO: handle some points not being active
+		Vector3d pt0 = prim._geom_prim_pair->info->contact_points[0];
+		for(auto pt: prim._geom_prim_pair->info->contact_points) { //TODO: handle some points not being active
 			boundary_points[bpsize - 1].push_back(prim._rot_contact_frame_to_world.transpose()*(pt - pt0));
 		}
 
 		// add contact types
-		contact_types.push_back(prim._geom_prim_pair->info.type);
+		contact_types.push_back(prim._geom_prim_pair->info->type);
 
 		// linear_contact_velocity
 		Vector3d constraint_lin_vel = Vector3d::Zero();
@@ -96,7 +96,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 	// TODO: send restitution coeff in case a shock condition occurs
 	if(_active_contacts.size() == 1) {
 		auto& prim = _pair_state[_active_contacts.front()];
-		// const auto& contact_points = prim._geom_prim_pair->info.contact_points;
+		// const auto& contact_points = prim._geom_prim_pair->info->contact_points;
 		if(prim._active_points.size() == 1) {
 			// --------------------- LCP solver solution ---------------------
 			// // if point contact:
@@ -157,7 +157,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 			Vector3d rhs_constraint;
 			Vector3d pt0_to_pt_pos;
 			Vector3d lin_vel_pt;
-			if(prim._geom_prim_pair->info.type == ContactType::LINE) {//
+			if(prim._geom_prim_pair->info->type == ContactType::LINE) {//
 				// TODO: add surface
 				// TODO: this should be handled in getActiveMatrices
 				if(prim._active_points.front() == 0) {
@@ -200,7 +200,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				throw(std::runtime_error("COP solution failed"));
 			} else {
 				// translate pt solution to line solution if necessary
-				if(prim._geom_prim_pair->info.type == ContactType::LINE) {
+				if(prim._geom_prim_pair->info->type == ContactType::LINE) {
 					Vector3d force_pt = prim._last_cop_sol.force_sol;
 					prim._last_cop_sol.force_sol.setZero(5);
 					prim._last_cop_sol.force_sol.segment<3>(0) = force_pt;
@@ -290,7 +290,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 
 		auto primA = prim._geom_prim_pair->primA;
 		auto primB = prim._geom_prim_pair->primB;
-		auto ctype = prim._geom_prim_pair->info.type;
+		auto ctype = prim._geom_prim_pair->info->type;
 		ArticulatedRigidBody* arbA = NULL; // TODO: consider moving these to the contact_pair_state
 		ArticulatedRigidBody* arbB = NULL;
 		if(primA->_is_static) {

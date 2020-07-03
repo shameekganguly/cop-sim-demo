@@ -22,7 +22,8 @@ enum ContactType {
 	SURFACE
 };
 
-struct PrimPrimContactInfo {
+class PrimPrimContactInfo {
+public:
 	double min_distance;
 	Eigen::Vector3d normal_dir; // in world frame. 
 	// ^ Note that this is directed from prim A to prim B, in the order that the 
@@ -40,8 +41,16 @@ struct PrimPrimContactInfo {
 	// on plane
 	// TODO: add contact patch info.
 	ContactType type;
+
+public:
 	PrimPrimContactInfo(): min_distance(0), type(ContactType::UNDEFINED) { }
 	PrimPrimContactInfo(double adist, ContactType atype): min_distance(adist), type(atype) { }
+
+	// clear
+	void clear() {
+		contact_points.clear();
+		type = ContactType::UNDEFINED;
+	}
 
 	// flip normal
 	void flipNormal();
@@ -187,22 +196,29 @@ public:
 	// returns contact info in the world frame
 	// NOTE: the order of the primitives matter if both are associated with ARBs
 	// the contact normal returned is directed from primA to primB
-	static PrimPrimContactInfo distancePrimitivePrimitive(
+	// TODO: add flag for whether clues should be used from the passed info to compute
+	// delta distance updates
+	// NOTE: currently, each of these calls clears the existing prim_prim_info
+	static void distancePrimitivePrimitive(
+		PrimPrimContactInfo& prim_prim_info,
 		const Primitive* primA, Eigen::Affine3d primAinWorld,
 		const Primitive* primB, Eigen::Affine3d primBinWorld
 	);
 
-	static PrimPrimContactInfo distancePlaneCapsule(
+	static void distancePlaneCapsule(
+		PrimPrimContactInfo& prim_prim_info,
 		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
 		const CapsulePrimitive& capsule, Eigen::Affine3d capsuleInWorld
 	);
 
-	static PrimPrimContactInfo distanceCapsuleCapsule(
+	static void distanceCapsuleCapsule(
+		PrimPrimContactInfo& prim_prim_info,
 		const CapsulePrimitive& capsuleA, Eigen::Affine3d capsuleAInWorld,
 		const CapsulePrimitive& capsuleB, Eigen::Affine3d capsuleBInWorld
 	);
 
-	static PrimPrimContactInfo distancePlaneCylinder(
+	static void distancePlaneCylinder(
+		PrimPrimContactInfo& prim_prim_info,
 		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
 		const CylinderPrimitive& cylinder, Eigen::Affine3d cylinderInWorld
 	);

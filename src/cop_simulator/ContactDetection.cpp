@@ -1,5 +1,6 @@
 // ContactDetection.cpp
 
+#include <iostream>
 #include "COPSimulator.h"
 
 using namespace Eigen;
@@ -65,18 +66,22 @@ void COPSimulator::computeWorldContactMap() {
 
 			// get link transform
 			auto prim_j_tf = getPrimitiveTransformInWorld(prim_j, _arb_manager);
-
-			PrimPrimContactInfo ppinfo = PrimPrimDistance::distancePrimitivePrimitive(
+			PrimPrimContactInfo* ppinfo = _geom_manager._prim_prim_distances[j][i];
+			PrimPrimDistance::distancePrimitivePrimitive(
+				*ppinfo,
 				prim_i, prim_i_tf, prim_j, prim_j_tf);
+			// std::cout << prim_i->_name << " " << prim_j->_name << std::endl;
+			// std::cout << ppinfo.min_distance << std::endl;
+
 			// normal info returned is from prim_i to prim_j
 			// however, if either is static, then the direction must be from the static
 			// primitive towards the ARB
 			if(prim_j->_is_static) {
-				ppinfo.flipNormal();
+				ppinfo->flipNormal();
 			}
 
 			// check if in contact
-			if(ppinfo.min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD) {
+			if(ppinfo->min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD) {
 				// create ContactPrimitivePair
 				ContactPrimitivePair contact_pair;
 				contact_pair.primA = prim_i;
