@@ -35,6 +35,7 @@ int main (int argc, char** argv) {
 }
 
 void testPlaneCapsuleDistance() {
+	PrimPrimContactInfo info;
 	cout << "000000000000 ----- PLANE - CAPSULE ----- 000000000000" << endl;
 	{
 		// test distance between z-plane and capsule
@@ -44,7 +45,7 @@ void testPlaneCapsuleDistance() {
 		Affine3d planeTF = Affine3d::Identity();
 		Affine3d capTF = Affine3d::Identity();
 		capTF.translation() << 0.0, 0.0, 0.5;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -56,7 +57,7 @@ void testPlaneCapsuleDistance() {
 		planeTF.translation() << 0.1, 0.4, -0.3;
 		Affine3d capTF = Affine3d::Identity();
 		capTF.translation() << 0.0, 0.0, 0.5;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -67,7 +68,7 @@ void testPlaneCapsuleDistance() {
 		Affine3d planeTF = Affine3d::Identity();
 		Affine3d capTF = Affine3d::Identity();
 		capTF.translation() << 0.0, 0.0, 0.5;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -78,7 +79,7 @@ void testPlaneCapsuleDistance() {
 		Affine3d planeTF = Affine3d::Identity();
 		Affine3d capTF = Affine3d::Identity();
 		capTF.translation() << 0.0, 0.0, 0.5;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -92,7 +93,7 @@ void testPlaneCapsuleDistance() {
 		capTF.linear() << 0.0, 1.0, 0.0,
 							-1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -106,12 +107,13 @@ void testPlaneCapsuleDistance() {
 		capTF.linear() << 0.0, 0.0, -1.0,
 							0.0, 1.0, 0.0,
 							1.0, 0.0, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, capsule, capTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, capsule, capTF);
 		printPrimPrimInfo(info);
 	}
 }
 
 void testCapsuleCapsuleDistance() {
+	PrimPrimContactInfo info;
 	cout << "000000000000 ----- CAPSULE - CAPSULE ----- 000000000000" << endl;
 	{
 		// test distance between parallel cylinders, aligned exactly
@@ -121,7 +123,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.5, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -132,7 +134,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, -0.5, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -143,7 +145,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -154,7 +156,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.0, -1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -165,7 +167,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.0, -1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -176,7 +178,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.15, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -188,7 +190,7 @@ void testCapsuleCapsuleDistance() {
 		capATF.translation() << 0.0, 0.1, 0.0;
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.4, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -205,7 +207,7 @@ void testCapsuleCapsuleDistance() {
 							-1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
 		capBTF.translation() << 0.3, 0.0, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -216,7 +218,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.1, 0.3, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -227,7 +229,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.5, 0.3, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -238,7 +240,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.5, 0.0, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -249,7 +251,7 @@ void testCapsuleCapsuleDistance() {
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.3, 0.0, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -263,7 +265,7 @@ void testCapsuleCapsuleDistance() {
 		capBTF.linear() << 0.0, -1.0, 0.0,
 							1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -277,7 +279,7 @@ void testCapsuleCapsuleDistance() {
 							0.0, 0.0, 1.0;
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.6, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -291,7 +293,7 @@ void testCapsuleCapsuleDistance() {
 							sin(M_PI/4.0), cos(M_PI/4.0), 0.0,
 							0.0, 0.0, 1.0;
 		capBTF.translation() << 0.0, 0.6, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -305,7 +307,7 @@ void testCapsuleCapsuleDistance() {
 							0.0, 0.0, 1.0;
 		Affine3d capBTF = Affine3d::Identity();
 		capBTF.translation() << 0.0, 0.6, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -319,7 +321,7 @@ void testCapsuleCapsuleDistance() {
 		capBTF.linear() << 0.0, -1.0, 0.0,
 							1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -333,7 +335,7 @@ void testCapsuleCapsuleDistance() {
 		capBTF.linear() << 0.0, -1.0, 0.0,
 							1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -347,7 +349,7 @@ void testCapsuleCapsuleDistance() {
 		capBTF.linear() << 0.0, -1.0, 0.0,
 							1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -357,12 +359,13 @@ void testCapsuleCapsuleDistance() {
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
 		Affine3d capATF = Affine3d::Identity();
 		Affine3d capBTF = Affine3d::Identity();
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(capsuleA, capATF, capsuleB, capBTF);	
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);	
 		printPrimPrimInfo(info);
 	}
 }
 
 void testPlaneCylinderDistance() {
+	PrimPrimContactInfo info;
 	cout << "000000000000 ----- PLANE - CYLINDER ----- 000000000000" << endl;
 	{
 		// test distance between z-plane and cylinder
@@ -372,7 +375,7 @@ void testPlaneCylinderDistance() {
 		Affine3d planeTF = Affine3d::Identity();
 		Affine3d cylTF = Affine3d::Identity();
 		cylTF.translation() << 0.0, 0.0, 0.5;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -386,7 +389,7 @@ void testPlaneCylinderDistance() {
 		cylTF.linear() << 0.0, -1.0, 0.0,
 							1.0, 0.0, 0.0,
 							0.0, 0.0, 1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -400,7 +403,7 @@ void testPlaneCylinderDistance() {
 		cylTF.linear() << 1.0, 0.0, 0.0,
 							0.0, 0.0, -1.0,
 							0.0, 1.0, 0.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -414,7 +417,7 @@ void testPlaneCylinderDistance() {
 		cylTF.linear() << 1.0, 0.0, 0.0,
 							0.0, -1.0, 0.0,
 							0.0, 0.0, -1.0;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -428,7 +431,7 @@ void testPlaneCylinderDistance() {
 		cylTF.linear() << 1.0, 0.0, 0.0,
 							0.0, cos(M_PI/4), -sin(M_PI/4),
 							0.0, sin(M_PI/4), cos(M_PI/4);
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
 	}
 	{
@@ -439,7 +442,31 @@ void testPlaneCylinderDistance() {
 		Affine3d planeTF = Affine3d::Identity();
 		Affine3d cylTF = Affine3d::Identity();
 		cylTF.translation() << 0.0, 0.0, -0.02;
-		auto info = PrimPrimDistance::distancePrimitivePrimitive(plane, planeTF, cylinder, cylTF);
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
 		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between z-plane and cylinder
+		cout << "--- TEST 7 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto cylinder = new CylinderPrimitive("tc", 0.1, 0.2, 3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d cylTF = Affine3d::Identity();
+		cylTF.translation() << 0.0, 0.0, 0.05;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, cylinder, cylTF);
+		printPrimPrimInfo(info);
+		// check contact patch info
+		cout << "Contact patch interior point: " << info.contact_patch._interior_point.transpose() << endl;
+		cout << "Contact patch max extent: " << info.contact_patch.max_extent << endl;
+		auto result = info.contact_patch.testPoint(Vector2d(0.05, 0.0));
+		cout << "Contact patch point test: is in patch: " << result.f_is_in_patch << endl;
+		cout << "Contact patch point test: min dist to boundary: " << result.min_dist_to_boundary << endl;
+		auto result2 = info.contact_patch.testPoint(Vector2d(0.05, 0.2));
+		cout << "Contact patch point test: is in patch: " << result2.f_is_in_patch << endl;
+		cout << "Contact patch point test: min dist to boundary: " << result2.min_dist_to_boundary << endl;
+		auto result3 = info.contact_patch.distanceFromBoundaryAlongRay(Vector2d(0.0, 0.05), Vector2d(0.0, -1.0));
+		cout << "Contact patch point test: dist along ray: " << result3 << endl;
+		auto result4 = info.contact_patch.distanceFromBoundaryAlongRay(Vector2d(0.0, 0.05), Vector2d(1.0, 0.0));
+		cout << "Contact patch point test: dist along ray: " << result4 << endl;
 	}
 }

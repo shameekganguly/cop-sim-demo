@@ -360,17 +360,26 @@ namespace Sai2COPSim {
 			double endB_distance = (endB_world - plane_point_world).dot(plane_normal_world);
 			//TODO: add contact patch
 			// if(LOG_DEBUG) cout << "Line contact " << endl;
+			Vector3d interior_pt;
 			if(endA_distance < endB_distance) {
 				// add FaceA points to contact points
 				for(auto& pt: cylinder._faceA_points) {
 					prim_prim_info.contact_points.push_back(cylinderInWorld*pt);
 				}
+				interior_pt = endA_world;
 			} else {
 				// add FaceB points to contact points
 				for(auto& pt: cylinder._faceB_points) {
 					prim_prim_info.contact_points.push_back(cylinderInWorld*pt);
 				}
+				interior_pt = endB_world;
 			}
+			prim_prim_info.contact_patch._interior_point = interior_pt;
+			prim_prim_info.contact_patch.max_extent = 2*cylinder_radius;
+			Circle* c = new Circle();
+			c->center = Vector2d::Zero();
+			c->radius = cylinder_radius;
+			prim_prim_info.contact_patch._intersection_curves.push_back(c);
 
 			prim_prim_info.min_distance = fmin(endA_distance, endB_distance);
 			return;

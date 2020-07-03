@@ -7,6 +7,8 @@
 #include <vector>
 #include <Eigen/Dense>
 
+#include "ContactPatch.h"
+
 namespace Sai2COPSim {
 
 // Constants used
@@ -39,7 +41,9 @@ public:
 
 	// Note: contact_points might not be set for a surface-surface contact. e.g. cylinder
 	// on plane
-	// TODO: add contact patch info.
+	// contact patch info
+	ContactPatch contact_patch;
+
 	ContactType type;
 
 public:
@@ -50,6 +54,7 @@ public:
 	void clear() {
 		contact_points.clear();
 		type = ContactType::UNDEFINED;
+		contact_patch.clear();
 	}
 
 	// flip normal
