@@ -63,6 +63,12 @@ public: // internal
 	// last returned COP result object from the solver
 	ContactCOPSolution _last_cop_sol;
 
+	// reference point in world frame at which cop solution is computed
+	// NOTE: this is not the COP point.
+	// rather, COP_world_pos = _rot_contact_frame_to_world*_last_cop_sol.local_cop_pos
+	//							+ _reference_point;
+	Eigen::Vector3d _reference_point;
+
 public: // internal
 	// add active Contact Point by id
 	// returns whether the active points list changed

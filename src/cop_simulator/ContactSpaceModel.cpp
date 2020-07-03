@@ -107,6 +107,13 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
 		auto contact_points = p._geom_prim_pair->info->contact_points;
+		// update reference point:
+		// point 0 for line contact, interior point for surface contact
+		if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+			p._reference_point = p._geom_prim_pair->info->contact_patch._interior_point;
+		} else {
+			p._reference_point = contact_points[0];
+		}
 		if(primA->_is_static) {
 			// get ARB for p->primB
 			auto arb = _arb_manager->getBody(primB->_articulated_body_name);
@@ -123,8 +130,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			MatrixXd Jw(3, arb_model->dof());
 			// get body point for point 0
 			// this is used for the cop Jacobian
-			// TODO: should we consider using the centroid of the patch instead?
-			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, contact_points[0]);
+			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, p._reference_point);
 
 			arb_model->Jv(Jv, primB->_link_name, body_point0);
 			arb_model->Jw(Jw, primB->_link_name);
@@ -173,7 +179,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			MatrixXd Jw(3, arb_model->dof());
 			// get body point for point 0
 			// this is used for the cop Jacobian
-			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, contact_points[0]);
+			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, p._reference_point);
 			// std::cout << "W point0 " << contact_points[0].transpose() << std::endl;
 			// std::cout << "B point0 " << body_point0.transpose() << std::endl;
 
@@ -238,8 +244,8 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			MatrixXd JwB(3, arbB_model->dof());
 			// get body point for point 0
 			// this is used for the cop Jacobian
-			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, contact_points[0]);
-			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, contact_points[0]);
+			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, p._reference_point);
+			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, p._reference_point);
 
 			arbA_model->Jv(JvA, primA->_link_name, bodyA_point0);
 			arbA_model->Jw(JwA, primA->_link_name);
@@ -356,7 +362,6 @@ void ContactIslandModel::updateRHSVectors() {
 	for (auto& p: _pair_state) {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
-		auto contact_point0 = p._geom_prim_pair->info->contact_points[0];
 		uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 		if(primA->_is_static) {
 			// get body location for primB
@@ -365,7 +370,7 @@ void ContactIslandModel::updateRHSVectors() {
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
-			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, contact_point0);
+			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			
@@ -401,7 +406,7 @@ void ContactIslandModel::updateRHSVectors() {
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
-			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, contact_point0);
+			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			
@@ -438,8 +443,8 @@ void ContactIslandModel::updateRHSVectors() {
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
-			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, contact_point0);
-			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, contact_point0);
+			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, p._reference_point);
+			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			

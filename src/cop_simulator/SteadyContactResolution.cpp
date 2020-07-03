@@ -183,10 +183,12 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					rhs_constraint = temprhs.segment<3>(0);
 					pt0_to_pt_pos = boundary_points[0][1];
 				}
-			} else {
+			} else if(prim._geom_prim_pair->info->type == ContactType::POINT) {
 				A_constraint = _cop_constraint_Lambda_inv_active;
 				rhs_constraint = constraint_cop_rhs;
 				lin_vel_pt = linear_contact_velocity[0];
+			} else {
+				throw(std::runtime_error("Unimplemented Surface contact case"));
 			}
 			COPSolver solver;
 			prim._last_cop_sol = solver.solvePtOnly(
@@ -206,25 +208,46 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					prim._last_cop_sol.force_sol.segment<3>(0) = force_pt;
 					prim._last_cop_sol.local_cop_pos = pt0_to_pt_pos;
 					prim._last_cop_sol.cop_type = COPContactType::LineEnd;
+				} else if(prim._geom_prim_pair->info->type == ContactType::SURFACE) {
+					throw(std::runtime_error("Unimplemented Surface contact case"));
 				}
 			}
 		} else {
 			// else if line contact:
-			COPSolver solver;
-			prim._last_cop_sol = solver.solveStartWithPatchCentroid(
-				friction_coeff,
-				_cop_constraint_Lambda_inv_active,
-				constraint_cop_rhs,
-				boundary_points,
-				constraint_Jrow_ind_to_contact_pair_map,
-				contact_types,
-				omegaAs,
-				omegaBs,
-				linear_contact_velocity
-			);
-			if(prim._last_cop_sol.result != COPSolResult::Success) {
-				// std::cerr << "COP solution failed" << std::endl;
-				throw(std::runtime_error("COP solution failed"));
+			if(contact_types[0] == ContactType::LINE) {
+				COPSolver solver;
+				prim._last_cop_sol = solver.solveStartWithPatchCentroid(
+					friction_coeff,
+					_cop_constraint_Lambda_inv_active,
+					constraint_cop_rhs,
+					boundary_points,
+					constraint_Jrow_ind_to_contact_pair_map,
+					contact_types,
+					omegaAs,
+					omegaBs,
+					linear_contact_velocity
+				);
+				if(prim._last_cop_sol.result != COPSolResult::Success) {
+					// std::cerr << "COP solution failed" << std::endl;
+					throw(std::runtime_error("COP solution failed"));
+				}
+			} else if(contact_types[0] == ContactType::SURFACE) {
+				COPSolver solver;
+				prim._last_cop_sol = solver.solveSurfaceContact(
+					friction_coeff,
+					_cop_constraint_Lambda_inv_active,
+					constraint_cop_rhs,
+					prim._geom_prim_pair->info->contact_patch,
+					constraint_Jrow_ind_to_contact_pair_map,
+					contact_types,
+					omegaAs,
+					omegaBs,
+					linear_contact_velocity
+				);
+				if(prim._last_cop_sol.result != COPSolResult::Success) {
+					// std::cerr << "COP solution failed" << std::endl;
+					throw(std::runtime_error("COP solution failed"));
+				}
 			}
 		}
 	} else if(_active_contacts.size() == 2) {
@@ -332,7 +355,18 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				}
 				break;
 			case ContactType::SURFACE:
-				throw(std::runtime_error("Unimplemented steady contact resolution case. Prim type."));
+				cop_point0_force = prim._last_cop_sol.force_sol;
+				// transform force from local COP point to contact patch interior point, which 
+				// is "point 0" for surface contact
+				cop_point0_force.segment<3>(3) += prim._last_cop_sol.local_cop_pos.cross(cop_point0_force.segment<3>(0));
+				if(arbB != NULL) {
+					uint arb_ind = _arb_index_map[arbB->_name];
+					arbB->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbB->_model->dof()).transpose()*cop_point0_force;
+				}
+				if(arbA != NULL) {
+					uint arb_ind = _arb_index_map[arbA->_name];
+					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
+				}
 				break;
 			default:
 				throw(std::runtime_error("Unimplemented steady contact resolution case. Prim type."));
