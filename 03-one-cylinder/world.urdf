@@ -23,7 +23,7 @@
 
 	<robot name="Cylinder1">
 		<model dir="resources/03-one-cylinder/" path="cylinder_object.urdf" name="CylinderObjectModel" />
-		<origin xyz="0.0 0.0 0.5" rpy="0 0.0 0.0" />
+		<origin xyz="0.0 0.0 0.4" rpy="0.0 0.0 0.0" />
 	</robot>
 
 	<light name="light2" type="directional">

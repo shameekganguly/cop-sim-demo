@@ -38,7 +38,7 @@ const string object_fname = "resources/03-one-cylinder/cylinder_object.urdf";
 const string object1_name = "Cylinder1";
 const double cylinder_radius = 0.1;
 const double cylinder_length = 0.2;
-const uint cylinder_num_points = 3;
+const uint cylinder_num_points = 6;
 const string object_link_name = "object";
 const string box_name = "Box";
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
     auto coobject1 = new Sai2Model::Sai2Model(object_fname, false, cylinder1_in_world, cylinder1_in_world.linear().transpose()*grav_vector);
 
     // add some initial velocity. TODO: move to parser
-    // coobject1->_dq[5] = 0.1;
+    coobject1->_dq[5] = 2.6;
 
     // set up COP sim world
     auto cop_sim = new Sai2COPSim::COPSimulator(friction, restitution);
@@ -208,6 +208,7 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
     timer.setLoopFrequency(20000); //1500Hz timer
     double last_time = timer.elapsedTime(); //secs
     bool fTimerDidSleep = true;
+    auto object = sim->_arb_manager.getBody(object1_name);
     while (fSimulationRunning) {
         fTimerDidSleep = timer.waitForNextLoop();
 
@@ -221,6 +222,11 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
 
         try {
             sim->integrate(loop_dt);
+            // object->jtau_act(1) = curr_time*0.08;
+            // object->jtau_act(3) = -curr_time*0.08*0.1;
+            // if(timer.elapsedCycles() % 100 == 0) {
+            //     cout << object->jtau_act(1) << endl;
+            // }
         } catch (exception& e) {
             cerr << e.what() << endl;
             break;
