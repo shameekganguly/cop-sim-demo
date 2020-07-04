@@ -114,6 +114,18 @@ public:
 		const Eigen::Vector3d& lin_vel
 	);
 
+	static void getCOPSurfaceContactDisplacedMatrices(
+		Eigen::MatrixXd& A_disp,
+		Eigen::VectorXd& rhs_disp,
+		Eigen::Vector3d& lin_vel_disp,
+		const Eigen::Vector3d& displacement,
+		const Eigen::MatrixXd& A,
+		const Eigen::VectorXd& rhs,
+		const Eigen::Vector3d& omegaA,
+		const Eigen::Vector3d& omegaB,
+		const Eigen::Vector3d& lin_vel
+	);
+
 	void computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::VectorXd& rhs_disp, double mu, double mu_rot);
 
 	void solve(double mu, double mu_rot, Eigen::VectorXd& full_f_sol);

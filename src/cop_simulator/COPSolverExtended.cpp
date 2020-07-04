@@ -1452,7 +1452,7 @@ bool COPSolver::isAccelerationPenetrating(
 	return (testpt_z_acc < -1e-8);
 }
 
-static void getCOPSurfaceContactDisplacedMatrices(
+void COPSolver::getCOPSurfaceContactDisplacedMatrices(
 	Eigen::MatrixXd& A_disp,
 	Eigen::VectorXd& rhs_disp,
 	Eigen::Vector3d& lin_vel_disp,
@@ -1520,10 +1520,25 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 	}
 
 	// compute rotational slip
+	bool fForceIgnoreSlip = false;
+
 	patch_rotation_slip_dir = omegaB(2) - omegaA(2);
 	if(abs(patch_rotation_slip_dir) > 1e-8) {
 		patch_rotational_state = FrictionState::Sliding;
+		double rot_slip = patch_rotation_slip_dir;
 		patch_rotation_slip_dir /= abs(patch_rotation_slip_dir);
+
+		// check if the center of rotation of the object in the contact plane lies
+		// within the contact patch
+		// This is required to have a proper estimate of the Coulomb friction
+		Vector2d rot_point;
+		rot_point << -lin_vel(1), lin_vel(0);
+		rot_point /= rot_slip;
+		if(rot_point.norm() < contact_patch.max_extent/2.0) { //TODO: switch to a smooth transition from 0 to 1 on mu
+			std::cout << "Rot point: " << rot_point.transpose() << std::endl;
+			fForceIgnoreSlip = true;
+			patch_translation_state = FrictionState::Rolling;
+		}
 	} else {
 		// initialize to rolling
 		patch_rotational_state = FrictionState::Rolling;
@@ -1535,7 +1550,6 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 	Eigen::VectorXd rhs_disp(6);
 	Vector3d lin_vel_disp;
 	bool fForcePatchCenter = false;
-	bool fForceIgnoreSlip = false;
 	Eigen::VectorXd full_f_sol(6), full_a_sol(6);
 	double mu_rot;
 	const double mu = friction_coeff;
@@ -1601,6 +1615,15 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 
 		// check for normal force violation
 		if(full_f_sol(2) < -1e-8) {
+			std::cout << "Lin vel: " << lin_vel.transpose() << std::endl;
+			std::cout << "Lin vel disp: " << lin_vel_disp.transpose() << std::endl;
+			std::cout << "Displaced A mat: " << std::endl;
+			std::cout << A_disp << std::endl;
+			std::cout << "RHS: " << rhs_constraint.transpose() << std::endl;
+			std::cout << "Trans state: " << patch_translation_state << std::endl;
+			std::cout << "Rot state: " << patch_rotational_state << std::endl;
+			std::cout << full_f_sol.transpose() << std::endl;
+			std::cout << cop_point.transpose() << std::endl;
 			ret_sol.result = COPSolResult::UnimplementedCase;
 			return ret_sol;
 		}
@@ -1663,6 +1686,16 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 				omegaA,
 				omegaB
 			)) {
+				// std::cout << "Lin vel: " << lin_vel.transpose() << std::endl;
+				// std::cout << "Omega: " << omegaB.transpose() << std::endl;
+				// std::cout << "Lin vel disp: " << lin_vel_disp.transpose() << std::endl;
+				// std::cout << "Displaced A mat: " << std::endl;
+				// std::cout << A_disp << std::endl;
+				// std::cout << "RHS: " << rhs_constraint.transpose() << std::endl;
+				// std::cout << "Trans state: " << patch_translation_state << std::endl;
+				// std::cout << "Rot state: " << patch_rotational_state << std::endl;
+				// std::cout << full_f_sol.transpose() << std::endl;
+				// std::cout << cop_point.transpose() << std::endl;
 				std::cerr << "Other end penetration occurred." << std::endl;
 				fForcePatchCenter = true;
 				did_update_cop_pos = true; // set this to recompute the solver matrices
@@ -1698,6 +1731,8 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 						patch_cop_type = COPContactType::PatchCurvePoint;
 					}
 					did_update_cop_pos = true;
+					// std::cout << "Full f sol " << full_f_sol.transpose() << std::endl; 
+					// std::cout << "Patch cop type " << (uint)(patch_cop_type) << std::endl;
 					// std::cout << "New cop pos " << cop_point.transpose() << std::endl; 
 					continue;
 				}
@@ -1714,6 +1749,13 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 		ret_sol.cop_type = patch_cop_type;
 		return ret_sol;
 	}
+	std::cout << "Lin vel: " << lin_vel.transpose() << std::endl;
+	std::cout << "Omega: " << omegaB.transpose() << std::endl;
+	std::cout << "A mat: " << std::endl;
+	std::cout << A_constraint << std::endl;
+	std::cout << "RHS: " << rhs_constraint.transpose() << std::endl;
+	std::cout << "Trans state: " << patch_translation_state << std::endl;
+	std::cout << "Rot state: " << patch_rotational_state << std::endl;
 	std::cerr << "solveSurfaceContact failed to converge" << std::endl;
 	ret_sol.result = COPSolResult::NoSolution;
 	return ret_sol;
@@ -1805,6 +1847,9 @@ void COPSolver::computeMatricesForSurface(const Eigen::MatrixXd& A_disp, const E
 }
 
 void COPSolver::solveForSurface(double mu, double mu_rot, Eigen::VectorXd& full_f_sol) {
+	// std::cout << "TA " << std::endl;
+	// std::cout << TA.block(0,0,TA_size,TA_size) << std::endl;
+	// std::cout << "Trhs: " << Trhs.segment(0,TA_size).transpose() << std::endl;
 	if(TA_size > 1) {
 		Tf_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
 	} else {
