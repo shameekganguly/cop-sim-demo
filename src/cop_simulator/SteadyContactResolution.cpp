@@ -62,7 +62,12 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 		// add boundary points in COP frame //TODO: move this to ContactModel get active matrices
 		boundary_points.push_back(std::vector<Vector3d>());
 		uint bpsize = boundary_points.size();
-		Vector3d pt0 = prim._geom_prim_pair->info->contact_points[0];
+		Vector3d pt0;
+		if(prim._geom_prim_pair->info->type == ContactType::SURFACE) {
+			pt0 = prim._geom_prim_pair->info->contact_patch._interior_point;
+		} else {
+			pt0 = prim._geom_prim_pair->info->contact_points[0];
+		}
 		for(auto pt: prim._geom_prim_pair->info->contact_points) { //TODO: handle some points not being active
 			boundary_points[bpsize - 1].push_back(prim._rot_contact_frame_to_world.transpose()*(pt - pt0));
 		}
@@ -188,7 +193,48 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				rhs_constraint = constraint_cop_rhs;
 				lin_vel_pt = linear_contact_velocity[0];
 			} else {
-				throw(std::runtime_error("Unimplemented Surface contact case"));
+				// check last cop solution. if it is success and lies on patch end,
+				// then solve for a pt contact at the last cop position
+				if(prim._last_cop_sol.result == COPSolResult::Success
+					&& prim._last_cop_sol.cop_type != COPContactType::PatchCenter
+				) {
+					MatrixXd tempA;
+					VectorXd temprhs;
+					COPSolver::getCOPSurfaceContactDisplacedMatrices(
+						tempA,
+						temprhs,
+						lin_vel_pt,
+						prim._last_cop_sol.local_cop_pos, //TODO: should we use the active point?
+						_cop_constraint_Lambda_inv_active,
+						constraint_cop_rhs,
+						omegaAs[0],
+						omegaBs[0],
+						linear_contact_velocity[0]
+					);
+					A_constraint = tempA.block<3,3>(0,0);
+					rhs_constraint = temprhs.segment<3>(0);
+					pt0_to_pt_pos = prim._last_cop_sol.local_cop_pos;
+				} else {
+					// std::cout << "Last cop pos: " << prim._last_cop_sol.local_cop_pos.transpose() << std::endl;
+					// std::cout << "Last cop force: " << prim._last_cop_sol.force_sol.transpose() << std::endl;
+					// throw(std::runtime_error("Unimplemented Surface contact case"));
+					MatrixXd tempA;
+					VectorXd temprhs;
+					COPSolver::getCOPSurfaceContactDisplacedMatrices(
+						tempA,
+						temprhs,
+						lin_vel_pt,
+						boundary_points[0][prim._active_points.front()], //TODO: should we use the active point?
+						_cop_constraint_Lambda_inv_active,
+						constraint_cop_rhs,
+						omegaAs[0],
+						omegaBs[0],
+						linear_contact_velocity[0]
+					);
+					A_constraint = tempA.block<3,3>(0,0);
+					rhs_constraint = temprhs.segment<3>(0);
+					pt0_to_pt_pos = boundary_points[0][prim._active_points.front()];
+				}
 			}
 			COPSolver solver;
 			prim._last_cop_sol = solver.solvePtOnly(
@@ -209,7 +255,11 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					prim._last_cop_sol.local_cop_pos = pt0_to_pt_pos;
 					prim._last_cop_sol.cop_type = COPContactType::LineEnd;
 				} else if(prim._geom_prim_pair->info->type == ContactType::SURFACE) {
-					throw(std::runtime_error("Unimplemented Surface contact case"));
+					Vector3d force_pt = prim._last_cop_sol.force_sol;
+					prim._last_cop_sol.force_sol.setZero(6);
+					prim._last_cop_sol.force_sol.segment<3>(0) = force_pt;
+					prim._last_cop_sol.local_cop_pos = pt0_to_pt_pos;
+					prim._last_cop_sol.cop_type = COPContactType::PatchCurvePoint;
 				}
 			}
 		} else {
@@ -244,7 +294,10 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					omegaBs,
 					linear_contact_velocity
 				);
+				// std::cout << "Solver call Lin vel: " << linear_contact_velocity[0].transpose() << std::endl;
+				// std::cout << "Solver cop pos: " << prim._last_cop_sol.local_cop_pos.transpose() << std::endl;
 				if(prim._last_cop_sol.result != COPSolResult::Success) {
+					std::cout << (uint)(prim._last_cop_sol.result) << std::endl;
 					// std::cerr << "COP solution failed" << std::endl;
 					throw(std::runtime_error("COP solution failed"));
 				}
