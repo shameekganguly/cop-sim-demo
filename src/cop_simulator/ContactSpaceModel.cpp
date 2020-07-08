@@ -12,12 +12,23 @@ namespace Sai2COPSim {
 
 /* ------ Contact Island Model ------- */
 ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager)
-: _geom_island(geom_island), _arb_manager(arb_manager)
 {
+	build(geom_island, arb_manager);
+}
+
+void ContactIslandModel::build(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager) {
+	_geom_island = geom_island;
+	_arb_manager = arb_manager;
 	assert(geom_island != NULL);
 	auto time_pt0 = std::chrono::high_resolution_clock::now();
 
 	// build indexed contact pair list
+	_pair_state.clear();
+	// _index_to_geom_island_contact_list.clear();
+	_active_contacts.clear();
+	_arb_index_map.clear();
+	_cop_constraint_Jacobian_prim_start_ind.clear();
+	_pt_contact_Jacobian_prim_start_ind.clear();
 	uint prim_pair_id = 0;
 	for(auto it = geom_island->_contact_prim_pairs.begin();
 		it != geom_island->_contact_prim_pairs.end();
@@ -27,7 +38,7 @@ ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, Articul
 		_pair_state.push_back(ContactPairState(prim_pair_id, &(*it)));
 
 		// save iterator with index
-		_index_to_geom_island_contact_list.push_back(it);
+		// _index_to_geom_island_contact_list.push_back(it);
 
 		// mark as an active contact initially
 		_active_contacts.push_back(prim_pair_id);
@@ -761,7 +772,7 @@ ContactSpaceModel::ContactSpaceModel(ArticulatedRigidBodyManager* arb_manager)
 {
 	assert(arb_manager != NULL);
 	// reserve space for island models
-	_contact_island_models.reserve(100); // TODO: think about tying this to the number of primitives in the scene
+	_contact_island_models.resize(100); // TODO: think about tying this to the number of primitives in the scene
 }
 
 ContactSpaceModel::~ContactSpaceModel() {
@@ -771,18 +782,23 @@ ContactSpaceModel::~ContactSpaceModel() {
 void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 	auto time_pt0 = std::chrono::high_resolution_clock::now();
 	clear();
+	assert(geom_map->_islands.size() <= _contact_island_models.size());
 	// loop over islands in the geometric contact map
+	uint i = 0;
 	for(auto geom_island_it = geom_map->_islands.begin(); geom_island_it != geom_map->_islands.end(); geom_island_it++) {
 		// create a ContactIslandModel
-		_contact_island_models.push_back(
-				ContactIslandModel(&(*geom_island_it), _arb_manager)
-		);
-
-		_time_compute_matrices += _contact_island_models.back()._time_compute_matrices;
-		_time_copy_matrices += _contact_island_models.back()._time_copy_matrices;
-		_time_compute_vectors += _contact_island_models.back()._time_compute_vectors;
-		_time_ci_total += _contact_island_models.back()._time_total;
+		// _contact_island_models.push_back(
+		// 		ContactIslandModel(&(*geom_island_it), _arb_manager)
+		// );
+		_contact_island_models[i].build(&(*geom_island_it), _arb_manager);
+		// std::cout << _contact_island_models[i]._pair_state.size() << std::endl;
+		_time_compute_matrices += _contact_island_models[i]._time_compute_matrices;
+		_time_copy_matrices += _contact_island_models[i]._time_copy_matrices;
+		_time_compute_vectors += _contact_island_models[i]._time_compute_vectors;
+		_time_ci_total += _contact_island_models[i]._time_total;
+		i++;
 	}
+	_contact_island_models_size = i;
 	auto time_pt1 = std::chrono::high_resolution_clock::now();
 	_time_build = std::chrono::duration<double>(time_pt1 - time_pt0).count();
 }
@@ -795,7 +811,8 @@ void ContactSpaceModel::updateVelocityTerms() {
 	}
 
 	// update RHS vectors for each island
-	for(auto& island: _contact_island_models) {
+	for(uint i = 0; i < _contact_island_models_size; i++) {
+		auto& island = _contact_island_models[i];
 		island.updateRHSVectors();
 	}
 }
@@ -803,7 +820,8 @@ void ContactSpaceModel::updateVelocityTerms() {
 bool ContactSpaceModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
 	// resolve collision for each island
 	bool ret_flag = false;
-	for(auto& island: _contact_island_models) {
+	for(uint i = 0; i < _contact_island_models_size; i++) {
+		auto& island = _contact_island_models[i];
 		//TODO: implement island sleep
 		ret_flag = island.resolveCollisions(friction_coeff, restitution_coeff) || ret_flag;
 	}
@@ -813,7 +831,8 @@ bool ContactSpaceModel::resolveCollisions(double friction_coeff, double restitut
 bool ContactSpaceModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
 	// resolve steady contact for each island
 	bool ret_flag = false;
-	for(auto& island: _contact_island_models) {
+	for(uint i = 0; i < _contact_island_models_size; i++) {
+		auto& island = _contact_island_models[i];
 		//TODO: implement island sleep
 		ret_flag = island.resolveSteadyContacts(friction_coeff, restitution_coeff) || ret_flag;
 	}

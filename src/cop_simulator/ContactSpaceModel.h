@@ -90,6 +90,9 @@ public:
 
 	ContactIslandModel(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager);
 
+	// optimization function to allow reconstruction without actually reallocating memory
+	void build(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager); 
+
 	~ContactIslandModel();
 
 	// resolve collisions for this island
@@ -210,7 +213,7 @@ public:
 	// list of active contact indices. This corresponds to particular primitive pairs in
 	// the _geom_island->_contact_prim_pairs which are either colliding or at steady contact
 	std::list<uint> _active_contacts;
-	std::vector<ContactIsland::ContactList::const_iterator> _index_to_geom_island_contact_list;
+	// std::vector<ContactIsland::ContactList::const_iterator> _index_to_geom_island_contact_list;
 	//TODO: in future, we might consider putting primitives together into one single higher
 	// pair.
 
@@ -250,7 +253,7 @@ public:
 
 	// clear this model
 	void clear() {
-		_contact_island_models.clear();
+		_contact_island_models_size = 0;
 		_time_compute_matrices = 0;
 		_time_copy_matrices = 0;
 		_time_compute_vectors = 0;
@@ -282,7 +285,10 @@ public:
 	ArticulatedRigidBodyManager* _arb_manager;
 
 	// contact islands
+	// NOTE: we preallocate space to save time
+	// therefore we track an index
 	std::vector<ContactIslandModel> _contact_island_models;
+	uint _contact_island_models_size;
 
 public: // build time analytics
 	double _time_compute_matrices;
