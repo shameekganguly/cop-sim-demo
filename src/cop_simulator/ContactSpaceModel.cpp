@@ -15,6 +15,8 @@ ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, Articul
 : _geom_island(geom_island), _arb_manager(arb_manager)
 {
 	assert(geom_island != NULL);
+	auto time_pt0 = std::chrono::high_resolution_clock::now();
+
 	// build indexed contact pair list
 	uint prim_pair_id = 0;
 	for(auto it = geom_island->_contact_prim_pairs.begin();
@@ -31,8 +33,12 @@ ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, Articul
 		_active_contacts.push_back(prim_pair_id);
 	}
 
+	auto time_pt1 = std::chrono::high_resolution_clock::now();
+
 	// create the Contact Jacobian and Lambda Inv matrices
 	createContactJacobianAndLambdaInv();
+
+	auto time_pt2 = std::chrono::high_resolution_clock::now();
 
 	// save active matrices to full matrices, because we start with all points active
 	// TODO: optimize by already determining which points are active
@@ -43,8 +49,17 @@ ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, Articul
 	_cop_constraint_Lambda_inv_active = _cop_constraint_Lambda_inv;
 	_pt_contact_Lambda_inv_active = _pt_contact_Lambda_inv;
 
+	auto time_pt3 = std::chrono::high_resolution_clock::now();
+
 	// update the RHS vectors
 	updateRHSVectors();
+
+	auto time_pt4 = std::chrono::high_resolution_clock::now();
+
+	_time_compute_matrices = std::chrono::duration<double>(time_pt2 - time_pt1).count();
+	_time_copy_matrices = std::chrono::duration<double>(time_pt3 - time_pt2).count();
+	_time_compute_vectors = std::chrono::duration<double>(time_pt4 - time_pt3).count();
+	_time_total = std::chrono::duration<double>(time_pt4 - time_pt0).count();
 }
 
 ContactIslandModel::~ContactIslandModel() {
@@ -745,6 +760,8 @@ ContactSpaceModel::ContactSpaceModel(ArticulatedRigidBodyManager* arb_manager)
 : _arb_manager(arb_manager)
 {
 	assert(arb_manager != NULL);
+	// reserve space for island models
+	_contact_island_models.reserve(100); // TODO: think about tying this to the number of primitives in the scene
 }
 
 ContactSpaceModel::~ContactSpaceModel() {
@@ -752,6 +769,7 @@ ContactSpaceModel::~ContactSpaceModel() {
 }
 
 void ContactSpaceModel::build(const WorldContactMap* geom_map) {
+	auto time_pt0 = std::chrono::high_resolution_clock::now();
 	clear();
 	// loop over islands in the geometric contact map
 	for(auto geom_island_it = geom_map->_islands.begin(); geom_island_it != geom_map->_islands.end(); geom_island_it++) {
@@ -759,7 +777,14 @@ void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 		_contact_island_models.push_back(
 				ContactIslandModel(&(*geom_island_it), _arb_manager)
 		);
+
+		_time_compute_matrices += _contact_island_models.back()._time_compute_matrices;
+		_time_copy_matrices += _contact_island_models.back()._time_copy_matrices;
+		_time_compute_vectors += _contact_island_models.back()._time_compute_vectors;
+		_time_ci_total += _contact_island_models.back()._time_total;
 	}
+	auto time_pt1 = std::chrono::high_resolution_clock::now();
+	_time_build = std::chrono::duration<double>(time_pt1 - time_pt0).count();
 }
 
 void ContactSpaceModel::updateVelocityTerms() {
@@ -775,20 +800,24 @@ void ContactSpaceModel::updateVelocityTerms() {
 	}
 }
 
-void ContactSpaceModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
+bool ContactSpaceModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
 	// resolve collision for each island
+	bool ret_flag = false;
 	for(auto& island: _contact_island_models) {
 		//TODO: implement island sleep
-		island.resolveCollisions(friction_coeff, restitution_coeff);
+		ret_flag = island.resolveCollisions(friction_coeff, restitution_coeff) || ret_flag;
 	}
+	return ret_flag;
 }
 
-void ContactSpaceModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
+bool ContactSpaceModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
 	// resolve steady contact for each island
+	bool ret_flag = false;
 	for(auto& island: _contact_island_models) {
 		//TODO: implement island sleep
-		island.resolveSteadyContacts(friction_coeff, restitution_coeff);
+		ret_flag = island.resolveSteadyContacts(friction_coeff, restitution_coeff) || ret_flag;
 	}
+	return ret_flag;
 }
 
 /* ------ Contact Pair State ------- */

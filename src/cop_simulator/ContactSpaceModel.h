@@ -96,13 +96,15 @@ public:
 	// changes the values of ARB::_model::dq to non-colliding
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveCollisions(double friction_coeff, double restitution_coeff);
+	// returns True if there was a colliding contact that was resolved, else false
+	bool resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts for this island
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveSteadyContacts(double friction_coeff, double restitution_coeff);
+	// returns True if a steady contact was resolved else false
+	bool resolveSteadyContacts(double friction_coeff, double restitution_coeff);
 
 	// add active Contact Pair by id
 	// returns whether the active contact list changed
@@ -229,6 +231,13 @@ public: //internal functions
 	// this is an optimization over calling updateRHSVectors, required for multiple
 	// calls from resolveCollisions()
 	void updatePtContactRHSCollVector();
+
+public:
+	// build time analytics
+	double _time_compute_matrices;
+	double _time_copy_matrices;
+	double _time_compute_vectors;
+	double _time_total;
 };
 
 class ContactSpaceModel {
@@ -240,7 +249,13 @@ public:
 	~ContactSpaceModel();
 
 	// clear this model
-	void clear() { _contact_island_models.clear(); }
+	void clear() {
+		_contact_island_models.clear();
+		_time_compute_matrices = 0;
+		_time_copy_matrices = 0;
+		_time_compute_vectors = 0;
+		_time_ci_total = 0;
+	}
 
 	// clear and rebuild this model
 	void build(const WorldContactMap* geom_map);
@@ -252,13 +267,15 @@ public:
 	// changes the values of ARB::_model::dq to non-colliding
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveCollisions(double friction_coeff, double restitution_coeff);
+	// returns True if there was a colliding contact that was resolved, else false
+	bool resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
 	// assumes that the kinematic and dynamic models of the ARBs have been updated 
 	// already
-	void resolveSteadyContacts(double friction_coeff, double restitution_coeff);
+	// returns True if a steady contact was resolved else false
+	bool resolveSteadyContacts(double friction_coeff, double restitution_coeff);
 
 public:
 	// reference to sim articulated body manager
@@ -266,6 +283,13 @@ public:
 
 	// contact islands
 	std::vector<ContactIslandModel> _contact_island_models;
+
+public: // build time analytics
+	double _time_compute_matrices;
+	double _time_copy_matrices;
+	double _time_compute_vectors;
+	double _time_build;
+	double _time_ci_total;
 };
 
 }

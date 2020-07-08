@@ -11,6 +11,26 @@ COPSimulator::COPSimulator(double friction_coeff, double restitution_coeff)
 :_friction_coeff(friction_coeff), _resitution_coeff(restitution_coeff), _iterations(0)
 {
 	_contact_model = new ContactSpaceModel(&_arb_manager);
+
+	_time_total = 0.0;
+	_time_update_geometry = 0.0;
+	_time_update_dynamics = 0.0;
+	_time_update_velocity_terms = 0.0;
+	_time_resolve_collisions = 0.0;
+	_time_resolve_steady_contact = 0.0;
+	_time_integrate = 0.0;
+	_time_update_dynamics_rbdl = 0.0;
+	_time_update_dynamics_contactmap = 0.0;
+	_time_bcm_compute_matrices = 0.0;
+	_time_bcm_copy_matrices = 0.0;
+	_time_bcm_compute_vectors = 0.0;
+	_time_bcm_ci_total = 0.0;
+	_time_bcm_build = 0.0;
+	_iters_geom_update = 0;
+	_iters_dynamics_update = 0;
+	_iters_velterms_update = 0;
+	_iters_resolve_colls = 0;
+	_iters_resolve_steady_contact = 0;
 }
 
 // destructor
@@ -88,6 +108,8 @@ void COPSimulator::addCylinderObject(const std::string& articulated_body_name,
 
 // automatically sets q and dq for the objects
 void COPSimulator::integrate(double dt) {
+	// time point 1
+	auto time_pt1 = std::chrono::high_resolution_clock::now();
 	bool f_force_update_dynamics = false;
 	//TODO: this might be an internal property of the class, in case we need to 
 	// set the flag from further below, such as after resolveCollisions or resolveSteadyContacts
@@ -100,9 +122,11 @@ void COPSimulator::integrate(double dt) {
 		computeWorldContactMap();
 
 		f_force_update_dynamics = true;
+		_iters_geom_update++;
 	} else {
 		// TODO: delta updates in geometry positions
 	}
+	auto time_pt2 = std::chrono::high_resolution_clock::now();
 	// update contact dynamics
 	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE == 0 || f_force_update_dynamics) {
 		for(auto arb_it: _arb_manager._articulated_bodies) {
@@ -116,23 +140,42 @@ void COPSimulator::integrate(double dt) {
 			}
 			arb->updateNonLinearJAcc();
 		}
+		auto time_pt2a = std::chrono::high_resolution_clock::now();
+		_time_update_dynamics_rbdl += std::chrono::duration<double>(time_pt2a - time_pt2).count();
+
 		// rebuild the contact model
 		_contact_model->build(&_contact_map);
 		// TODO: consider persisting the COP solution? If so, rotate and displace it to the current contact patch
+		_iters_dynamics_update++;
+		auto time_pt2b = std::chrono::high_resolution_clock::now();
+		_time_update_dynamics_contactmap += std::chrono::duration<double>(time_pt2b - time_pt2a).count();
+		_time_bcm_compute_matrices += _contact_model->_time_compute_matrices;
+		_time_bcm_copy_matrices += _contact_model->_time_copy_matrices;
+		_time_bcm_compute_vectors += _contact_model->_time_compute_vectors;
+		_time_bcm_build += _contact_model->_time_build;
+		_time_bcm_ci_total += _contact_model->_time_ci_total;
 	}
+	auto time_pt3 = std::chrono::high_resolution_clock::now();
 
 	// update nonlinear accelerations
 	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE == 0 && !f_force_update_dynamics) {
 		// unnecessary if f_force_update_dynamics was called
 		_contact_model->updateVelocityTerms();
+		_iters_velterms_update++;
 	}
+	auto time_pt4 = std::chrono::high_resolution_clock::now();
 
 	// resolve collisions
-	_contact_model->resolveCollisions(_friction_coeff, _resitution_coeff);
+	bool was_colliding = _contact_model->resolveCollisions(_friction_coeff, _resitution_coeff);
+	if(was_colliding) _iters_resolve_colls++;
+
+	auto time_pt5 = std::chrono::high_resolution_clock::now();
 
 	// TODO: integrate with substepping, including recomputation of the contact forces
 	// resolve steady contacts
-	_contact_model->resolveSteadyContacts(_friction_coeff, _resitution_coeff);
+	bool was_in_contact = _contact_model->resolveSteadyContacts(_friction_coeff, _resitution_coeff);
+	if(was_in_contact) _iters_resolve_steady_contact++;
+	auto time_pt6 = std::chrono::high_resolution_clock::now();
 
 	for(auto arb_it: _arb_manager._articulated_bodies) {
 		auto arb = arb_it.second;
@@ -180,7 +223,51 @@ void COPSimulator::integrate(double dt) {
 
 		// std::cout << arb_it.first << " q:" << model->_q.transpose() << std::endl;
 	}
-	_iterations++;	
+	auto time_pt7 = std::chrono::high_resolution_clock::now();
+	_iterations++;
+
+	// update timings
+	_time_total += std::chrono::duration<double>(time_pt7 - time_pt1).count();
+	_time_update_geometry += std::chrono::duration<double>(time_pt2 - time_pt1).count();
+	_time_update_dynamics += std::chrono::duration<double>(time_pt3 - time_pt2).count();
+	_time_update_velocity_terms += std::chrono::duration<double>(time_pt4 - time_pt3).count();
+	_time_resolve_collisions += std::chrono::duration<double>(time_pt5 - time_pt4).count();
+	_time_resolve_steady_contact += std::chrono::duration<double>(time_pt6 - time_pt5).count();
+	_time_integrate += std::chrono::duration<double>(time_pt7 - time_pt6).count();
+}
+
+void COPSimulator::printTimeAnalytics() {
+	using namespace std;
+	cout << "Total sim time " << _time_total << endl;
+    cout << "Average sim time (ms/1000 calls) " << (_time_total*1e6)/_iterations << endl;
+    cout << "Total geometry update time " << _time_update_geometry << endl;
+    cout << "Average geom update time (ms/1000 calls) " << (_time_update_geometry*1e6)/_iters_geom_update << endl;
+    cout << "Total collision resolution time " << _time_resolve_collisions << endl;
+    cout << "Average collision resolution time (ms/1000 calls)" << (_time_resolve_collisions*1e6)/_iters_resolve_colls << endl;
+    cout << "Total contact resolution time " << _time_resolve_steady_contact << endl;
+    cout << "Average contact resolution time (ms/1000 calls)" << (_time_resolve_steady_contact*1e6)/_iters_resolve_steady_contact << endl;
+    cout << "Total update dynamics time " << _time_update_dynamics << endl;
+    cout << "Average update dynamics time (ms/1000 calls)" << (_time_update_dynamics*1e6)/_iters_dynamics_update << endl;
+    cout << "Total update dynamics (rbdl) time " << _time_update_dynamics_rbdl << endl;
+    cout << "Average update dynamics (rbdl) time (ms/1000 calls)" << (_time_update_dynamics_rbdl*1e6)/_iters_dynamics_update << endl;
+    cout << "Total update dynamics (contact map) time " << _time_update_dynamics_contactmap << endl;
+    cout << "Average update dynamics (contact map) time (ms/1000 calls)" << (_time_update_dynamics_contactmap*1e6)/_iters_dynamics_update << endl;
+    cout << "Total integrate time " << _time_integrate << endl;
+    cout << "Average integrate time (ms/1000 calls)" << (_time_integrate*1e6)/_iterations << endl;
+    cout << "Total vel terms update time " << _time_update_velocity_terms << endl;
+    cout << "Average vel terms update time (ms/1000 calls)" << (_time_update_velocity_terms*1e6)/_iters_velterms_update << endl;
+
+    cout << "--- Update dynamics break down --- " << endl;
+    cout << "Compute matrices time " << _time_bcm_compute_matrices << endl;
+    cout << "Average compute matrices time (ms/1000 calls)" << (_time_bcm_compute_matrices*1e6)/_iters_dynamics_update << endl;
+    cout << "Copy matrices time " << _time_bcm_copy_matrices << endl;
+    cout << "Average copy matrices time (ms/1000 calls)" << (_time_bcm_copy_matrices*1e6)/_iters_dynamics_update << endl;
+    cout << "Compute rhs vectors time " << _time_bcm_compute_vectors << endl;
+    cout << "Average rhs vectors time (ms/1000 calls)" << (_time_bcm_compute_vectors*1e6)/_iters_dynamics_update << endl;
+    cout << "Compute build total time " << _time_bcm_build << endl;
+    cout << "Average build total time (ms/1000 calls)" << (_time_bcm_build*1e6)/_iters_dynamics_update << endl;
+    cout << "Compute island construct total time " << _time_bcm_ci_total << endl;
+    cout << "Average island construct total time (ms/1000 calls)" << (_time_bcm_ci_total*1e6)/_iters_dynamics_update << endl;
 }
 
 }

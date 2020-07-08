@@ -105,6 +105,29 @@ public: //internal members of the COPSimulator
 	// Rate 5: Compute contact geometry
 
 	// Rate 1 is the fastest, Rate 5 is the slowest
+public: // simulation timing analysis
+
+	double _time_total;
+	double _time_update_geometry;
+	double _time_update_dynamics;
+	double _time_update_dynamics_rbdl;
+	double _time_update_dynamics_contactmap;
+	double _time_bcm_compute_matrices;
+	double _time_bcm_copy_matrices;
+	double _time_bcm_compute_vectors;
+	double _time_bcm_ci_total;
+	double _time_bcm_build;
+	double _time_update_velocity_terms;
+	double _time_resolve_collisions;
+	double _time_resolve_steady_contact;
+	double _time_integrate;
+	unsigned long long _iters_geom_update;
+	unsigned long long _iters_dynamics_update;
+	unsigned long long _iters_velterms_update;
+	unsigned long long _iters_resolve_colls;
+	unsigned long long _iters_resolve_steady_contact;
+
+	void printTimeAnalytics();
 };
 
 }

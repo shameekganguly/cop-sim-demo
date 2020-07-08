@@ -7,10 +7,10 @@ using namespace Eigen;
 
 namespace Sai2COPSim {
 
-void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
+bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double restitution_coeff) {
 	if(_active_contacts.size() == 0) {
 		// std::cout<< "No active contacts" << std::endl;
-		return;
+		return false;
 	}
 
 	// assemble solver matrices
@@ -432,6 +432,8 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				break;
 		}
 	}
+
+	return true;
 }
 
 }

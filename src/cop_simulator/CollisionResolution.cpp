@@ -9,7 +9,8 @@ using namespace Eigen;
 
 namespace Sai2COPSim {
 
-void ContactIslandModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
+bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
+	bool ret_coll_flag = false;
 	if(numContactPoints() > 10) {
 		throw(std::runtime_error("Unimplemented collision resolution case."));
 	}
@@ -73,7 +74,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 					is_colliding = is_colliding || (pre_coll_separation_speed < 0);
 				}
 
-				// check if active
+				// check if active.
 				if(pre_coll_separation_speed >
 					COPAlgorithmicConstants::MAX_SEPARATION_SPEED_FOR_ACTIVE_CONTACT
 				) {
@@ -82,13 +83,14 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 				} else {
 					did_update_coll_active_contacts = p.activateContactPoint(ptid) || did_update_coll_active_contacts;
 					any_pt_active = true;
-					// std::cout << "Activate pt " << ptid << std::endl;
+					// std::cout << "Activate pt " << ptid << " # " << p._active_points.size() << std::endl;
 				}
 			}
 			// if no points are active for this primitive pair, deactivate the pair completely
 			// TODO: can a primitive be active even though none of the contact points are active?
 			// 	Think particularly about non-polygonal surface contact patches
 			if(any_pt_active) {
+				// std::cout << "Activate contact pair" << std::endl;
 				did_update_coll_active_contacts = activateContactPair(p._id) || did_update_coll_active_contacts;
 			} else {
 				did_update_coll_active_contacts = deactivateContactPair(p._id) || did_update_coll_active_contacts;
@@ -119,6 +121,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 
 		// if not colliding, we are done resolving collisions
 		if(!is_colliding) break;
+		ret_coll_flag = true;
 
 		// - compute epsilon based on max collision speed. set to 0 if it is very small
 		double adjusted_restitution_coeff = restitution_coeff;
@@ -166,7 +169,6 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 			// std::cout << _pt_contact_Lambda_inv_active << std::endl;
 			// std::cout << pt_contact_rhs_coll_active.transpose() << std::endl;
 			// std::cout << adjusted_restitution_coeff <<std::endl;
-			// std::cout << "Call LCP solver" << std::endl;
 			_last_coll_lcp_sol = solver.solve(
 				_pt_contact_Lambda_inv_active,
 				pt_contact_rhs_coll_active,
@@ -203,13 +205,18 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 			// std::cout << _pt_contact_Jacobian_active << std::endl;
 			arb_model->_dq += arb_model->_M_inv*Jtranspose_P.segment(arb_Jind, arb_model->dof());
 			// std::cout << "T: " << Jtranspose_P.segment(arb_Jind, arb_model->dof()).transpose() << std::endl;
-			// std::cout << arb_model->_dq.transpose() << std::endl;
+			// std::cout << "Dq: " << arb_model->_dq.transpose() << std::endl;
 		}
 
 		// check if too many iters
 		if(tryCollSolveCounter == COPAlgorithmicConstants::COLLISION_RESOLUTION_SIMULTANEOUS_MAX_ITERATIONS) {
+
 			std::cerr << "Post coll vel: " << _pt_contact_rhs_coll.transpose() << std::endl;
 			std::cerr << "LCP impulse: " << _last_coll_lcp_sol.p_sol.transpose() << std::endl;
+			std::cerr << "A" << "\n" << _pt_contact_Lambda_inv_active << std::endl;
+			std::cerr << "rhs: " << pt_contact_rhs_coll_active.transpose() << std::endl;
+			std::cerr << "vels: " << pt_contact_rhs_coll_active.transpose() << std::endl;
+			std::cerr << "restitution " <<  adjusted_restitution_coeff << std::endl;
 			throw(std::runtime_error("Too many collision retries"));
 		}
 	}
@@ -250,6 +257,7 @@ void ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 	// 		if(LOG_DEBUG) cout << "Rolling with 1 point contact. No COP deduced." << endl;
 	// 	}
 	// }
+	return ret_coll_flag;
 }
 
 }

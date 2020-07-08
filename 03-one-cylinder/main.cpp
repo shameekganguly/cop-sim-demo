@@ -277,6 +277,9 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
     }
     cout << "Simulation loop finished, average loop frequency: "
         << timer.elapsedCycles()/timer.elapsedTime() << endl;
+    cout << "Total simulated time: " << timer.elapsedTime() << endl;
+    cout << "Sim speed up over real time "<< timer.elapsedTime()/sim->_time_total << "x" << endl;
+    sim->printTimeAnalytics();
 }
 
 // TODO: add Sai2Simulation for comparison
