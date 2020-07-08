@@ -392,6 +392,8 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					uint arb_ind = _arb_index_map[arbA->_name];
 					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 3, arbA->_model->dof()).transpose()*prim._last_cop_sol.force_sol;
 				}
+				// update COP world pos
+				prim._cop_pos = prim._reference_point;
 				break;
 			case ContactType::LINE:
 				cop_point0_force.segment<3>(0) = prim._last_cop_sol.force_sol.segment<3>(0);
@@ -406,6 +408,7 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					uint arb_ind = _arb_index_map[arbA->_name];
 					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
 				}
+				prim._cop_pos = prim._reference_point + prim._rot_contact_frame_to_world*prim._last_cop_sol.local_cop_pos;
 				break;
 			case ContactType::SURFACE:
 				cop_point0_force = prim._last_cop_sol.force_sol;
@@ -420,6 +423,9 @@ void ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					uint arb_ind = _arb_index_map[arbA->_name];
 					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
 				}
+				// update COP world pos
+				prim._cop_pos = prim._geom_prim_pair->info->contact_patch._interior_point
+									+ prim._rot_contact_frame_to_world*prim._last_cop_sol.local_cop_pos;
 				break;
 			default:
 				throw(std::runtime_error("Unimplemented steady contact resolution case. Prim type."));

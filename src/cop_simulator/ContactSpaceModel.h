@@ -29,7 +29,7 @@ public:
 
 	~ContactPairState();
 
-	bool isValid() {
+	bool isValid() const {
 		return (_last_cop_sol.result != COPSolResult::None);
 	}
 
