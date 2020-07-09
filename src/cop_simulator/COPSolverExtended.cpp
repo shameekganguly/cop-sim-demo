@@ -647,6 +647,8 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 	uint vector_line_ind = 0;
 	uint vector_pt_ind = 0;
 
+	// std::cout << "New solver call " << rhs_constraint.transpose() << std::endl;
+
 	if(contact_types[0] == ContactType::POINT) {
 		assert(contact_types[1] == ContactType::LINE);
 		pt_start_row_id = patch_indices[0];
@@ -969,9 +971,13 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 				// - - if distance to new line-COP is very small, continue to check other violations
 				if(abs(dist_move_cop) > 0.01) {// TODO: integrate bisection search and lower this threshold
 					signed_distance_from_point0 += dist_move_cop;
-					signed_distance_from_point0 = fmax(signed_distance_from_point0, max_signed_dist);
-					signed_distance_from_point0 = fmin(signed_distance_from_point0, min_signed_dist);
+					signed_distance_from_point0 = fmin(signed_distance_from_point0, max_signed_dist);
+					signed_distance_from_point0 = fmax(signed_distance_from_point0, min_signed_dist);
 					did_update_cop_pos = true;
+					// std::cout << "New cop pos " << signed_distance_from_point0 << std::endl;
+					// std::cout << "Update dist " << dist_move_cop << std::endl;
+					// std::cout << "Max dist " << max_signed_dist << std::endl;
+					// std::cout << "Min dist " << min_signed_dist << std::endl;
 					//TODO: if we have fForceLineCenter set to true, consider setting it false
 					continue;
 				}
@@ -982,6 +988,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 			}
 		}
 
+		// std::cout << "Success: COP pos " << local_line_cop_sol_point.transpose() << std::endl;
 		ret_sol.force_sol = full_f_sol;
 		ret_sol.result = COPSolResult::Success;
 		ret_sol.local_cop_pos = local_line_cop_sol_point;
@@ -1535,7 +1542,7 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 		rot_point << -lin_vel(1), lin_vel(0);
 		rot_point /= rot_slip;
 		if(rot_point.norm() < contact_patch.max_extent/2.0) { //TODO: switch to a smooth transition from 0 to 1 on mu
-			std::cout << "Rot point: " << rot_point.transpose() << std::endl;
+			// std::cout << "Rot point: " << rot_point.transpose() << std::endl;
 			fForceIgnoreSlip = true;
 			patch_translation_state = FrictionState::Rolling;
 		}
