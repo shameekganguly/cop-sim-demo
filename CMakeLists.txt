@@ -95,6 +95,7 @@ set (COP_DEMO_BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 add_subdirectory(01-single-contact)
 add_subdirectory(02-two-capsules)
 add_subdirectory(03-one-cylinder)
+add_subdirectory(04-two-arm-rolling)
 
 # tests
 add_subdirectory(src/lcp_solvers)
