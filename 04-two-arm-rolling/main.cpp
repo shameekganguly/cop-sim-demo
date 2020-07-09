@@ -66,6 +66,11 @@ bool LOG_DEBUG = false;
 // pause
 bool f_pause_sim = false;
 
+// sim state display
+chai3d::cLabel* sim_state_label;
+chai3d::cFontPtr label_font;
+
+
 // simulation loop
 bool fSimulationRunning = false;
 void simulation(Sai2COPSim::COPSimulator* sim);
@@ -145,6 +150,16 @@ int main(int argc, char** argv) {
 
     // TODO: force sim/ display
 
+    // display sim state in a label
+    label_font = NEW_CFONTCALIBRI72();
+    sim_state_label = new chai3d::cLabel(label_font);
+    auto front_camera = graphics->getCamera("camera_front");
+    front_camera->m_frontLayer->addChild(sim_state_label);
+    auto zoom_camera = graphics->getCamera("camera_zoom");
+    zoom_camera->m_frontLayer->addChild(sim_state_label);
+    sim_state_label->setText("Initializing");
+
+
     // ---- INITIALIZATION COMPLETE. STARTING MULTITHREADED APP ----
     // initialize GLFW window
     GLFWwindow* window = glfwInitialize();
@@ -155,6 +170,7 @@ int main(int argc, char** argv) {
     // start the simulation thread first
     fSimulationRunning = true;
     thread sim_thread(simulation, cop_sim);
+    sim_state_label->setText("Sim running");
 
     // start the control thread for arm 1
     thread arm1_thread(control_arm1, arm_control_model, cop_sim);
@@ -257,6 +273,7 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
             sim->integrate(loop_dt);
         } catch (exception& e) {
             cerr << e.what() << endl;
+            sim_state_label->setText("Simulation failed");
             break;
         }
 
@@ -364,6 +381,7 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
     if ((key == 'p' || key == 'P') && action == GLFW_PRESS) {
     	f_pause_sim = (f_pause_sim)? false: true;
+        sim_state_label->setText((f_pause_sim)? "PAUSED": "UNPAUSED");
     }
     bool set = (action != GLFW_RELEASE);
     switch(key) {

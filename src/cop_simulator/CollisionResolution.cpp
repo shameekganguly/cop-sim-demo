@@ -191,7 +191,7 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 		// 					cout << "restitution " << coll_restitution << endl;
 		// 					cout << "q " << model->_q.transpose() << endl;
 		// 					cout << "contact Jacobian " << contact_jacobian << endl;
-		// 					throw(std::out_of_range("Collision LCP failure."));
+							throw(std::out_of_range("Collision LCP failure."));
 			}
 		}
 
