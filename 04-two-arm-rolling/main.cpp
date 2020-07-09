@@ -39,7 +39,7 @@ const string world_fname = "resources/04-two-arm-rolling/world.urdf";
 const string robot_fname = "../resources/kuka_iiwa/kuka_iiwa.urdf";
 const string robot_name = "IIWA";
 const string robot_ee_name = "link6";
-const Eigen::Vector3d arm1_ee_local_pos(0.03, 0, 0.028);
+const Eigen::Vector3d arm1_ee_local_pos(0.05, 0, 0.028);
 Eigen::VectorXd arm1_home_qpos;
 const double robot_ee_capsule_radius = 0.05;
 const double robot_ee_capsule_length = 0.1;
@@ -76,8 +76,8 @@ chai3d::cLabel* sim_state_label;
 chai3d::cFontPtr label_font;
 
 // COP visualization
-chai3d::cShapeSphere pt_contact_display1(0.01);
-chai3d::cShapeSphere pt_contact_display2(0.01);
+chai3d::cShapeSphere pt_contact_display1(0.015);
+chai3d::cShapeSphere pt_contact_display2(0.015);
 
 // simulation loop
 bool fSimulationRunning = false;
@@ -364,7 +364,7 @@ void control_arm1(Sai2Model::Sai2Model* model, Sai2COPSim::COPSimulator* sim) {
     MatrixXd NT(dof, dof);
 
     VectorXd F_control(6); //6DOF in world frame
-    const double kp = 10;
+    const double kp = 20;
     const double kd = 8;
     const double kjd = 8;
 
@@ -403,7 +403,7 @@ void control_arm1(Sai2Model::Sai2Model* model, Sai2COPSim::COPSimulator* sim) {
 
         // compute control torques
         Vector3d set_pos = des_pos_world;
-        set_pos(1) += 0.06*sin(timer.elapsedTime()*1.0);
+        set_pos(1) += 0.06*sin(timer.elapsedTime()*1.5);
         F_control.segment<3>(0) = -kp*(ee_pos - set_pos) - kd*J0.block(0,0,3,dof)*model->_dq;
         F_control.segment<3>(3) = -kp*ori_error - kd*J0.block(3,0,3,dof)*model->_dq;
 

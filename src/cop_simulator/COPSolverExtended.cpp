@@ -969,7 +969,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 				// - - if so, compute distance to new line-COP.
 				double dist_move_cop = -full_f_sol[line_start_row_id+3]/fmax(full_f_sol[line_start_row_id+2], 1e-5);
 				// - - if distance to new line-COP is very small, continue to check other violations
-				if(abs(dist_move_cop) > 0.01) {// TODO: integrate bisection search and lower this threshold
+				if(abs(dist_move_cop) > 0.02) {// TODO: integrate bisection search and lower this threshold
 					signed_distance_from_point0 += dist_move_cop;
 					signed_distance_from_point0 = fmin(signed_distance_from_point0, max_signed_dist);
 					signed_distance_from_point0 = fmax(signed_distance_from_point0, min_signed_dist);

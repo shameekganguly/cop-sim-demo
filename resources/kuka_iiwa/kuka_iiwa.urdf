@@ -149,7 +149,7 @@
         <visual>
             <origin xyz="-0.01 0.0 0.048" rpy="1.5707 0 -1.5707" />
             <geometry>
-                <mesh filename="hand.obj" scale="1 1 1" />
+                <mesh filename="hand2.obj" scale="1 1 1" />
             </geometry>
         </visual>
         <!-- <visual>

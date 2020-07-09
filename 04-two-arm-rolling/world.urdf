@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 
-<world name="demo_world" gravity="0.0 0.0 -1.0">
+<world name="demo_world" gravity="0.0 0.0 -0.1">
 
 	<static_object name="Box">
 		<origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
@@ -23,12 +23,12 @@
 
 	<robot name="Roller">
 		<model dir="resources/04-two-arm-rolling/" path="roller_object.urdf" name="RollerObjectModel" />
-		<origin xyz="0.0 0.0 0.51" rpy="0 -0.5 0.0" />
+		<origin xyz="0.0 0.0 0.06" rpy="0 -0.0 0.0" />
 	</robot>
 
 	<robot name="IIWA">
 		<model dir="../resources/kuka_iiwa" path="kuka_iiwa.urdf" name="kuka_iiwa" />
-		<origin xyz="0.0 -0.5 0.0" rpy="0 0 0" />
+		<origin xyz="0.0 -0.65 0.0" rpy="0 0 0" />
 	</robot>
 
 	<light name="light2" type="directional">
@@ -47,9 +47,9 @@
 		<lookat xyz="0.0 0.0 0.1" />
 	</camera>
 	<camera name="camera_side">
-		<position xyz="0.3 -1.0 0.5" />
+		<position xyz="0.5 0.6 0.8" />
 		<vertical xyz="0.0 0.0 1.0" />
-		<lookat xyz="0.2 0.0 0.2" />
+		<lookat xyz="0.0 0.0 0.1" />
 	</camera>
 	<camera name="camera_top">
 		<position xyz="1.5 0.0 2.0" />

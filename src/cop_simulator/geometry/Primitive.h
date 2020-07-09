@@ -13,7 +13,7 @@ namespace Sai2COPSim {
 
 // Constants used
 namespace PrimitiveAlgorithmicConstants {
-	const double MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD = 6e-5; //m
+	const double MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD = 6e-4; //m
 	const double MIN_HIGHER_PAIR_CONTACT_EXTENT_ANY_DIR = 0.001; //m
 };
 
