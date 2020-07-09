@@ -106,6 +106,40 @@ void COPSimulator::addCylinderObject(const std::string& articulated_body_name,
 	//TODO: force update model
 }
 
+// add an object without a shape primitive
+// object->_T_world_robot is assumed to have been set already
+void COPSimulator::addObject(const std::string& articulated_body_name,
+	Sai2Model::Sai2Model* object
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+}
+
+// add capsule shape primitive to existing object
+void COPSimulator::addCapsuleToObject(const std::string& articulated_body_name,
+	const std::string& link_name, // name for the link on which capsule primitive will be attached
+	const std::string& primitive_name,
+	double radius,
+	double length,
+	Eigen::Affine3d tf_in_link
+) {
+	auto arb = _arb_manager.getBody(articulated_body_name);
+	assert(arb != NULL);
+
+	// create a new capsule primitive
+	auto capsule = new CapsulePrimitive(primitive_name, radius, length);
+	capsule->_is_static = false;
+	capsule->_articulated_body_name = articulated_body_name;
+	capsule->_link_name = link_name;
+	capsule->_transform_in_link = tf_in_link;
+
+	_geom_manager.addPrimitive(capsule);
+
+	arb->addPrimitive(link_name, capsule);
+	//TODO: check if intersecting with anything, if so throw
+	//TODO: force update model
+}
+
 // automatically sets q and dq for the objects
 void COPSimulator::integrate(double dt) {
 	// time point 1

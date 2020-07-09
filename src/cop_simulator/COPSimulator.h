@@ -18,8 +18,8 @@ namespace Sai2COPSim {
 namespace COPAlgorithmicConstants {
 	const double GEOMETRIC_CONTACT_DISTANCE_THRESHOLD = 0.003; //m
 	const long NUM_ITERS_BEFORE_COLLISION_CHECK_UPDATE = 20; //count
-	const long NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE = 10; //count
-	const long NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE = 4; //count
+	const long NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE = 20; //count
+	const long NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE = 8; //count
 };
 
 class COPSimulator {
@@ -55,6 +55,20 @@ void addCylinderObject(const std::string& articulated_body_name,
 		double radius,
 		double length,
 		uint num_points);
+
+// add an object without a shape primitive
+// object->_T_world_robot is assumed to have been set already
+void addObject(const std::string& articulated_body_name,
+		Sai2Model::Sai2Model* object);
+
+// add capsule shape primitive to existing object
+void addCapsuleToObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which capsule primitive will be attached
+		const std::string& primitive_name,
+		double radius,
+		double length,
+		Eigen::Affine3d tf_in_link);
+
 
 // automatically sets q and dq for the objects
 void integrate(double dt);
