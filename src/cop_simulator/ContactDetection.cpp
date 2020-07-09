@@ -55,14 +55,22 @@ void COPSimulator::computeWorldContactMap() {
 		auto prim_i_tf = getPrimitiveTransformInWorld(prim_i, _arb_manager);
 		for(uint j = i+1; j < _geom_manager._primitives.size(); j++) {
 			auto prim_j = _geom_manager._primitives[j];
-			// TODO: flag for disallowing self-collisions
-			// TODO: check if collision is allowed between the primitives. 
+
 			// TODO: flag for disallowing collision between parent and child links 
 			// within a sphere around the joint
 			// e.g. collisions between two links on the same ARB,
-			//  collision between two static meshes,
-			// 	collision between primitives on the same link,
 			//  collision with an ARB for which collision is disabled, etc.
+
+			// check for collision between two static meshes
+			if(prim_i->_is_static && prim_j->_is_static) continue;
+
+			// check for collision between two meshes on the same link
+			if(!prim_i->_is_static && !prim_j->_is_static &&
+				prim_i->_articulated_body_name.compare(prim_j->_articulated_body_name) == 0
+			) {
+				// TODO: flag for disallowing self-collisions
+				if(prim_i->_link_name.compare(prim_j->_link_name) == 0) continue;
+			}
 
 			// get link transform
 			auto prim_j_tf = getPrimitiveTransformInWorld(prim_j, _arb_manager);
