@@ -147,26 +147,20 @@
             </geometry>
         </visual>
         <visual>
-            <origin xyz="0.005 0 0.028" rpy="0 0 0" />
+            <origin xyz="-0.01 0.0 0.048" rpy="1.5707 0 -1.5707" />
             <geometry>
-                <mesh filename="meshes/tig_welding_torch.obj" scale="1.0 1.0 1.0" />
+                <mesh filename="hand.obj" scale="1 1 1" />
             </geometry>
         </visual>
-        <visual>
-            <origin xyz="0.0005 0.0 0.393" rpy="0 0 0" />
+        <!-- <visual>
+            <origin xyz="-0.03 0 0.028" rpy="0 0 0" />
             <geometry>
-                <sphere radius="0.003" />
+                <capsule radius="0.05" length="0.1"/>
             </geometry>
-            <material name="material_red">
-                <color rgba="0.5 0.0 0.0 1.0" />
+            <material name="material_maroon">
+                <color rgba="0.6 0.4 0.1 1.0" />
             </material>
-        </visual>
-        <collision>
-            <origin xyz="0.0005 0.0 0.393" rpy="0 0 0" />
-            <geometry>
-                <sphere radius="0.003" />
-            </geometry>
-        </collision>
+        </visual> -->
     </link>
     <joint name="j0" type="revolute">
         <parent link="base_link" />
