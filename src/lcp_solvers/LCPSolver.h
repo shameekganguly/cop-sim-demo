@@ -66,9 +66,11 @@ inline FeasibleCollLCPPointResult testFeasibleCollLCPPoint(uint Nactive,
 		if(psol_active(i*3 + 2) < -1e-8) {
 			return FeasibleCollLCPPointResult::FRNegativeNormalImpulse;
 		}
-		if(psol_active.segment(i*3, 2).norm() > mu * abs(psol_active(i*3 + 2)) + 1e-15) { 
+		if(psol_active.segment(i*3, 2).norm() > mu * abs(psol_active(i*3 + 2)) + 1e-8) {
 			// Note: we use abs of normal component because we allow a small negative velocity
 			//TODO: reconsider threshold regularization as it will lead to non-conservation behavior
+			//TODO: we changed this regularization threshold from 1e-15 to 1e-8 which is large!
+			// Instead, when normal psol is small, we should switch to frictionless solution
 			return FeasibleCollLCPPointResult::FRFrictionConeViolation;
 		}
 	} //TODO: mem optimization by putting all normal indices first, then all tangent indices
@@ -239,7 +241,7 @@ inline CollLCPPointSolution solveCollLCPPoint (uint Npoints,
 	} else {
 		// special case handle the very small normal impulse case where we can simply
 		// remove the friction force component
-		if(abs(roll_psol[2]) < 1e-8 && abs(roll_psol[5]) < 1e-8) {
+		if(abs(roll_psol[2]) < 1e-6 && abs(roll_psol[5]) < 1e-6) {
 			// evaluate the no friction solution
 			psol.setZero();
 			Eigen::Matrix2d tA;
