@@ -13,10 +13,45 @@ namespace ContactPatchAlgorithmicConstants {
 	const double POINT_ON_BOUNDARY_DISTANCE_THRESHOLD = 1e-4;
 };
 
+// NOTE: line points should be in patch coordinates. patch interior point is at (0,0)
+// in patch coordinates
 struct LineSegment {
-	Eigen::Vector3d point1;
-	Eigen::Vector3d point2;
+	Eigen::Vector2d point1;
+	Eigen::Vector2d point2;
 	double length;
+	Eigen::Vector2d dir; // from point 1 to point 2
+	Eigen::Vector2d interior_pt_proj;
+
+	// ctor
+	LineSegment(const Eigen::Vector2d& point1, const Eigen::Vector2d& point2)
+	: point1(point1), point2(point2)
+	{
+		Eigen::Vector2d temp = point2 - point1;
+		length = temp.norm();
+		assert(length > 1e-1); // TODO: this should be relative to some global object feature
+		dir = temp/length;
+		interior_pt_proj = point1 + (-point1.dot(dir))*dir;
+	}
+
+	// note that the line segment is treated as a line for this.
+	// i.e. min distance from the line itself is considered
+	double distanceToPoint(const Eigen::Vector2d& point) const {
+		Eigen::Vector2d temp = point - point1;
+		Eigen::Vector2d temp2 = temp - (temp.dot(dir))*dir;
+		return (temp.dot(interior_pt_proj) < 0)? temp2.norm() : -temp2.norm();
+	}
+
+	// assumes that the test point in inside the contact patch
+	// note that the line segment is treated as a line for this.
+	// NOTE: returned distance is positive if curve intersects in the direction of the ray.
+	// if it intersects in the opposite direction, returned distance is negative.
+	double distanceFromPointAlongRay(const Eigen::Vector2d& point, const Eigen::Vector2d& direction) const {
+		Eigen::Vector2d temp = point - point1;
+		Eigen::Vector2d temp2 = temp - (temp.dot(dir))*dir;
+		double temp3 = direction.dot(dir);
+		double dist_along_ray = temp2.norm()/sqrt(1 - temp3*temp3); // will be inf when the two directions are parallel
+		return (direction.dot(temp2) < 0)? dist_along_ray: -dist_along_ray;
+	}
 };
 
 //TODO: these should be only convex curves in the sense that the interior point
@@ -60,6 +95,7 @@ struct PointTestResult {
 	uint line_seg_id;
 	bool f_is_on_vertex;
 	double min_dist_to_boundary;
+	double max_cross_extent_at_point;
 	PointTestResult()
 	: f_is_in_patch(false), f_is_on_line_seg(false), line_seg_id(0), f_is_on_vertex(false), min_dist_to_boundary(0.0) {
 		// nothing to do

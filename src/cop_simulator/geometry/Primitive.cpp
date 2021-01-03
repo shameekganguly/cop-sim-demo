@@ -142,4 +142,155 @@ void CylinderPrimitive::computeFacePoints() {
 	}
 }
 
+BoxPrimitive::BoxPrimitive(const std::string& name, double xlength, double ylength, double zlength)
+{
+	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));
+	if(xlength < 0.001) {
+		std::cerr << xlength << std::endl;
+		throw(std::runtime_error("xlength too small."));
+	}
+	if(ylength < 0.001) {
+		std::cerr << ylength << std::endl;
+		throw(std::runtime_error("ylength too small."));
+	}
+	if(zlength < 0.001) {
+		std::cerr << zlength << std::endl;
+		throw(std::runtime_error("zlength too small."));
+	}
+	double rat1 = xlength/ylength;
+	double rat2 = xlength/zlength;
+	double rat3 = ylength/zlength;
+	if(rat1 < 0.01 || rat1 > 100) {
+		std::cerr << rat1 << std::endl;
+		throw(std::runtime_error("xlength/ylength out of bounds."));
+	}
+	if(rat2 < 0.01 || rat2 > 100) {
+		std::cerr << rat2 << std::endl;
+		throw(std::runtime_error("xlength/zlength out of bounds."));
+	}
+	if(rat3 < 0.01 || rat3 > 100) {
+		std::cerr << rat3 << std::endl;
+		throw(std::runtime_error("ylength/zlength out of bounds."));
+	}
+	_name = name;
+	_type = GeometryType::Box;
+	_props = new BoxProperties();
+	_props->xlength = xlength;
+	_props->ylength = ylength;
+	_props->zlength = zlength;
+}
+
+void BoxPrimitive::setBoxProperties(BoxProperties* props) {
+	if(props == NULL) {
+		throw(std::runtime_error("Props is null."));
+	}
+	if(props->xlength < 0.001) {
+		std::cerr << props->xlength << std::endl;
+		throw(std::runtime_error("xlength too small."));
+	}
+	if(props->ylength < 0.001) {
+		std::cerr << props->ylength << std::endl;
+		throw(std::runtime_error("ylength too small."));
+	}
+	if(props->zlength < 0.001) {
+		std::cerr << props->zlength << std::endl;
+		throw(std::runtime_error("zlength too small."));
+	}
+	double rat1 = props->xlength/props->ylength;
+	double rat2 = props->xlength/props->zlength;
+	double rat3 = props->ylength/props->zlength;
+	if(rat1 < 0.01 || rat1 > 100) {
+		std::cerr << rat1 << std::endl;
+		throw(std::runtime_error("xlength/ylength out of bounds."));
+	}
+	if(rat2 < 0.01 || rat2 > 100) {
+		std::cerr << rat2 << std::endl;
+		throw(std::runtime_error("xlength/zlength out of bounds."));
+	}
+	if(rat3 < 0.01 || rat3 > 100) {
+		std::cerr << rat3 << std::endl;
+		throw(std::runtime_error("ylength/zlength out of bounds."));
+	}
+	if(_props != NULL) {
+		delete _props;
+	}
+	_props = props;
+}
+
+PyramidPrimitive::PyramidPrimitive(const std::string& name, uint num_sides_base, double length_base_side, double height)
+{
+	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));
+	if(num_sides_base < 3) {
+		std::cerr << num_sides_base << std::endl;
+		throw(std::runtime_error("num_sides_base must be >= 3."));
+	}
+	if(length_base_side < 0.001) {
+		std::cerr << length_base_side << std::endl;
+		throw(std::runtime_error("length_base_side too small."));
+	}
+	if(height < 0.001) {
+		std::cerr << height << std::endl;
+		throw(std::runtime_error("height too small."));
+	}
+	double rat = length_base_side/height;
+	if(rat < 0.01 || rat > 100) {
+		std::cerr << rat << std::endl;
+		throw(std::runtime_error("length_base_side/height out of bounds."));
+	}
+	_name = name;
+	_type = GeometryType::Pyramid;
+	_props = new PyramidProperties();
+	_props->num_sides_base = num_sides_base;
+	_props->length_base_side = length_base_side;
+	_props->height = height;
+
+	computeInternalProperties();
+	computeBasePoints();
+}
+
+void PyramidPrimitive::setPyramidProperties(PyramidProperties* props) {
+	if(props == NULL) {
+		throw(std::runtime_error("Props is null."));
+	}
+	if(props->num_sides_base < 3) {
+		std::cerr << props->num_sides_base << std::endl;
+		throw(std::runtime_error("num_sides_base must be >= 3."));
+	}
+	if(props->length_base_side < 0.001) {
+		std::cerr << props->length_base_side << std::endl;
+		throw(std::runtime_error("length_base_side too small."));
+	}
+	if(props->height < 0.001) {
+		std::cerr << props->height << std::endl;
+		throw(std::runtime_error("height too small."));
+	}
+	double rat = props->length_base_side/props->height;
+	if(rat < 0.01 || rat > 100) {
+		std::cerr << rat << std::endl;
+		throw(std::runtime_error("length_base_side/height out of bounds."));
+	}
+	if(_props != NULL) {
+		delete _props;
+	}
+	_props = props;
+
+	computeInternalProperties();
+	computeBasePoints();
+}
+
+void PyramidPrimitive::computeInternalProperties() {
+	_included_angle = 2*M_PI/_props->num_sides_base;
+	_incircle_radius = _props->length_base_side/2/tan(_included_angle/2);
+	_side_face_angle = atan2(_incircle_radius, _props->height);
+	_circum_radius = _props->length_base_side/2/sin(_included_angle/2);
+	_side_edge_angle = atan2(_circum_radius, _props->height);
+}
+
+void PyramidPrimitive::computeBasePoints() {
+	Vector3d vertex0(_circum_radius, 0, 0);
+	for(uint i = 0; i < _props->num_sides_base; i++) {
+		_base_points.push_back( Eigen::AngleAxisd(_included_angle*i, Vector3d::UnitZ()) * vertex0);
+	}
+}
+
 }

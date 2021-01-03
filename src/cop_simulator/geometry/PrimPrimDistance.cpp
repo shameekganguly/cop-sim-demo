@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "Primitive.h"
+#include "GeometryUtils.h"
 
 using namespace Eigen;
 
@@ -51,6 +52,36 @@ namespace Sai2COPSim {
 				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const CylinderPrimitive*>(primB)), primBinWorld
+			);
+			return;
+		} else if(primA->_type == Primitive::GeometryType::Box && primB->_type == Primitive::GeometryType::Plane) {
+			distancePlaneBox(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
+				*(dynamic_cast<const BoxPrimitive*>(primA)), primAinWorld
+			);
+			prim_prim_info.flipNormal();
+			return;
+		} else if(primB->_type == Primitive::GeometryType::Box && primA->_type == Primitive::GeometryType::Plane) {
+			distancePlaneBox(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
+				*(dynamic_cast<const BoxPrimitive*>(primB)), primBinWorld
+			);
+			return;
+		} else if(primA->_type == Primitive::GeometryType::Pyramid && primB->_type == Primitive::GeometryType::Plane) {
+			distancePlanePyramid(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
+				*(dynamic_cast<const PyramidPrimitive*>(primA)), primAinWorld
+			);
+			prim_prim_info.flipNormal();
+			return;
+		} else if(primB->_type == Primitive::GeometryType::Pyramid && primA->_type == Primitive::GeometryType::Plane) {
+			distancePlanePyramid(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
+				*(dynamic_cast<const PyramidPrimitive*>(primB)), primBinWorld
 			);
 			return;
 		} else {
@@ -402,6 +433,545 @@ namespace Sai2COPSim {
 			prim_prim_info.contact_points.push_back(close_pt);
 			prim_prim_info.min_distance = (close_pt - plane_point_world).dot(plane_normal_world);
 			return;
+		}
+	}
+
+	// utility function for planeBox distance computation
+	static void addBoxPlaneSurfaceContactPatch(
+		PrimPrimContactInfo& prim_prim_info,
+		Eigen::Affine3d& contact_patch_tf,
+		const Eigen::Vector3d& vertex1, // edges are assumed to be 1-2, 1-3, 2-4, 3-4
+		const Eigen::Vector3d& vertex2,
+		const Eigen::Vector3d& vertex3,
+		const Eigen::Vector3d& vertex4
+	) {
+		prim_prim_info.contact_points.push_back(vertex1);
+		prim_prim_info.contact_points.push_back(vertex2);
+		prim_prim_info.contact_points.push_back(vertex3);
+		prim_prim_info.contact_points.push_back(vertex4);
+		prim_prim_info.contact_patch._interior_point =
+					GeometryUtils::centroidOfPoints(prim_prim_info.contact_points);
+		contact_patch_tf.translation() = prim_prim_info.contact_patch._interior_point;
+		prim_prim_info.contact_patch.max_extent = (vertex1 - vertex4).norm();
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex1, contact_patch_tf),
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex2, contact_patch_tf)
+		));
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex1, contact_patch_tf),
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex3, contact_patch_tf)
+		));
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex2, contact_patch_tf),
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex4, contact_patch_tf)
+		));
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex3, contact_patch_tf),
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex4, contact_patch_tf)
+		));
+	}
+
+	void PrimPrimDistance::distancePlaneBox(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const BoxPrimitive& box, Eigen::Affine3d boxInWorld
+	) {
+		assert(box._props != NULL);
+		assert(plane._props != NULL);
+
+		prim_prim_info.clear();
+
+		// convert plane point and normal to box frame
+		Vector3d plane_point = plane._props->point;
+		Vector3d plane_normal = plane._props->normal;
+		Vector3d plane_point_world = planeInWorld*plane_point;
+		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
+		Vector3d plane_point_box = boxInWorld.inverse()*plane_point_world;
+		Vector3d plane_normal_box = boxInWorld.inverse().linear()*plane_normal_world;
+
+		prim_prim_info.normal_dir = plane_normal_world;
+
+		// determine tangent directions
+		// first try the cylinder axis
+		// std::cout <<"Cylinder rotation " << cylinderInWorld.linear() << std::endl;
+		Vector3d worldx_axis(1.0,0.0,0.0);
+		double testaxis2_normal_proj = worldx_axis.dot(plane_normal_world);
+		Vector3d worldy_axis(0.0,1.0,0.0);
+		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
+		if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
+			prim_prim_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		} else { // use world y axis
+			prim_prim_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		}
+		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
+
+		// local points list
+		Vector3d vppp(box._props->xlength/2, box._props->ylength/2, box._props->zlength/2);
+		Vector3d vppn(box._props->xlength/2, box._props->ylength/2, -box._props->zlength/2);
+		Vector3d vpnp(box._props->xlength/2, -box._props->ylength/2, box._props->zlength/2);
+		Vector3d vpnn(box._props->xlength/2, -box._props->ylength/2, -box._props->zlength/2);
+		Vector3d vnpp(-box._props->xlength/2, box._props->ylength/2, box._props->zlength/2);
+		Vector3d vnpn(-box._props->xlength/2, box._props->ylength/2, -box._props->zlength/2);
+		Vector3d vnnp(-box._props->xlength/2, -box._props->ylength/2, box._props->zlength/2);
+		Vector3d vnnn(-box._props->xlength/2, -box._props->ylength/2, -box._props->zlength/2);
+		// get plane alignment measures
+		double pnx = plane_normal_box.dot(Vector3d(1.0, 0, 0));
+		double pny = plane_normal_box.dot(Vector3d(0.0, 1.0, 0));
+		double pnz = plane_normal_box.dot(Vector3d(0.0, 0.0, 1.0));
+
+		// check for surface contact:
+		{
+			Affine3d contact_patch_tf;
+			contact_patch_tf.linear().col(0) = prim_prim_info.constraint_dir1;
+			contact_patch_tf.linear().col(1) = prim_prim_info.constraint_dir2;
+			contact_patch_tf.linear().col(2) = plane_normal_world;
+
+			// TODO: add contact patch
+			// static_assert(false, "TODO: add contact patch");
+			if(pnx < -0.999) {// contact with +x surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = plane_point_box[0] - box._props->xlength/2;
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vppp,
+					boxInWorld*vppn,
+					boxInWorld*vpnp,
+					boxInWorld*vpnn
+				);
+				return;
+			} else if(pnx > 0.999) {// contact with -x surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = - box._props->xlength/2 - plane_point_box[0];
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vnpp,
+					boxInWorld*vnpn,
+					boxInWorld*vnnp,
+					boxInWorld*vnnn
+				);
+				return;
+			} else if(pny < -0.999) {// contact with +y surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = plane_point_box[1] - box._props->ylength/2;
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vppp,
+					boxInWorld*vppn,
+					boxInWorld*vnpp,
+					boxInWorld*vnpn
+				);
+				return;
+			} else if(pny > 0.999) {// contact with -y surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = - box._props->ylength/2 - plane_point_box[1];
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vpnp,
+					boxInWorld*vpnn,
+					boxInWorld*vnnp,
+					boxInWorld*vnnn
+				);
+				return;
+			} else if(pnz < -0.999) {// contact with +z surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = plane_point_box[2] - box._props->zlength/2;
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vppp,
+					boxInWorld*vpnp,
+					boxInWorld*vnpp,
+					boxInWorld*vnnp
+				);
+				return;
+			} else if(pnz > 0.999) {// contact with -z surface
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = - box._props->zlength/2 - plane_point_box[2];
+				addBoxPlaneSurfaceContactPatch(
+					prim_prim_info,
+					contact_patch_tf,
+					boxInWorld*vppn,
+					boxInWorld*vpnn,
+					boxInWorld*vnpn,
+					boxInWorld*vnnn
+				);
+				return;
+			}
+		}
+		// check for edge contact
+		{
+			if(abs(pny) < 0.001) { //TODO: should be relative to the edge size
+				// edge contact with plane normal in X-Z plane
+				if(pnx < 0 && pnz < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], 0, plane_point_box[2]) -
+							Vector3d(box._props->xlength/2, 0, box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnp);
+					return;
+				} else if (pnx < 0 && pnz > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], 0, plane_point_box[2]) -
+							Vector3d(box._props->xlength/2, 0, -box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppn);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnn);
+					return;
+				} else if (pnx > 0 && pnz > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], 0, plane_point_box[2]) -
+							Vector3d(-box._props->xlength/2, 0, -box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpn);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnn);
+					return;
+				} else if (pnx > 0 && pnz < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], 0, plane_point_box[2]) -
+							Vector3d(-box._props->xlength/2, 0, box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnp);
+					return;
+				} else {
+					std::cerr << "pny = 0; Should not be here" << std::endl;
+				}
+			} else if(abs(pnx) < 0.001) {
+				// edge contact with plane normal in Y-Z plane
+				if(pny < 0 && pnz < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(0, plane_point_box[1], plane_point_box[2]) -
+							Vector3d(0, box._props->ylength/2, box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpp);
+					return;
+				} else if (pny < 0 && pnz > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(0, plane_point_box[1], plane_point_box[2]) -
+							Vector3d(0, box._props->ylength/2, -box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppn);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpn);
+					return;
+				} else if (pny > 0 && pnz > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(0, plane_point_box[1], plane_point_box[2]) -
+							Vector3d(0, -box._props->ylength/2, -box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnn);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnn);
+					return;
+				} else if (pny > 0 && pnz < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(0, plane_point_box[1], plane_point_box[2]) -
+							Vector3d(0, -box._props->ylength/2, box._props->zlength/2)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnp);
+					return;
+				} else {
+					std::cerr << "pnx = 0; Should not be here" << std::endl;
+				}
+			} else if(abs(pnz) < 0.001) {
+				// edge contact with plane normal in Y-Z plane
+				if(pnx < 0 && pny < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], plane_point_box[1], 0) -
+							Vector3d(box._props->xlength/2, box._props->ylength/2, 0)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vppn);
+					return;
+				} else if (pnx < 0 && pny > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], plane_point_box[1], 0) -
+							Vector3d(box._props->xlength/2, -box._props->ylength/2, 0)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vpnn);
+					return;
+				} else if (pnx > 0 && pny > 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], plane_point_box[1], 0) -
+							Vector3d(-box._props->xlength/2, -box._props->ylength/2, 0)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnnn);
+					return;
+				} else if (pnx > 0 && pny < 0) {
+					prim_prim_info.type = ContactType::LINE;
+					prim_prim_info.min_distance = -plane_normal_box.dot(
+							Vector3d(plane_point_box[0], plane_point_box[1], 0) -
+							Vector3d(-box._props->xlength/2, box._props->ylength/2, 0)
+						);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpp);
+					prim_prim_info.contact_points.push_back(boxInWorld*vnpn);
+					return;
+				} else {
+					std::cerr << "pnz = 0; Should not be here" << std::endl;
+				}
+			}
+		}
+		// check for point contact
+		{
+			if(pnx < 0 && pny < 0 && pnz < 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vppp);
+				prim_prim_info.contact_points.push_back(boxInWorld*vppp);
+				return;
+			} else if(pnx < 0 && pny > 0 && pnz < 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vpnp);
+				prim_prim_info.contact_points.push_back(boxInWorld*vpnp);
+				return;
+			} else if(pnx > 0 && pny > 0 && pnz < 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vnnp);
+				prim_prim_info.contact_points.push_back(boxInWorld*vnnp);
+				return;
+			} else if(pnx > 0 && pny < 0 && pnz < 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vnpp);
+				prim_prim_info.contact_points.push_back(boxInWorld*vnpp);
+				return;
+			} else if(pnx < 0 && pny < 0 && pnz > 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vppn);
+				prim_prim_info.contact_points.push_back(boxInWorld*vppn);
+				return;
+			} else if(pnx < 0 && pny > 0 && pnz > 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vpnn);
+				prim_prim_info.contact_points.push_back(boxInWorld*vpnn);
+				return;
+			} else if(pnx > 0 && pny > 0 && pnz > 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vnnn);
+				prim_prim_info.contact_points.push_back(boxInWorld*vnnn);
+				return;
+			} else if(pnx > 0 && pny < 0 && pnz > 0) {
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = -plane_normal_box.dot(plane_point_box - vnpn);
+				prim_prim_info.contact_points.push_back(boxInWorld*vnpn);
+				return;
+			}
+		}
+		std::cerr << "Unknown contact type for plane:box" << std::endl;
+	}
+
+
+	// utility function for adding contact patch between plane and polygon
+	// DOES NOT SET THE MAXIMUM EXTENT
+	static void addPolygonPlaneSurfaceContactPatch(
+		PrimPrimContactInfo& prim_prim_info,
+		Eigen::Affine3d& contact_patch_tf,
+		const std::vector<Eigen::Vector3d> vertices // assumed to be in order, clockwise or anti-clockwise
+	) {
+		for(auto vertex: vertices) {
+			prim_prim_info.contact_points.push_back(vertex);
+		}
+		prim_prim_info.contact_patch._interior_point =
+					GeometryUtils::centroidOfPoints(prim_prim_info.contact_points);
+		contact_patch_tf.translation() = prim_prim_info.contact_patch._interior_point;
+		for(uint i = 0; i < vertices.size()-1; i++) {
+			prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[i], contact_patch_tf),
+				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[i+1], contact_patch_tf)
+			));
+		}
+		// add last edge
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+			GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[vertices.size()-1], contact_patch_tf),
+			GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[0], contact_patch_tf)
+		));
+	}
+
+	void PrimPrimDistance::distancePlanePyramid(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const PyramidPrimitive& pyramid, Eigen::Affine3d pyramidInWorld
+	) {
+		assert(pyramid._props != NULL);
+		assert(plane._props != NULL);
+
+		prim_prim_info.clear();
+
+		// convert plane point and normal to box frame
+		Vector3d plane_point = plane._props->point;
+		Vector3d plane_normal = plane._props->normal;
+		Vector3d plane_point_world = planeInWorld*plane_point;
+		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
+		Vector3d plane_point_pyramid = pyramidInWorld.inverse()*plane_point_world;
+		Vector3d plane_normal_pyramid = pyramidInWorld.inverse().linear()*plane_normal_world;
+
+		prim_prim_info.normal_dir = plane_normal_world;
+
+		// determine tangent directions
+		Vector3d worldx_axis(1.0,0.0,0.0);
+		double testaxis2_normal_proj = worldx_axis.dot(plane_normal_world);
+		Vector3d worldy_axis(0.0,1.0,0.0);
+		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
+		if(abs(testaxis2_normal_proj) < 0.999) { // test world x axis next
+			prim_prim_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		} else { // use world y axis
+			prim_prim_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		}
+		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
+
+		Affine3d surface_contact_patch_tf;
+		surface_contact_patch_tf.linear().col(0) = prim_prim_info.constraint_dir1;
+		surface_contact_patch_tf.linear().col(1) = prim_prim_info.constraint_dir2;
+		surface_contact_patch_tf.linear().col(2) = plane_normal_world;
+
+		// compute plane normal product = dot product between base normal and plane normal
+		Vector3d apex_in_pyramid(0, 0, pyramid._props->height);
+		Vector3d base_normal(0, 0, -1);
+		double plane_norm_dot = plane_normal_pyramid.dot(base_normal);
+		double plane_norm_angle = acos(plane_norm_dot);
+
+		// compute apex distance to plane
+		double apex_plane_dist = GeometryUtils::distancePointToPlane(
+			apex_in_pyramid,
+			plane_point_pyramid,
+			plane_normal_pyramid
+		);
+
+		// - if acos(plane normal product) < side angle, return point contact with apex
+		// std::cout << plane_norm_angle << " " << pyramid.sideEdgeAngle() << std::endl;
+		if(plane_norm_angle < M_PI/2 - pyramid.sideEdgeAngle()) {
+			//return point contact with apex
+			prim_prim_info.type = ContactType::POINT;
+			prim_prim_info.min_distance = apex_plane_dist;
+			prim_prim_info.contact_points.push_back(pyramidInWorld*apex_in_pyramid);
+			return;
+		}
+		// - if plane normal == -base normal, return plane contact with base
+		if(1+plane_norm_dot < 0.001) {
+			//return plane contact with base
+			prim_prim_info.type = ContactType::SURFACE;
+			prim_prim_info.min_distance = apex_plane_dist - pyramid._props->height;
+			prim_prim_info.contact_patch.max_extent =
+				(pyramid._props->num_sides_base % 2 == 0)? 2*pyramid.circumRadius():
+					(pyramid.circumRadius() + pyramid.incircleRadius());
+			std::vector<Eigen::Vector3d> verticesInWorld;
+			for(const auto& vertex: pyramid._base_points) {
+				verticesInWorld.push_back(pyramidInWorld*vertex);
+			}
+			addPolygonPlaneSurfaceContactPatch(
+				prim_prim_info,
+				surface_contact_patch_tf,
+				verticesInWorld
+			);
+			return;
+		}
+
+		// project plane normal on pyramid X-Y plane
+		Vector3d plane_normal_base_proj = plane_normal_pyramid - base_normal*(base_normal.dot(plane_normal_pyramid));
+		plane_normal_base_proj /= plane_normal_base_proj.norm();
+
+		// set plane angle = acos(- x component of projected plane normal)
+		double plane_angle = atan2(-plane_normal_base_proj[1], -plane_normal_base_proj[0]);
+		if(plane_angle < 0) plane_angle += 2*M_PI;
+		// std::cout << "plane_angle " << plane_angle << std::endl;
+
+		// get side_number = (plane angle - 0.5*included angle) % included angle
+		int side_number = round((plane_angle - 0.5*pyramid.includedAngle()) / pyramid.includedAngle());
+		int vertex_number = round((plane_angle) / pyramid.includedAngle());
+		double side_residual_angle = (plane_angle - 0.5*pyramid.includedAngle()) - pyramid.includedAngle()*side_number;
+		double vertex_residual_angle = (plane_angle) - pyramid.includedAngle()*vertex_number;
+
+		double vertex_plane_dist = GeometryUtils::distancePointToPlane(
+			pyramid._base_points[vertex_number],
+			plane_point_pyramid,
+			plane_normal_pyramid
+		);
+		// std::cout << "Side residual angle: " << side_residual_angle << std::endl;
+		// std::cout << "Side number: " << side_number << std::endl;
+		// std::cout << "Vertex residual angle: " << vertex_residual_angle << std::endl;
+		// std::cout << "Vertex number: " << vertex_number << std::endl;
+		// if side_number < thresh,
+		if(abs(side_residual_angle) < 0.001) {
+			if(abs(plane_norm_angle - (M_PI/2 - pyramid.sideFaceAngle())) < 0.001) {
+				//return plane contact with corresponding side face
+				prim_prim_info.type = ContactType::SURFACE;
+				prim_prim_info.min_distance = apex_plane_dist;
+				prim_prim_info.contact_patch.max_extent =
+					sqrt(pyramid.incircleRadius()*pyramid.incircleRadius() +
+						pyramid._props->height*pyramid._props->height);
+				std::vector<Eigen::Vector3d> verticesInWorld;
+				verticesInWorld.push_back(pyramidInWorld*apex_in_pyramid);
+				verticesInWorld.push_back(pyramidInWorld*pyramid._base_points[side_number]);
+				if(side_number < pyramid._props->num_sides_base - 1) {
+					verticesInWorld.push_back(pyramidInWorld*pyramid._base_points[side_number+1]);
+				} else {
+					verticesInWorld.push_back(pyramidInWorld*pyramid._base_points[0]);
+				}
+				addPolygonPlaneSurfaceContactPatch(
+					prim_prim_info,
+					surface_contact_patch_tf,
+					verticesInWorld
+				);
+				return;
+			} else {
+				// return edge contact with corresponding base edge
+				prim_prim_info.type = ContactType::LINE;
+				prim_prim_info.min_distance = vertex_plane_dist;
+				prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[side_number]);
+				if(side_number < pyramid._props->num_sides_base - 1) {
+					prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[side_number+1]);
+				} else {
+					prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[0]);
+				}
+			}
+		} else if(abs(vertex_residual_angle) < 0.001) {
+			if(abs(plane_norm_angle - (M_PI/2 - pyramid.sideEdgeAngle())) < 0.001) {
+				// return edge contact with corresponding vertical edge
+				prim_prim_info.type = ContactType::LINE;
+				prim_prim_info.min_distance = apex_plane_dist;
+				prim_prim_info.contact_points.push_back(pyramidInWorld*apex_in_pyramid);
+				prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[vertex_number]);
+			} else {
+				// return point contact with corresponding base vertex
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = vertex_plane_dist;
+				prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[vertex_number]);
+				return;
+			}
+		} else {
+			if(abs(vertex_plane_dist) < abs(apex_plane_dist)) {
+				//return point contact with base vertex
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = vertex_plane_dist;
+				prim_prim_info.contact_points.push_back(pyramidInWorld*pyramid._base_points[vertex_number]);
+				return;
+			} else {
+				//return point contact with apex
+				prim_prim_info.type = ContactType::POINT;
+				prim_prim_info.min_distance = apex_plane_dist;
+				prim_prim_info.contact_points.push_back(pyramidInWorld*apex_in_pyramid);
+				return;
+			}
 		}
 	}
 }

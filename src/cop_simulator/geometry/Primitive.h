@@ -66,10 +66,12 @@ struct CapsuleProperties;
 struct PlaneProperties;
 struct SphereProperties;
 struct CylinderProperties;
+struct BoxProperties;
+struct PyramidProperties;
 
 class Primitive {
 public:
-	enum GeometryType { Undefined, Plane, Sphere, Capsule, Cylinder };
+	enum GeometryType { Undefined, Plane, Sphere, Capsule, Cylinder, Box, Pyramid };
 
 public:
 	// base constructor
@@ -101,6 +103,14 @@ public:
 	// virtual cylinder props
 	virtual void setCylinderProperties(CylinderProperties* props) { }
 	virtual CylinderProperties* getCylinderProperties() { return NULL; }
+
+	// virtual box props
+	virtual void setBoxProperties(BoxProperties* props) { }
+	virtual BoxProperties* getBoxProperties() { return NULL; }
+
+	// virtual pyramid props
+	virtual void setPyramidProperties(PyramidProperties* props) { }
+	virtual PyramidProperties* getPyramidProperties() { return NULL; }
 
 public:
 	// ownership info. TODO: consider something more robust
@@ -194,6 +204,84 @@ private:
 	void computeFacePoints();
 };
 
+// box primitive
+// box center is at 0. so x-extent is ± xlength/2
+struct BoxProperties {
+	double xlength;
+	double ylength;
+	double zlength;
+};
+
+class BoxPrimitive: public Primitive {
+public:
+	BoxPrimitive(const std::string& name, double xlength, double ylength, double zlength);
+
+	~BoxPrimitive() {
+		delete _props;
+	}
+
+	virtual void setBoxProperties(BoxProperties* props);
+
+	virtual BoxProperties* getBoxProperties() { return _props; }
+
+public:
+	BoxProperties* _props;
+};
+
+// pyramid primitive
+// pyramid base center is at 0. x-axis aligns with one base vertex
+struct PyramidProperties {
+	uint num_sides_base;
+	double length_base_side;
+	double height;
+};
+
+class PyramidPrimitive: public Primitive {
+public:
+	PyramidPrimitive(const std::string& name, uint num_sides_base, double length_base_side, double height);
+
+	~PyramidPrimitive() {
+		delete _props;
+	}
+
+	virtual void setPyramidProperties(PyramidProperties* props);
+
+	virtual PyramidProperties* getPyramidProperties() { return _props; }
+
+	double sideFaceAngle() const {
+		return _side_face_angle;
+	}
+
+	double sideEdgeAngle() const {
+		return _side_edge_angle;
+	}
+
+	double includedAngle() const {
+		return _included_angle;
+	}
+
+	double circumRadius() const {
+		return _circum_radius;
+	}
+
+	double incircleRadius() const {
+		return _incircle_radius;
+	}
+
+public:
+	PyramidProperties* _props;
+	std::vector<Eigen::Vector3d> _base_points;
+
+private:
+	double _incircle_radius;
+	double _circum_radius;
+	double _side_face_angle;
+	double _side_edge_angle;
+	double _included_angle;
+	void computeInternalProperties();
+	void computeBasePoints();
+};
+
 // --------- distance computations. static functions ----------
 class PrimPrimDistance {
 public:
@@ -230,6 +318,27 @@ public:
 
 	// TODO: Cylinder capsule
 	// TODO: Cylinder cylinder
+
+	static void distancePlaneBox(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const BoxPrimitive& box, Eigen::Affine3d boxInWorld
+	);
+
+	// TODO: Box capsule
+	// TODO: Box cylinder
+	// TODO: Box box
+
+	static void distancePlanePyramid(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const PyramidPrimitive& pyramid, Eigen::Affine3d pyramidInWorld
+	);
+
+	// TODO: Pyramid capsule
+	// TODO: Pyramid cylinder
+	// TODO: Pyramid box
+	// TODO: Pyramid pyramid
 };
 
 }

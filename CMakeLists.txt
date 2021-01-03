@@ -72,6 +72,7 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/ContactPatch.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/Primitive.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/PrimPrimDistance.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/GeometryUtils.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBody.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ArticulatedRigidBodyManager.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/WorldContactMap.cpp

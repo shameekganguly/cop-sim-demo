@@ -23,6 +23,30 @@ void printPrimPrimInfo(const PrimPrimContactInfo& info) {
 	cout << endl;
 }
 
+void printContactPatch(const ContactPatch& patch) {
+	cout << "Contact patch:" << endl;
+	cout << "Interior point: " << patch._interior_point.transpose() << endl;
+	cout << "Num curves: " << patch._intersection_curves.size() << endl;
+	cout << "Num line segments: " << patch._line_segments.size() << endl;
+	for(const auto& lineseg: patch._line_segments) {
+		cout << "Line seg: (";
+		cout << lineseg.point1.transpose() << "), (";
+		cout << lineseg.point2.transpose() << ")" << endl;
+	}
+	cout << "Max extent: " << patch.max_extent << endl;
+	cout << endl;
+}
+
+void printPointTestResult(const PointTestResult& result) {
+	cout << "Test point result:" << endl;
+	cout << "Is in patch: " << result.f_is_in_patch << endl;
+	cout << "Is on line seg: " << result.f_is_on_line_seg << endl;
+	cout << "Line seg id: " << result.line_seg_id << endl;
+	cout << "Is on vertex: " << result.f_is_on_vertex << endl;
+	cout << "Distance to boundary: " << result.min_dist_to_boundary << endl;
+	cout << endl;
+}
+
 void testPlaneCapsuleDistance();
 void testCapsuleCapsuleDistance();
 void testPlaneCylinderDistance();
@@ -468,5 +492,213 @@ void testPlaneCylinderDistance() {
 		cout << "Contact patch point test: dist along ray: " << result3 << endl;
 		auto result4 = info.contact_patch.distanceFromBoundaryAlongRay(Vector2d(0.0, 0.05), Vector2d(1.0, 0.0));
 		cout << "Contact patch point test: dist along ray: " << result4 << endl;
+	}
+	{
+		// test distance between z-plane and box
+		cout << "--- TEST 8 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto box = new BoxPrimitive("tb", 0.2, 0.2, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d boxTF = Affine3d::Identity();
+		boxTF.translation() << 0.0, 0.0, 0.2;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, box, boxTF);
+		printPrimPrimInfo(info);
+		printContactPatch(info.contact_patch);
+		Vector2d test(0, 0);
+		cout << "distance to patch boundary from test (" << test.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test));
+		cout << "distance from line seg 1 to test (" << test.transpose() << "): "
+							<< info.contact_patch._line_segments[0].distanceToPoint(test)
+							<< endl;
+		Vector2d test2(0, 0.1);
+		cout << "distance to patch boundary from test (" << test2.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test2));
+
+		Vector2d test3(-0.1, -0.1);
+		cout << "distance to patch boundary from test (" << test3.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test3));
+
+	}
+	{
+		// test distance between -ve-x-plane and box
+		cout << "--- TEST 9 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(-1.0, 0.0, 0.0), Vector3d(0.0, 0.0, 0.0));
+		auto box = new BoxPrimitive("tb", 0.1, 0.2, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d boxTF = Affine3d::Identity();
+		boxTF.translation() << -5.0, 0.0, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, box, boxTF);
+		printPrimPrimInfo(info);
+		printContactPatch(info.contact_patch);
+		Vector2d test(0, 0);
+		cout << "distance to patch boundary from test (" << test.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test));
+		cout << "distance from line seg 1 to test (" << test.transpose() << "): "
+							<< info.contact_patch._line_segments[0].distanceToPoint(test)
+							<< endl;
+		Vector2d test2(0, 0.1);
+		cout << "distance to patch boundary from test (" << test2.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test2));
+		Vector2d test3(4, 4);
+		cout << "distance to patch boundary from test (" << test3.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test3));
+	}
+	{
+		// test distance between z-plane and box
+		cout << "--- TEST 10 ---" << endl;
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto box = new BoxPrimitive("tb", 0.2, 0.2, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d boxTF = Affine3d::Identity();
+		boxTF.translation() << 0.0, 0.0, 0.4;
+		boxTF.linear() << 0.707, 0, 0.707,
+							0,   1,   0,
+						  -0.707, 0, 0.707;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, box, boxTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test line contact distance between z-plane and box
+		cout << "--- TEST 11 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto box = new BoxPrimitive("tb", 0.2, 0.2, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d boxTF = Affine3d::Identity();
+		boxTF.translation() << 0.0, 0.0, 0.4;
+		boxTF.linear() << 0.707, 0, 0.707,
+							0,   1,   0,
+						  -0.707, 0, 0.707;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, box, boxTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test point contact distance between z-plane and box
+		cout << "--- TEST 12 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto box = new BoxPrimitive("tb", 0.2, 0.2, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d boxTF = Affine3d::Identity();
+		boxTF.translation() << 0.0, 0.0, 0.4;
+		boxTF.linear() << 0.707, 	-0.707, 	0,
+						  0.499849, 0.499849, -0.707,
+						  0.499849, 0.499849,  0.707;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, box, boxTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test surface contact between z-plane and 4-sided pyramid
+		cout << "--- TEST 13 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.2);
+		cout << "Incircle radius: " << pyramid->incircleRadius() << endl;
+		cout << "Circumcircle radius: " << pyramid->circumRadius() << endl;
+		cout << "Side edge angle: " << pyramid->sideEdgeAngle() << endl;
+		cout << "Side face angle: " << pyramid->sideFaceAngle() << endl;
+		cout << "Included angle: " << pyramid->includedAngle() << endl;
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.2;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+		printContactPatch(info.contact_patch);
+	}
+	{
+		// test point contact between z-plane and 4-sided pyramid apex
+		cout << "--- TEST 14 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() << 1.0, 0.0, 0.0,
+							0.0, -1.0, 0.0,
+							0.0, 0.0, -1.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test point contact between z-plane and 4-sided pyramid tilted
+		cout << "--- TEST 15 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() << 1.0, 0.0, 0.0,
+							0.0, 0.707, -0.707,
+							0.0, 0.707, 0.707;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test line contact between z-plane and 4-sided pyramid tilted, base
+		cout << "--- TEST 16 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.2);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() = (Eigen::AngleAxisd(M_PI/4, Vector3d::UnitX()) *
+								Eigen::AngleAxisd(M_PI/4, Vector3d::UnitZ())).toRotationMatrix();
+		cout << pyramidTF.linear() << endl;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test face contact between z-plane and 4-sided pyramid tilted, base
+		cout << "--- TEST 17 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.05);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() = (Eigen::AngleAxisd(3*M_PI/4, Vector3d::UnitX()) *
+								Eigen::AngleAxisd(M_PI/4, Vector3d::UnitZ())).toRotationMatrix();
+		// cout << pyramidTF.linear() << endl;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+		printContactPatch(info.contact_patch);
+	}
+	{
+		// test point contact between z-plane and 4-sided pyramid tilted, base
+		cout << "--- TEST 18 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.05);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() = (Eigen::AngleAxisd(-M_PI/8, Vector3d::UnitX()) *
+								Eigen::AngleAxisd(M_PI/8, Vector3d::UnitZ())).toRotationMatrix();
+		// cout << pyramidTF.linear() << endl;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test edge contact between z-plane and 4-sided pyramid tilted, base
+		cout << "--- TEST 19 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 4, 0.1, 0.1);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.4;
+		pyramidTF.linear() = (Eigen::AngleAxisd((M_PI/2+pyramid->sideEdgeAngle()), Vector3d::UnitX())).toRotationMatrix();
+		// cout << pyramidTF.linear() << endl;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test surface contact between z-plane and 6-sided pyramid
+		cout << "--- TEST 20 ---" << endl; 
+		auto plane = new PlanePrimitive("tp", Vector3d(0.0, 0.0, 1.0), Vector3d(0.0, 0.0, 0.0));
+		auto pyramid = new PyramidPrimitive("tpyr", 6, 0.2, 0.3);
+		Affine3d planeTF = Affine3d::Identity();
+		Affine3d pyramidTF = Affine3d::Identity();
+		pyramidTF.translation() << 0.0, 0.0, 0.2;
+		PrimPrimDistance::distancePrimitivePrimitive(info, plane, planeTF, pyramid, pyramidTF);
+		printPrimPrimInfo(info);
+		printContactPatch(info.contact_patch);
+		Vector2d test(0, 0);
+		cout << "distance to patch boundary from test (" << test.transpose() << "): " << endl;
+		printPointTestResult(info.contact_patch.testPoint(test));
 	}
 }
