@@ -57,7 +57,7 @@ find_library(GLFW_LIBRARY glfw)
 find_package(RBDL QUIET)
 include_directories(${RBDL_INCLUDE_DIR})
 
-set(COP_DEMO_COMMON_LIBRARIES
+set(COP_THIRDPARTY_LIBRARIES
 	${CHAI3D_LIBRARIES}
     ${SAI2-URDF_LIBRARIES}
     ${SAI2-SIMULATION_LIBRARIES}
@@ -83,6 +83,13 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
   ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver2.cpp
+)
+
+add_library(copsim ${COP_DEMO_COMMON_SOURCE})
+
+set(COP_DEMO_COMMON_LIBRARIES
+  copsim
+  ${COP_THIRDPARTY_LIBRARIES}
 )
 
 # add apps

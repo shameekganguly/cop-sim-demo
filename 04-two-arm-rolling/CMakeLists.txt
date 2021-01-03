@@ -1,5 +1,5 @@
 # create an executable
-ADD_EXECUTABLE (04-two-arm-rolling main.cpp ${COP_DEMO_COMMON_SOURCE})
+ADD_EXECUTABLE (04-two-arm-rolling main.cpp)
 
 # and link the library against the executable
 TARGET_LINK_LIBRARIES (04-two-arm-rolling ${COP_DEMO_COMMON_LIBRARIES})

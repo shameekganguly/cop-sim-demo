@@ -1,5 +1,5 @@
 # create an executable
-ADD_EXECUTABLE (02-two-capsules main.cpp ${COP_DEMO_COMMON_SOURCE})
+ADD_EXECUTABLE (02-two-capsules main.cpp)
 
 # and link the library against the executable
 TARGET_LINK_LIBRARIES (02-two-capsules ${COP_DEMO_COMMON_LIBRARIES})
