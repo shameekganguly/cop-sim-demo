@@ -1,6 +1,7 @@
 // ArticulatedRigidBody.cpp
 
 #include "ArticulatedRigidBody.h"
+#include <rbdl/rbdl.h>
 
 namespace Sai2COPSim {
 	// constructor
@@ -50,6 +51,9 @@ namespace Sai2COPSim {
 	void ArticulatedRigidBody::updateNonLinearJAcc() {
 		Eigen::VectorXd jtau_nonlin(_model->dof());
 		_model->coriolisPlusGravity(jtau_nonlin);
+		// reset the link accelerations in rbdl model to ensure they do not include
+		// acceleration due to gravity and joint acceleration
+		_model->updateKinematicsCustom(false /*q*/, false /*dq*/, true /*ddx*/, false /*use ddq*/);
 		jacc_nonlinear = -_model->_M_inv*jtau_nonlin; //NOTE THAT THIS IS RHS ACCELERATION
 	}
 
@@ -59,5 +63,21 @@ namespace Sai2COPSim {
 		// cout << T_object_base.linear() << endl;
 		// cout << T_object_base.translation().transpose() << endl;
 		return T_link_world.inverse() * world_point;
+	}
+
+	void ArticulatedRigidBody::JvdotTimesQdotInWorld(Eigen::Vector3d& jvdotTimesQdot,
+		const std::string& link_name,
+		const Eigen::Vector3d& pos_in_link)
+	{
+		jvdotTimesQdot = CalcPointAcceleration(*(_model->_rbdl_model),_model->_q,_model->_dq,Eigen::VectorXd::Zero(_model->_dof),_model->linkId(link_name),pos_in_link,false);
+		jvdotTimesQdot = _model->_T_world_robot.linear()*jvdotTimesQdot;
+	}
+
+
+	void ArticulatedRigidBody::JwdotTimesQdotInWorld(Eigen::Vector3d& jwdotTimesQdot,
+		const std::string& link_name)
+	{
+		Eigen::VectorXd a_temp = CalcPointAcceleration6D(*(_model->_rbdl_model),_model->_q,_model->_dq,Eigen::VectorXd::Zero(_model->_dof),_model->linkId(link_name),Eigen::Vector3d::Zero(),false);
+		jwdotTimesQdot = _model->_T_world_robot.linear()*a_temp.head(3);
 	}
 }

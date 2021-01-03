@@ -47,6 +47,34 @@ public:
 	// utility function
 	Eigen::Vector3d worldToBodyPosition(const std::string& link_name, const Eigen::Vector3d& world_point);
 
+	// -- Jdot*dq functions --
+	/**
+	* @brief      Product of time derivative of Jv of a link, and dq. Output is with
+	*              respect to world frame
+	* @note       We dont ask RBDL to update kinematics. This assumes no dynamics call
+	*              has been made between the last updateKinematics() call and this call
+	*              dynamics calls include coriolisForce and coriolisForcePlusGravity in
+	*              Sai2Model, as well as any of the functions in RBDL/Dynamics.h
+	*				It is ok to call the updateNonLinearJAcc() function however, as it
+	*				resets the link accelerations to not include gravity and ddq terms.
+	*
+	* @param      jvdotTimesQdot  Vector to which the result is written
+	* @param      link_name        name of the link for which to compute the angular
+	*                              acceleration
+	* @param      pos_in_link      the position of the point in the link, in local
+	*                              link frame
+	*/
+	void JvdotTimesQdotInWorld(Eigen::Vector3d& jvdotTimesQdot,
+								const std::string& link_name,
+								const Eigen::Vector3d& pos_in_link = Eigen::Vector3d::Zero());
+	/* @param     jwdotTimesQdot     Vector to which the result is written
+	* @param      link_name  name of the link for which to compute the angular
+	*                        acceleration
+	*/
+	void JwdotTimesQdotInWorld(Eigen::Vector3d& jwdotTimesQdot,
+								const std::string& link_name);
+
+
 public:
 	// string name
 	std::string _name;
