@@ -49,12 +49,36 @@ void addCapsuleObject(const std::string& articulated_body_name,
 // cylinder is assumed to be aligned with +Z axis. local frame at the center of one end
 // face of the cylinder.
 void addCylinderObject(const std::string& articulated_body_name,
-		const std::string& link_name, // name for the link on which capsule primitive will be attached
+		const std::string& link_name, // name for the link on which cylinder primitive will be attached
 		const std::string& primitive_name,
 		Sai2Model::Sai2Model* object,
 		double radius,
 		double length,
 		uint num_points);
+
+// add a box object
+// object->_T_world_robot is assumed to have been set already
+// box axes are assumed to be aligned with local frame.
+// local frame at the center of the box
+void addBoxObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which box primitive will be attached
+		const std::string& primitive_name,
+		Sai2Model::Sai2Model* object,
+		double xlength,
+		double ylength,
+		double zlength);
+
+// add a pyramid object
+// object->_T_world_robot is assumed to have been set already
+// pyramid axes are assumed to be aligned with local frame.
+// local frame at half the height of the pyramid
+void addPyramidObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which primitive will be attached
+		const std::string& primitive_name,
+		Sai2Model::Sai2Model* object,
+		uint num_sides_base,
+		double length_base_side,
+		double height);
 
 // add an object without a shape primitive
 // object->_T_world_robot is assumed to have been set already
@@ -108,8 +132,8 @@ public: //internal members of the COPSimulator
 	ContactSpaceModel* _contact_model;
 
 	// number of sim iterations since instantiation
-	unsigned long long _iterations; 
-	//TODO: consider using an internal timer for adaptive stepping and updating 
+	unsigned long long _iterations;
+	//TODO: consider using an internal timer for adaptive stepping and updating
 	// collision meshes at a slower rate.
 	// TODO: Later we need to have a 5 rate simulation with the following:
 	// Rate 1: Integrator sub-stepping (for higher order methods)

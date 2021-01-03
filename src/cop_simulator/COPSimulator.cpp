@@ -140,6 +140,58 @@ void COPSimulator::addCapsuleToObject(const std::string& articulated_body_name,
 	//TODO: force update model
 }
 
+void COPSimulator::addBoxObject(const std::string& articulated_body_name,
+					const std::string& link_name,
+					const std::string& primitive_name,
+					Sai2Model::Sai2Model* object,
+					double xlength,
+					double ylength,
+					double zlength
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+
+	// create a new box primitive
+	auto box = new BoxPrimitive(primitive_name, xlength, ylength, zlength);
+	box->_is_static = false;
+	box->_articulated_body_name = articulated_body_name;
+	box->_link_name = link_name;
+	box->_transform_in_link.translation() << 0, 0, 0;
+	// to ensure that link center is at the center of the cylinder
+
+	_geom_manager.addPrimitive(box);
+
+	arb->addPrimitive(link_name, box);
+	//TODO: check if intersecting with anything, if so throw
+	//TODO: force update model
+}
+
+void COPSimulator::addPyramidObject(const std::string& articulated_body_name,
+					const std::string& link_name, // name for the link on which primitive will be attached
+					const std::string& primitive_name,
+					Sai2Model::Sai2Model* object,
+					uint num_sides_base,
+					double length_base_side,
+					double height
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+
+	// create a new pyramid primitive
+	auto pyramid = new PyramidPrimitive(primitive_name, num_sides_base, length_base_side, height);
+	pyramid->_is_static = false;
+	pyramid->_articulated_body_name = articulated_body_name;
+	pyramid->_link_name = link_name;
+	pyramid->_transform_in_link.translation() << 0, 0, -height/2;
+	// to ensure that link center is at the center of the cylinder
+
+	_geom_manager.addPrimitive(pyramid);
+
+	arb->addPrimitive(link_name, pyramid);
+	//TODO: check if intersecting with anything, if so throw
+	//TODO: force update model
+}
+
 // automatically sets q and dq for the objects
 void COPSimulator::integrate(double dt) {
 	// time point 1
