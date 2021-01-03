@@ -382,7 +382,6 @@ void ContactIslandModel::updateRHSVectors() {
 
 	// compute dot(J)*dq and add to RHS
 	// TODO: cache the local body coordinates in the ContactPairState
-	// Use _model->linearAccelerationInWorld at point i on Body B - _model->linearAcceleration at point j on Body A
 	// TODO: J_contact = R_contact_frame * J_world
 	// Consider the effects of ignoring dot(R_contact_frame) in dot(J_contact)
 	for (auto& p: _pair_state) {
@@ -392,7 +391,6 @@ void ContactIslandModel::updateRHSVectors() {
 		if(primA->_is_static) {
 			// get body location for primB
 			auto arb = _arb_manager->getBody(primB->_articulated_body_name);
-			auto arb_model = arb->_model;
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
@@ -400,14 +398,9 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			
-			// Note: updateKinematics must be called between 
-			// model->nonLinearEffects() call and model->JvdotTimesQdotInWorld() call
-			// because nonLinearEffects computes the internal body accelerations with
-			// the gravity effect. we don't want that when computing dot(J)*dq
-			arb_model->updateKinematics();
 			Vector3d djv_times_dq, djw_times_dq;
-			arb_model->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
-			arb_model->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
+			arb->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
+			arb->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
 			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
 			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
@@ -428,7 +421,6 @@ void ContactIslandModel::updateRHSVectors() {
 		} else if(primB->_is_static) {
 			// get body location for primA
 			auto arb = _arb_manager->getBody(primA->_articulated_body_name);
-			auto arb_model = arb->_model;
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
@@ -436,14 +428,9 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			
-			// Note: updateKinematics must be called between 
-			// model->nonLinearEffects() call and model->JvdotTimesQdotInWorld() call
-			// because nonLinearEffects computes the internal body accelerations with
-			// the gravity effect. we don't want that when computing dot(J)*dq
-			arb_model->updateKinematics();
 			Vector3d djv_times_dq, djw_times_dq;
-			arb_model->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
-			arb_model->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
+			arb->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
+			arb->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
 			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
 			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
@@ -463,9 +450,7 @@ void ContactIslandModel::updateRHSVectors() {
 			}
 		} else { // !primA->_is_static && !primB->_is_static
 			auto arbA = _arb_manager->getBody(primA->_articulated_body_name);
-			auto arbA_model = arbA->_model;
 			auto arbB = _arb_manager->getBody(primB->_articulated_body_name);
-			auto arbB_model = arbB->_model;
 
 			// get body point for point 0
 			// TODO: cache the local body position for point in primitive
@@ -474,17 +459,11 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple 
 			
-			// Note: updateKinematics must be called between 
-			// model->nonLinearEffects() call and model->JvdotTimesQdotInWorld() call
-			// because nonLinearEffects computes the internal body accelerations with
-			// the gravity effect. we don't want that when computing dot(J)*dq
 			Vector3d djv_times_dq_A, djw_times_dq_A, djv_times_dq_B, djw_times_dq_B;
-			arbA_model->updateKinematics();
-			arbA_model->JvdotTimesQdotInWorld(djv_times_dq_A, primA->_link_name, bodyA_point0);
-			arbA_model->JwdotTimesQdotInWorld(djw_times_dq_A, primA->_link_name);
-			arbB_model->updateKinematics();
-			arbB_model->JvdotTimesQdotInWorld(djv_times_dq_B, primB->_link_name, bodyB_point0);
-			arbB_model->JwdotTimesQdotInWorld(djw_times_dq_B, primB->_link_name);
+			arbA->JvdotTimesQdotInWorld(djv_times_dq_A, primA->_link_name, bodyA_point0);
+			arbA->JwdotTimesQdotInWorld(djw_times_dq_A, primA->_link_name);
+			arbB->JvdotTimesQdotInWorld(djv_times_dq_B, primB->_link_name, bodyB_point0);
+			arbB->JwdotTimesQdotInWorld(djw_times_dq_B, primB->_link_name);
 			// std::cout << "djvdqA " << djv_times_dq_A.transpose() << std::endl;
 			// std::cout << "djwdqA " << djw_times_dq_A.transpose() << std::endl;
 			// std::cout << "djvdqB " << djv_times_dq_B.transpose() << std::endl;
@@ -807,6 +786,10 @@ void ContactSpaceModel::updateVelocityTerms() {
 	// update body non-linear accelerations
 	for(auto arb_it: _arb_manager->_articulated_bodies) {
 		auto arb = arb_it.second;
+		// update the velocity terms in the rbdl model
+		// _model->updateKinematicsCustom(false /*q*/, true /*dq*/, false /*ddx*/, false /*use ddq*/);
+		// NOTE: Above is not necessary as updateNonLinearJAcc will update the link
+		// velocities as well
 		arb->updateNonLinearJAcc();
 	}
 
