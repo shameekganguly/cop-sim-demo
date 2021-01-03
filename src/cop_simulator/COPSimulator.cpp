@@ -96,7 +96,7 @@ void COPSimulator::addCylinderObject(const std::string& articulated_body_name,
 	cylinder->_is_static = false;
 	cylinder->_articulated_body_name = articulated_body_name;
 	cylinder->_link_name = link_name;
-	cylinder->_transform_in_link.translation() << 0, 0, -length/2; 
+	cylinder->_transform_in_link.translation() << 0, 0, -length/2;
 	// to ensure that link center is at the center of the cylinder
 
 	_geom_manager.addPrimitive(cylinder);
@@ -145,13 +145,13 @@ void COPSimulator::integrate(double dt) {
 	// time point 1
 	auto time_pt1 = std::chrono::high_resolution_clock::now();
 	bool f_force_update_dynamics = false;
-	//TODO: this might be an internal property of the class, in case we need to 
+	//TODO: this might be an internal property of the class, in case we need to
 	// set the flag from further below, such as after resolveCollisions or resolveSteadyContacts
 	// check for collisions
 	if(_iterations % COPAlgorithmicConstants::NUM_ITERS_BEFORE_COLLISION_CHECK_UPDATE == 0) {
 		for(auto arb_it: _arb_manager._articulated_bodies) {
 			auto arb = arb_it.second;
-			arb->_model->updateKinematics();
+			arb->_model->updateKinematicsCustom(true /*q*/, true /*dq*/, true /*ddx*/, false /*use ddq*/);
 		}
 		computeWorldContactMap();
 
@@ -171,6 +171,12 @@ void COPSimulator::integrate(double dt) {
 			} else {
 				// update everything
 				arb->_model->updateModel();
+				// equivalent to calling
+				// arb->_model->updateKinematicsCustom(true /*q*/, true /*dq*/, true /*ddx*/, true /*use ddq*/);
+				// +
+				// arb->_model->updateDynamics();
+				// Note: this updates the link accelerations to include ddq, but the ddq
+				// component is removed when we call updateNonLinearJAcc below
 			}
 			arb->updateNonLinearJAcc();
 		}
@@ -222,7 +228,7 @@ void COPSimulator::integrate(double dt) {
 		half_dq_update = model->_dq + 0.5*model->_ddq * dt;
 
 		Eigen::VectorXd last_q = model->_q;
-		
+
 		// for each joint
 		for(uint body_ind = 0; body_ind < rbdl->mJoints.size(); ++body_ind) {
 			// NOTE: the iteration starts at body_ind because the first joint is a root joint that connects
