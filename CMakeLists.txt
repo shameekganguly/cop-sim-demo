@@ -104,6 +104,8 @@ add_subdirectory(01-single-contact)
 add_subdirectory(02-two-capsules)
 add_subdirectory(03-one-cylinder)
 add_subdirectory(04-two-arm-rolling)
+add_subdirectory(05-one-box)
+add_subdirectory(06-one-pyramid)
 
 # tests
 add_subdirectory(src/lcp_solvers)

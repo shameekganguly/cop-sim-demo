@@ -1,0 +1,81 @@
+<?xml version="1.0" ?>
+
+<robot name="PyramidObjectModel">
+
+	<link name="ground">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	</link>
+	<link name="lpx">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="0.00001" iyy="0.00001" izz="0.00001" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	</link>
+	<link name="lpy">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="0.00001" iyy="0.00001" izz="0.00001" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	</link>
+	<link name="lpz">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="0.00001" iyy="0.00001" izz="0.00001" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	</link>
+	<link name="object">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="1.000" />
+			<inertia ixx="0.003" iyy="0.003" izz="0.001" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	    <visual>
+	        <origin xyz="0.0 0.0 -0.15" rpy="0 0 0" />
+	        <geometry>
+	            <pyramid num_sides="6" height="0.3" base_size="0.2"/>
+	        </geometry>
+	        <material name="material_brown">
+		        <!-- <color rgba="0.6 0.5 0.5 1.0" /> -->
+		        <color rgba="0.9 0.9 0.9 1.0" />
+	        </material>
+	    </visual>
+	</link>
+
+	<joint name="jpx" type="prismatic">
+		<parent link="ground" />
+		<child link="lpx" />
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+		<axis xyz="1 0 0" />
+		<limit lower="-0.06" upper="0.0" effort="21.3" velocity="1.0" />
+	</joint>
+	<joint name="jpy" type="prismatic">
+		<parent link="lpx" />
+		<child link="lpy" />
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+		<axis xyz="0 1 0" />
+		<limit lower="-0.06" upper="0.0" effort="21.3" velocity="1.0" />
+	</joint>
+	<joint name="jpz" type="prismatic">
+		<parent link="lpy" />
+		<child link="lpz" />
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+		<axis xyz="0 0 1" />
+		<limit lower="-0.06" upper="0.0" effort="21.3" velocity="1.0" />
+	</joint>
+	<joint name="jrs" type="spherical">
+		<parent link="lpz" />
+		<child link="object" />
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+		<axis xyz="1 0 0" />
+		<limit lower="-0.06" upper="0.0" effort="21.3" velocity="1.0" />
+	</joint>
+</robot>
+
+</xml>
