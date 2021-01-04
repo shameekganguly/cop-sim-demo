@@ -127,7 +127,12 @@ int main(int argc, char** argv) {
     // load graphics scene
     auto graphics = new Sai2Graphics::Sai2Graphics(world_fname, false);
     // set object graphics to wireframe, and show frame for last link
-    // graphics->showLinkFrame(true, object_name, object_link_name);
+    // graphics->showLinkFrame(true, object1_name, object_link_name);
+    // graphics->showLinkFrame(true, object2_name, object_link_name);
+    // graphics->showLinkFrame(true, object3_name, object_link_name);
+    // graphics->showLinkFrame(true, object4_name, object_link_name);
+    // graphics->showLinkFrame(true, object5_name, object_link_name);
+
     graphics->showWireMeshRender(true, object1_name, object_link_name);
     graphics->showWireMeshRender(true, object2_name, object_link_name);
     graphics->showWireMeshRender(true, object3_name, object_link_name);
