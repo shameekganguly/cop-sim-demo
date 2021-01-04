@@ -33,3 +33,6 @@
 
 # OS indexing files
 .DS_Store
+
+build/*
+bin/*
