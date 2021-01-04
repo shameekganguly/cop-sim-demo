@@ -86,7 +86,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 	// 	std::cout << "r_last_cop: " << r_last_cop.transpose() << std::endl;
 	// 	std::cout << "linear velocity: " << linear_contact_velocity.transpose() << std::endl;
 	// }
-	
+
 	ContactCOPSolution ret_sol;
 	if(boundary_points.size() != 1 && boundary_points[0].size() != 2) {
 		ret_sol.result = COPSolResult::UnimplementedCase;
@@ -198,7 +198,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 				trhs[0] = -rhs_disp[2];
 				trhs[1] = -rhs_disp[3];
 				tA.setZero(2,2);
-				tA(0,0) = A_disp(2,2) 
+				tA(0,0) = A_disp(2,2)
 							- mu*(A_disp.block<1,2>(2, 0).dot(slip_vel))/slip_vel.norm()
 							- mu_rot*rotation_sign*A_disp(2,4);
 				tA(0,1) = A_disp(2,3);
@@ -228,7 +228,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 				fForceIgnoreSlip = true; // TODO: think more about this
 				// TODO: Instead of this approach, we can consider the slip direction at the next time step.
 				// i.e. slip_vel = current_slip_vel + tangential_acc*dt
-				// Have to think about whether this can introduce an increase in energy, like in 
+				// Have to think about whether this can introduce an increase in energy, like in
 				// Kane's example for frictional collision
 				trhs.setZero(4);
 				trhs = -rhs_disp.segment<4>(0);
@@ -250,7 +250,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 			if(slip_vel.norm() > 1e-6) {
 				// slip velocity on both translation and rotation
 				double trhs_scalar = -rhs_disp[2];
-				double tA_scalar = A_disp(2,2) 
+				double tA_scalar = A_disp(2,2)
 							- mu*(A_disp.block<1,2>(2, 0).dot(slip_vel))/slip_vel.norm();
 				double tsol_scalar = trhs_scalar/tA_scalar;
 				f_sol << - mu*tsol_scalar*slip_vel/slip_vel.norm(),
@@ -401,7 +401,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroid(
 			} else {
 				// slip velocity on both translation and rotation
 				double trhs_scalar = -rhs_disp[2];
-				double tA_scalar = A_disp(2,2) 
+				double tA_scalar = A_disp(2,2)
 							- mu*(A_disp.block<1,2>(2, 0).dot(roll_slip_direction));
 				double tsol_scalar = trhs_scalar/tA_scalar;
 				f_sol << - mu*tsol_scalar*roll_slip_direction,
@@ -544,7 +544,7 @@ ContactCOPSolution COPSolver::solvePtOnly(
 
 	if(point_state == FrictionState::Sliding) {
 		double trhs_scalar = -rhs_constraint[2];
-		double tA_scalar = A_constraint(2,2) 
+		double tA_scalar = A_constraint(2,2)
 					- mu*A_constraint.block<1,2>(2, 0).dot(point_slip_dir);
 		double tsol_scalar = trhs_scalar/tA_scalar;
 		Tf_sol.setZero(3);
@@ -564,7 +564,7 @@ ContactCOPSolution COPSolver::solvePtOnly(
 		// finally try an impending slip sol
 		// TODO: use correct impending slip direction estimate
 		double trhs_scalar = -rhs_constraint[2];
-		double tA_scalar = A_constraint(2,2) 
+		double tA_scalar = A_constraint(2,2)
 					- mu*A_constraint.block<1,2>(2, 0).dot(point_rolling_dir);
 		double tsol_scalar = trhs_scalar/tA_scalar;
 		Tf_sol.setZero(3);
@@ -602,9 +602,9 @@ static void getCOPLineAndPtContactDisplacedMatricesExtended (
 
 	// compute A matrix at new position
 	A_disp.setZero(A.rows(), A.cols());
-	A_disp.block<5,5>(line_start_row_id, line_start_row_id) = 
+	A_disp.block<5,5>(line_start_row_id, line_start_row_id) =
 		cross_mat*A.block<5,5>(line_start_row_id, line_start_row_id)*cross_mat.transpose();
-	A_disp.block<3,3>(pt_start_row_id, pt_start_row_id) = 
+	A_disp.block<3,3>(pt_start_row_id, pt_start_row_id) =
 		A.block<3,3>(pt_start_row_id, pt_start_row_id);
 	A_disp.block<5,3>(line_start_row_id, pt_start_row_id) =
 		cross_mat*A.block<5,3>(line_start_row_id, pt_start_row_id);
@@ -621,8 +621,8 @@ static void getCOPLineAndPtContactDisplacedMatricesExtended (
 	rcross << 0, 0, 0,
 			  0, 0, -signed_dist,
 			  0, signed_dist, 0;
-	rhs_disp.segment<3>(line_start_row_id) += 
-		line_omega_bodyB.cross(-rcross * line_omega_bodyB) 
+	rhs_disp.segment<3>(line_start_row_id) +=
+		line_omega_bodyB.cross(-rcross * line_omega_bodyB)
 		- line_omega_bodyA.cross(-rcross * line_omega_bodyA);
 	lin_vel_disp = line_lin_vel + rcross*(line_omega_bodyB - line_omega_bodyA);
 }
@@ -679,7 +679,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 		return ret_sol;
 	}
 
-	// if b[pt contact normal] > 0, test with pt contact inactive. 
+	// if b[pt contact normal] > 0, test with pt contact inactive.
 	// - simply call the 1 pt line contact solver with reduced matrices
 	// - check if pt contact is accelerating as a result. if not, we are done
 	if(rhs_constraint(pt_start_row_id+2) > -1e-8) {
@@ -730,7 +730,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 	// if b[line contact normal] > 0, test with line contact inactive.
 	// - check if penetration acceleration occurs at any of the line contact test points
 	// - if not, we are done
-	if(rhs_constraint(line_start_row_id+2) > -1e-8 && 
+	if(rhs_constraint(line_start_row_id+2) > -1e-8 &&
 			(rhs_constraint(line_start_row_id+2) - rhs_constraint(line_start_row_id+3)*pt1_end_dist) > -1e-8
 			// TODO: this does not take into account the w x (w x r) term shift to the other point
 	) {
@@ -742,9 +742,9 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 												linear_contact_velocity[vector_pt_ind]
 											);
 		if(pt_only_sol.result == COPSolResult::Success) {
-			Vector2d line_a = A_constraint.block<2,3>(line_start_row_id+2,pt_start_row_id)*(pt_only_sol.force_sol) 
+			Vector2d line_a = A_constraint.block<2,3>(line_start_row_id+2,pt_start_row_id)*(pt_only_sol.force_sol)
 								+ rhs_constraint.segment<2>(line_start_row_id+2);
-			if(line_a(0) > -1e-8 && 
+			if(line_a(0) > -1e-8 &&
 				(line_a(0) - line_a(1)*pt1_end_dist) > -1e-8
 			) {
 				ContactCOPSolution ret_sol;
@@ -756,7 +756,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 			}
 		} else {
 			// how can this fail? TODO: maybe the line+pt sol can still work?
-			return pt_only_sol;	
+			return pt_only_sol;
 		}
 	}
 
@@ -813,7 +813,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 	double mu_rot;
 	const double mu = friction_coeff;
 	Vector3d local_line_cop_sol_point;
-	
+
 	// initial internal matrices
 	TA = A_constraint;
 	Trhs = rhs_constraint;
@@ -951,7 +951,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 		// - we dont expect this case since we start from the patch center point currently.
 		if(line_cop_type == COPContactType::LineEnd) {
 			// TODO: handle w x (w x r) term correctly
-			double acc_end1 = full_a_sol[line_start_row_id+2] + 
+			double acc_end1 = full_a_sol[line_start_row_id+2] +
 								full_a_sol[line_start_row_id+3]*signed_distance_from_point0;
 			double acc_end2 = full_a_sol[line_start_row_id+2] -
 								full_a_sol[line_start_row_id+3]*(boundary_points[vector_line_ind][1](0) - signed_distance_from_point0);
@@ -983,7 +983,7 @@ ContactCOPSolution COPSolver::solveStartWithPatchCentroidOnePointOneLine(
 				}
 				// - - if distance is small, check first if we are currently doing a binary search
 				// - - if so, continue binary search with point state fixed.
-				// - - if not, check last line-COP moment. if we switch moment directions, start binary 
+				// - - if not, check last line-COP moment. if we switch moment directions, start binary
 				// - - search with point state fixed.
 			}
 		}
@@ -1042,7 +1042,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 				}
 
 				Trhs.segment<2>(0) = -rhs_disp.segment<2>(lrid+2);
-				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2) 
+				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2)
 							- mu*A_disp.block<2,2>(lrid+2, lrid+0)*(ltslip_dir)
 							- mu_rot*lrslip_dir*A_disp.block<2,1>(lrid+2,lrid+4);
 				TA.block<2,1>(0,1) = A_disp.block<2,1>(lrid+2,lrid+3);
@@ -1074,7 +1074,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 					ltslip_dir = line_translation_rolling_dir;
 				}
 
-				// line stuff			
+				// line stuff
 				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid+2);
 				TA.block<3,1>(0,0) = A_disp.block<3,1>(lrid+2,lrid+2)
 							- mu*A_disp.block<3,2>(lrid+2, lrid+0)*(ltslip_dir);
@@ -1162,7 +1162,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 				}
 
 				Trhs(0) = -rhs_disp(lrid+2);
-				TA(0,0) = A_disp(lrid+2,lrid+2) 
+				TA(0,0) = A_disp(lrid+2,lrid+2)
 							- mu*A_disp.block<1,2>(lrid+2, lrid+0)*(ltslip_dir);
 
 				// pt stuff
@@ -1217,7 +1217,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 
 				// line stuff
 				Trhs.segment<2>(0) = -rhs_disp.segment<2>(lrid+2);
-				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2) 
+				TA.block<2,1>(0,0) = A_disp.block<2,1>(lrid+2,lrid+2)
 							- mu*A_disp.block<2,2>(lrid+2, lrid+0)*(ltslip_dir)
 							- mu_rot*lrslip_dir*A_disp.block<2,1>(lrid+2,lrid+4);
 				TA.block<2,1>(0,1) = A_disp.block<2,1>(lrid+2,lrid+3);
@@ -1247,7 +1247,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 					ltslip_dir = line_translation_rolling_dir;
 				}
 
-				// line stuff			
+				// line stuff
 				Trhs.segment<3>(0) = -rhs_disp.segment<3>(lrid+2);
 				TA.block<3,1>(0,0) = A_disp.block<3,1>(lrid+2,lrid+2)
 							- mu*A_disp.block<3,2>(lrid+2, lrid+0)*(ltslip_dir);
@@ -1329,7 +1329,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 				}
 
 				Trhs(0) = -rhs_disp(lrid+2);
-				TA(0,0) = A_disp(lrid+2,lrid+2) 
+				TA(0,0) = A_disp(lrid+2,lrid+2)
 							- mu*A_disp.block<1,2>(lrid+2, lrid+0)*(ltslip_dir);
 
 				// pt stuff
@@ -1363,7 +1363,7 @@ void COPSolver::computeMatrices(const Eigen::MatrixXd& A_disp, const Eigen::Vect
 
 void COPSolver::solve(double mu, double mu_rot, Eigen::VectorXd& full_f_sol) {
 	Tf_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
-	
+
 	uint lrid = line_start_row_id;
 	uint prid = pt_start_row_id;
 
@@ -1496,6 +1496,7 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 	//^ expected to be zero in the z direction, but we don't explicitly check
 ) {
 	// NOTE: only single surface contact solver for now.
+	assert(patch_indices.size() == 1);
 	Vector3d omegaA = omega_bodyA[0];
 	Vector3d omegaB = omega_bodyB[0];
 	Vector3d lin_vel = linear_contact_velocity[0];
@@ -1738,14 +1739,14 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 						patch_cop_type = COPContactType::PatchCurvePoint;
 					}
 					did_update_cop_pos = true;
-					// std::cout << "Full f sol " << full_f_sol.transpose() << std::endl; 
+					// std::cout << "Full f sol " << full_f_sol.transpose() << std::endl;
 					// std::cout << "Patch cop type " << (uint)(patch_cop_type) << std::endl;
-					// std::cout << "New cop pos " << cop_point.transpose() << std::endl; 
+					// std::cout << "New cop pos " << cop_point.transpose() << std::endl;
 					continue;
 				}
 				// - - if distance is small, check first if we are currently doing a binary search
 				// - - if so, continue binary search with point state fixed.
-				// - - if not, check last COP moment. if we switch moment directions, start binary 
+				// - - if not, check last COP moment. if we switch moment directions, start binary
 				// - - search with point state fixed.
 			}
 		}
@@ -1839,7 +1840,7 @@ void COPSolver::computeMatricesForSurface(const Eigen::MatrixXd& A_disp, const E
 			patch_translation_state == FrictionState::Impending)
 		) {
 			Trhs(0) = -rhs_disp(2);
-			TA(0,0) = A_disp(2,2) 
+			TA(0,0) = A_disp(2,2)
 						- mu*A_disp.block<1,2>(2, 0)*(ptslip_dir);
 
 			TA_size = 1;
