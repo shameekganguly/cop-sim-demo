@@ -78,7 +78,7 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main(int argc, char** argv) {
 	const double restitution = 0.3;
-    const double friction = 0.1;
+    const double friction = 0.5;
 
     // load sai2 simulation world
     // TODO: this is currently needed in order to load the base transform for each object
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     auto coobject1 = new Sai2Model::Sai2Model(object_fname, false, cylinder1_in_world, cylinder1_in_world.linear().transpose()*grav_vector);
 
     // add some initial velocity. TODO: move to parser
-    coobject1->_dq[5] = 3.6;
+    // coobject1->_dq[5] = 3.6;
 
     // set up COP sim world
     auto cop_sim = new Sai2COPSim::COPSimulator(friction, restitution);
@@ -139,8 +139,8 @@ int main(int argc, char** argv) {
     pt_contact_display.setLocalPos(Vector3d(0.0, 0.0, 0.4));
 
     ext_force_display.setShowEnabled(false);
-    ext_force_display.m_colorPointA.setGreenYellowGreen();
-    ext_force_display.m_colorPointB.setGreenYellowGreen();
+    ext_force_display.m_colorPointA.setOrangeDark();
+    ext_force_display.m_colorPointB.setOrangeDark();
     graphics->_world->addChild(&ext_force_display);
     ext_force_display.setLineWidth(4.0);
 
@@ -241,8 +241,8 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
         try {
             sim->integrate(loop_dt);
             sim_time_sum += loop_dt;
-            // object->jtau_act(1) = sim_time_sum*0.08;
-            // object->jtau_act(3) = -sim_time_sum*0.08*0.1;
+            object->jtau_act(1) = sim_time_sum*0.08;
+            object->jtau_act(3) = -sim_time_sum*0.08*0.1;
             if(timer.elapsedCycles() % 1000 == 0) {
                 // cout << object->jtau_act(1) << endl;
 

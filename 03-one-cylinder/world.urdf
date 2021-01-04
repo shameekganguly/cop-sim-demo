@@ -11,7 +11,7 @@
 	        </geometry>
 	    </collision>
 	    <visual>
-	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+	        <origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
 	        <geometry>
 	            <box size="3.0 3.0 0.1" />
 	        </geometry>
@@ -23,7 +23,7 @@
 
 	<robot name="Cylinder1">
 		<model dir="resources/03-one-cylinder/" path="cylinder_object.urdf" name="CylinderObjectModel" />
-		<origin xyz="0.0 0.0 0.4" rpy="0.0 0.0 0.0" />
+		<origin xyz="0.0 0.0 0.2" rpy="0.0 0.0 0.0" />
 	</robot>
 
 	<light name="light2" type="directional">
@@ -37,9 +37,9 @@
 	</light>
 
 	<camera name="camera_front">
-		<position xyz="1.5 0.0 0.7" />
+		<position xyz="1.0 0.5 0.5" />
 		<vertical xyz="0.0 0.0 1.0" />
-		<lookat xyz="0.0 0.0 0.1" />
+		<lookat xyz="0.0 0.5 0.1" />
 	</camera>
 	<camera name="camera_side">
 		<position xyz="0.3 -1.0 0.5" />
