@@ -36,12 +36,42 @@ using namespace chai3d;
 const string world_fname = "resources/06-one-pyramid/world.urdf";
 const string object_fname = "resources/06-one-pyramid/pyramid_object.urdf";
 const string object1_name = "Pyramid1";
-const uint pyramid_num_sides = 6;
-const double pyramid_side_len = 0.2;
+
+// const uint pyramid_num_sides = 40;
+// const double pyramid_side_len = 0.02726;
+// const uint pyramid_num_sides = 35;
+// const double pyramid_side_len = 0.0311775;
+// const uint pyramid_num_sides = 30;
+// const double pyramid_side_len = 0.036409;
+// const uint pyramid_num_sides = 25;
+// const double pyramid_side_len = 0.04376178;
+// const uint pyramid_num_sides = 20;
+// const double pyramid_side_len = 0.0548659;
+// const uint pyramid_num_sides = 15;
+// const double pyramid_side_len = 0.0736317;
+// const uint pyramid_num_sides = 10;
+// const double pyramid_side_len = 0.1126;
+// const uint pyramid_num_sides = 9;
+// const double pyramid_side_len = 0.1261;
+// const uint pyramid_num_sides = 8;
+// const double pyramid_side_len = 0.1435;
+// const uint pyramid_num_sides = 7;
+// const double pyramid_side_len = 0.1668;
+// const uint pyramid_num_sides = 6;
+// const double pyramid_side_len = 0.2;
+// const uint pyramid_num_sides = 5;
+// const double pyramid_side_len = 0.2517;
+// const uint pyramid_num_sides = 4;
+// const double pyramid_side_len = 0.3464;
+const uint pyramid_num_sides = 3;
+const double pyramid_side_len = 0.6;
+
 const double pyramid_height = 0.3;
 const string object_link_name = "object";
 const string plane_name = "Ground";
 Affine3d pyramid1_in_world;
+
+const double experiment_runtime = 5.0; // sec
 
 string camera_name = "camera_front";
 
@@ -103,7 +133,7 @@ int main(int argc, char** argv) {
     auto graphics = new Sai2Graphics::Sai2Graphics(world_fname, false);
     // set object graphics to wireframe, and show frame for last link
     // graphics->showLinkFrame(true, object_name, object_link_name);
-    // graphics->showWireMeshRender(true, object1_name, object_link_name);
+    graphics->showWireMeshRender(true, object1_name, object_link_name);
 
     // load objects
     auto coobject1 = new Sai2Model::Sai2Model(object_fname, false, pyramid1_in_world, pyramid1_in_world.linear().transpose()*grav_vector);
@@ -117,6 +147,9 @@ int main(int argc, char** argv) {
     cop_sim->addPyramidObject(object1_name, object_link_name, "pyramid1", coobject1, pyramid_num_sides, pyramid_side_len, pyramid_height);
     // add plane
     cop_sim->addPlane(plane_name, static_plane_in_world.linear().col(2), static_plane_in_world.translation());
+
+    // -- CHOOSE POINT CONTACT VS COP FOR STEADY STATE RESOLUTION --
+    cop_sim->_contact_model->setSupportPtContactSteadyContact(true);
 
     // TODO: force sim/ display
 
@@ -146,7 +179,7 @@ int main(int argc, char** argv) {
 
     // ---- GRAPHICS LOOP ON MAIN THREAD ----
     Eigen::Vector3d camera_pos, camera_lookat, camera_vertical;
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window) && fSimulationRunning) {
         // update model for object. called from simulation thread
         // coobject->updateModel();
 
@@ -221,13 +254,13 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
     LoopTimer timer;
     timer.initializeTimer();
     timer.setLoopFrequency(20000); //1500Hz timer
-    double last_time = timer.elapsedTime(); //secs
     bool fTimerDidSleep = true;
     auto object = sim->_arb_manager.getBody(object1_name);
     auto cmodel = sim->_contact_model;
     auto& geom_manager = sim->_geom_manager;
     double sim_time_sum = 0.0;
-    while (fSimulationRunning) {
+    double last_time = timer.elapsedTime(); //secs
+    while (fSimulationRunning) {//} && last_time < experiment_runtime) {
         fTimerDidSleep = timer.waitForNextLoop();
 
         // integrate forward
@@ -240,6 +273,7 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
 
         try {
             sim->integrate(loop_dt);
+            // cout << object->jtau_contact.transpose() << endl;
             // sim_time_sum += loop_dt;
             // object->jtau_act(1) = sim_time_sum*0.08;
             // object->jtau_act(3) = -sim_time_sum*0.08*0.1;
@@ -247,19 +281,19 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
             //     // cout << object->jtau_act(1) << endl;
 
             // visualize cop if present
-            if(cmodel != NULL
-                && cmodel->_contact_island_models.size() > 0
-                && cmodel->_contact_island_models[0]._active_contacts.size() > 0
-            ) {
-                const auto& island = cmodel->_contact_island_models[0];
-                const auto& prim_state = island._pair_state[island._active_contacts.front()];
-                if(prim_state.isValid()) {
-                    pt_contact_display.setLocalPos(prim_state._cop_pos);
-                    pt_contact_display.setShowEnabled(true);
-                }
-            } else if(geom_manager._prim_prim_distances[1][0]->min_distance > 0.01) {
-                pt_contact_display.setShowEnabled(false);
-            }
+            // if(cmodel != NULL
+            //     && cmodel->_contact_island_models.size() > 0
+            //     && cmodel->_contact_island_models[0]._active_contacts.size() > 0
+            // ) {
+            //     const auto& island = cmodel->_contact_island_models[0];
+            //     const auto& prim_state = island._pair_state[island._active_contacts.front()];
+            //     if(prim_state.isValid()) {
+            //         pt_contact_display.setLocalPos(prim_state._cop_pos);
+            //         pt_contact_display.setShowEnabled(true);
+            //     }
+            // } else if(geom_manager._prim_prim_distances[1][0]->min_distance > 0.01) {
+            //     pt_contact_display.setShowEnabled(false);
+            // }
 
             //     // visualize external force
             //     ext_force_display.setShowEnabled(true);
@@ -275,11 +309,13 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
         // update last time
         last_time = curr_time;
     }
+    fSimulationRunning = false;
     cout << "Simulation loop finished, average loop frequency: "
         << timer.elapsedCycles()/timer.elapsedTime() << endl;
     cout << "Total simulated time: " << timer.elapsedTime() << endl;
     cout << "Sim speed up over real time "<< timer.elapsedTime()/sim->_time_total << "x" << endl;
     sim->printTimeAnalytics();
+    cout << "Max sim penetration: " << sim->_max_penetration_current << endl;
 }
 
 // TODO: add Sai2Simulation for comparison

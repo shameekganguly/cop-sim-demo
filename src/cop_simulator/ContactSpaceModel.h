@@ -91,20 +91,20 @@ public:
 	ContactIslandModel(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager);
 
 	// optimization function to allow reconstruction without actually reallocating memory
-	void build(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager); 
+	void build(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager);
 
 	~ContactIslandModel();
 
 	// resolve collisions for this island
 	// changes the values of ARB::_model::dq to non-colliding
-	// assumes that the kinematic and dynamic models of the ARBs have been updated 
+	// assumes that the kinematic and dynamic models of the ARBs have been updated
 	// already
 	// returns True if there was a colliding contact that was resolved, else false
 	bool resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts for this island
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
-	// assumes that the kinematic and dynamic models of the ARBs have been updated 
+	// assumes that the kinematic and dynamic models of the ARBs have been updated
 	// already
 	// returns True if a steady contact was resolved else false
 	bool resolveSteadyContacts(double friction_coeff, double restitution_coeff);
@@ -173,7 +173,7 @@ public:
 	std::unordered_map<std::string, uint> _arb_index_map;
 
 	// Contact Jacobian for this island
-	// Note: row groups correspond to contact pairs with indices given by 
+	// Note: row groups correspond to contact pairs with indices given by
 	// _index_to_geom_island_contact_list
 	// column groups correspond to particular ARBs with indices given by _arbs
 	// Note: COP Jacobians are all with respect to point 0 in the contact point list.
@@ -183,7 +183,7 @@ public:
 	Eigen::MatrixXd _cop_full6_Jacobian_active;
 	Eigen::MatrixXd _cop_constraint_Jacobian_active;
 	Eigen::MatrixXd _pt_contact_Jacobian_active;
-	
+
 	// TODO: add constansts for COP constraint dof count (POINT = 3, LINE = 5, SURFACE = 6)
 
 	// the starting row index in the _cop_constraint_Jacobian for each primitive
@@ -203,7 +203,7 @@ public:
 	// RHS vector for collisions
 	Eigen::VectorXd _pt_contact_rhs_coll;
 
-	// RHS vector for stead contacts
+	// RHS vector for steady contacts
 	Eigen::VectorXd _cop_full6_rhs_contact;
 	Eigen::VectorXd _cop_constraint_rhs_contact;
 
@@ -219,6 +219,22 @@ public:
 
 	// vector of contact pair states
 	std::vector<ContactPairState> _pair_state;
+
+public:
+	bool _f_support_pt_contact_steady_contact;
+	// - RHS vector for steady contacts with pt-contacts
+	Eigen::VectorXd _pt_contact_rhs_steady_contact;
+
+	void getActivePtContactSteadyContactRHSVector(
+		Eigen::VectorXd& rhs_pt_contacts_steady_contact
+	) const;
+
+	// resolve steady contacts with multi-point contact rather than COP
+	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
+	// assumes that the kinematic and dynamic models of the ARBs have been updated
+	// already
+	// returns True if a steady contact was resolved else false
+	bool resolveSteadyContactsWithPointContacts(double friction_coeff, double restitution_coeff);
 
 public: //internal functions
 	// creates the full contact space Jacobian from the contact primitive pairs
@@ -268,14 +284,14 @@ public:
 
 	// resolve collisions
 	// changes the values of ARB::_model::dq to non-colliding
-	// assumes that the kinematic and dynamic models of the ARBs have been updated 
+	// assumes that the kinematic and dynamic models of the ARBs have been updated
 	// already
 	// returns True if there was a colliding contact that was resolved, else false
 	bool resolveCollisions(double friction_coeff, double restitution_coeff);
 
 	// resolve steady contacts
 	// changes the values of ARB::jtau_contact to achieve non-penetrating accelerations
-	// assumes that the kinematic and dynamic models of the ARBs have been updated 
+	// assumes that the kinematic and dynamic models of the ARBs have been updated
 	// already
 	// returns True if a steady contact was resolved else false
 	bool resolveSteadyContacts(double friction_coeff, double restitution_coeff);
@@ -289,6 +305,14 @@ public:
 	// therefore we track an index
 	std::vector<ContactIslandModel> _contact_island_models;
 	uint _contact_island_models_size;
+
+private:
+	bool _f_support_pt_contact_steady_contact;
+public:
+	void setSupportPtContactSteadyContact(bool value);
+	bool getSupportPtContactSteadyContact() const {
+		return _f_support_pt_contact_steady_contact;
+	}
 
 public: // build time analytics
 	double _time_compute_matrices;

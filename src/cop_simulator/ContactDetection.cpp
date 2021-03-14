@@ -43,6 +43,7 @@ void COPSimulator::computeWorldContactMap() {
 	// TODO: implement sleep on objects, so that we don't have to reset the full world
 	// contact map
 	_contact_map.clear();
+	_max_penetration_current = -1;
 
 	//TODO: Implement broad phase collision detection with sphere hierarchy in GeometryManager
 
@@ -56,7 +57,7 @@ void COPSimulator::computeWorldContactMap() {
 		for(uint j = i+1; j < _geom_manager._primitives.size(); j++) {
 			auto prim_j = _geom_manager._primitives[j];
 
-			// TODO: flag for disallowing collision between parent and child links 
+			// TODO: flag for disallowing collision between parent and child links
 			// within a sphere around the joint
 			// e.g. collisions between two links on the same ARB,
 			//  collision with an ARB for which collision is disabled, etc.
@@ -90,6 +91,7 @@ void COPSimulator::computeWorldContactMap() {
 
 			// check if in contact
 			if(ppinfo->min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD) {
+				_max_penetration_current = max(_max_penetration_current, -ppinfo->min_distance);
 				// create ContactPrimitivePair
 				ContactPrimitivePair contact_pair;
 				contact_pair.primA = prim_i;
@@ -126,11 +128,11 @@ void COPSimulator::computeWorldContactMap() {
 				} else if(contact_island_prim_i == -1 && contact_island_prim_j > -1) {
 					// case 3: add to contact island where prim_j->_arb_name already exists
 					_contact_map._islands[contact_island_prim_j]._contact_prim_pairs.push_back(contact_pair);
-					if(!prim_i->_is_static) { 
+					if(!prim_i->_is_static) {
 						_contact_map._islands[contact_island_prim_j]._articulated_bodies.insert(prim_i->_articulated_body_name);
 					}
 				} else {
-					// case 4: both primitive bodies are in separate islands. Merge and add in 
+					// case 4: both primitive bodies are in separate islands. Merge and add in
 					// island for prim_i
 					_contact_map._islands[contact_island_prim_i].merge(_contact_map._islands[contact_island_prim_j]);
 					_contact_map._islands[contact_island_prim_j]._is_merged = true;

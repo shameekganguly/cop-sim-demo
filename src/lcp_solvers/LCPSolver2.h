@@ -12,7 +12,7 @@ namespace Sai2LCPSolver {
 // Collision LCP points solver solves a set of equations of the form
 // v = Ap + b 					where A is assumed positive definite
 // v_n >= -eps * pre_v_n  \perp  p_n >= 0 	where n is the normal direction. Assumed to
-// 								be the [2] component of each v_i 3-velocity vector and 
+// 								be the [2] component of each v_i 3-velocity vector and
 //								p_i 3-force vector. pre_v is the velocity before coll.
 //								eps is the coefficient of restitution.
 // |v_t| >= 0  \perp  p_n * \mu >= |p_t| 	where \mu is the coefficient of friction
@@ -42,7 +42,8 @@ public:
 		const Eigen::VectorXd& b,
 		const Eigen::VectorXd& pre_v,
 		double epsilon,
-		double mu
+		double mu,
+		bool force_sliding_if_pre_slip = false // this is set to true for computing steady contact forces
 	);
 
 public: // internal functions

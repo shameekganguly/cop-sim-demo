@@ -90,17 +90,30 @@ double ContactPatch::distanceFromBoundaryAlongRay(const Vector2d& point, const V
 	// check each curve
 	for(const auto curve: _intersection_curves) {
 		double dist = curve->distanceFromPointAlongRay(point, direction);
-		if(dist > 0 && dist < ret_dist) {
+		if(dist > 1e-10 && dist < ret_dist) {
 			ret_dist = dist;
 		}
 	}
+	// NOTE: we use the 1e-10 THRESHOLD above to avoid numerical issues
+	// The justification is that this call is only made in one of two cases:
+	// 1. The point is in the interior of the patch. In this case, we can
+	//		safely assume that the minimum distance to the boundary in the direction
+	//		of the ray will be atleast THRESHOLD
+	// 2. The point is on the contact patch, but the COP solver has forced a
+	//		PatchCenter solution. As a result, due to numerical issues, it is
+	//		possible that the distance to the line segment on which the test
+	//		point is currently located is actually a small positive number < THRESHOLD
+	//		e.g. 1e-17. Therefore, we should ignore this distance and look for a
+	//		boundary curve/segment with a larger +ve distance along the ray
 	// check each line segments
 	for(const auto& lineseg: _line_segments) {
 		double dist = lineseg.distanceFromPointAlongRay(point, direction);
-		if(dist > 0 && dist < ret_dist) {
+		// std::cout << dist << " ";
+		if(dist > 1e-10 && dist < ret_dist) {
 			ret_dist = dist;
 		}
 	}
+	// std::cout << std::endl;
 	return ret_dist;
 }
 

@@ -80,6 +80,7 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactSpaceModel.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/CollisionResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/SteadyContactResolution.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/PointContactsSteadyContactResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
   ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver2.cpp
@@ -100,13 +101,13 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE        ${PROJECT_SOURCE_DIR}/bin)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${PROJECT_SOURCE_DIR}/bin)
 set (COP_DEMO_BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 
-add_subdirectory(01-single-contact)
-add_subdirectory(02-two-capsules)
-add_subdirectory(03-one-cylinder)
-add_subdirectory(04-two-arm-rolling)
-add_subdirectory(05-one-box)
+# add_subdirectory(01-single-contact)
+# add_subdirectory(02-two-capsules)
+# add_subdirectory(03-one-cylinder)
+# add_subdirectory(04-two-arm-rolling)
+# add_subdirectory(05-one-box)
 add_subdirectory(06-one-pyramid)
 
 # tests
-add_subdirectory(src/lcp_solvers)
-add_subdirectory(src/cop_simulator_tests)
+# add_subdirectory(src/lcp_solvers)
+# add_subdirectory(src/cop_simulator_tests)

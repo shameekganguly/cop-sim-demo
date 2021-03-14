@@ -88,7 +88,7 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 		linear_contact_velocity.push_back(constraint_lin_vel);
 	}
 
-	// get RHS vectors. no need to update the complete vectors as that would have happened either 
+	// get RHS vectors. no need to update the complete vectors as that would have happened either
 	// in model update or after collision resolution
 	VectorXd full_cop_rhs;
 	VectorXd constraint_cop_rhs;
@@ -96,7 +96,6 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 	std::vector<uint> constraint_Jrow_ind_to_contact_pair_map;
 	getActiveFullCOPRHSVector(full_cop_rhs, full_Jrow_ind_to_contact_pair_map);
 	getActiveConstraintCOPRHSVector(constraint_cop_rhs, constraint_Jrow_ind_to_contact_pair_map);
-
 
 	// TODO: send restitution coeff in case a shock condition occurs
 	if(_active_contacts.size() == 1) {
@@ -412,7 +411,7 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				break;
 			case ContactType::SURFACE:
 				cop_point0_force = prim._last_cop_sol.force_sol;
-				// transform force from local COP point to contact patch interior point, which 
+				// transform force from local COP point to contact patch interior point, which
 				// is "point 0" for surface contact
 				cop_point0_force.segment<3>(3) += prim._last_cop_sol.local_cop_pos.cross(cop_point0_force.segment<3>(0));
 				if(arbB != NULL) {

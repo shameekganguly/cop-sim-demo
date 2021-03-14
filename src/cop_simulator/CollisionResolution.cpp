@@ -11,9 +11,9 @@ namespace Sai2COPSim {
 
 bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitution_coeff) {
 	bool ret_coll_flag = false;
-	if(numContactPoints() > 10) {
-		throw(std::runtime_error("Unimplemented collision resolution case."));
-	}
+	// if(numContactPoints() > 10) {
+	// 	throw(std::runtime_error("Unimplemented collision resolution case."));
+	// }
 	// NOTE: currently we use a pt based solver for collisions
 
 	bool did_update_active_contacts = false;
@@ -67,7 +67,7 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 					// If we have already solved for collisions once, we use a threshold
 					// to numerically quantify if a body is still colliding.
 					// This is to accomodate for numerical precision of the solver
-					is_colliding = is_colliding || (pre_coll_separation_speed < 
+					is_colliding = is_colliding || (pre_coll_separation_speed <
 														-COPAlgorithmicConstants::SEPARATION_SPEED_NUMERICAL_ZERO_THRESHOLD);
 				} else {
 					// else, if it is the first time, we use absolute 0
@@ -104,7 +104,7 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 
 		if(did_update_coll_active_contacts) {
 			// update all of the active contact matrices, both for collisions and for steady contacts
-			// NOTE: we update these matrices even if we are not colliding, because the 
+			// NOTE: we update these matrices even if we are not colliding, because the
 			// active contact state might remain the same for the next simulation iteration.
 			// so we want to preserve them
 			// std::cout << "Updated active contacts " << _pair_state[0]._active_points.size() << std::endl;
@@ -125,13 +125,13 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 
 		// - compute epsilon based on max collision speed. set to 0 if it is very small
 		double adjusted_restitution_coeff = restitution_coeff;
-		if (max_collision_speed < COPAlgorithmicConstants::MIN_COLLISION_SPEED_FOR_STEADY_CONTACT) { 
+		if (max_collision_speed < COPAlgorithmicConstants::MIN_COLLISION_SPEED_FOR_STEADY_CONTACT) {
 			// We use the fastest collision to determine the coefficient of restitution
 			// std::cout << "Force stick" << std::endl;
 			adjusted_restitution_coeff = 0.0; // force inelastic collision to bring to steady contact
 		}
 
-		// - call LCP solver. TODO: extend to more than 2 pts
+		// - call LCP solver.
 		uint num_active_contact_pts = pt_contact_rhs_coll_active.size()/3;
 		if(num_active_contact_pts == 1) {
 			_last_coll_lcp_sol = solveCollLCPOnePoint (
@@ -152,7 +152,7 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 				double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
 				v_red *= 0.5;
 				pt_contact_rhs_coll_active[0] = v_red;
-				pt_contact_rhs_coll_active[3] = v_red;	
+				pt_contact_rhs_coll_active[3] = v_red;
 			}
 			//TODO: generalize above to any redundancy direction
 			_last_coll_lcp_sol = solveCollLCPPoint (
@@ -245,7 +245,7 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 	// if (is_post_steady_contact) {
 	// 	if(contact_model._activeContacts.size() == 2) {
 	// 		if(abs(lcp_sol.p_sol[2]) > 1e-8 && abs(lcp_sol.p_sol[5]) > 1e-8) {
-	// 			if(LOG_DEBUG) cout << "2 pt impulse too small. Not updating COP." << endl;	
+	// 			if(LOG_DEBUG) cout << "2 pt impulse too small. Not updating COP." << endl;
 	// 		} else {
 	// 			// update cop sol from collision lcp sol
 	// 			last_cop_sol = getLCPForInelasticCollResult(lcp_sol.p_sol, contact_model._contactPointsLocal);

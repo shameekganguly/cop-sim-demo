@@ -12,6 +12,7 @@ COPSimulator::COPSimulator(double friction_coeff, double restitution_coeff)
 {
 	_contact_model = new ContactSpaceModel(&_arb_manager);
 
+	_max_penetration_current = 0.0;
 	_time_total = 0.0;
 	_time_update_geometry = 0.0;
 	_time_update_dynamics = 0.0;

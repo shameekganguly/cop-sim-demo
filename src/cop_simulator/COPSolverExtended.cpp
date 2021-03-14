@@ -1562,6 +1562,9 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 	double mu_rot;
 	const double mu = friction_coeff;
 	Vector3d cop_point = Vector3d::Zero();
+	// Vector3d cop_point;
+	// cop_point << contact_patch._line_segments[0].point1, 0;
+	// std::cout << cop_point.transpose() << std::endl;
 	patch_cop_type = COPContactType::PatchCenter;
 
 	// initial internal matrices
@@ -1730,11 +1733,13 @@ ContactCOPSolution COPSolver::solveSurfaceContact(
 					cop_disp_dir << -violation_moment(1), violation_moment(0);
 					cop_disp_dir /= cop_disp_dir.norm();
 					double max_dist_to_bdry = contact_patch.distanceFromBoundaryAlongRay(cop_point.segment<2>(0), cop_disp_dir);
+					// std::cout << "Here " << cop_disp_dist << " max: " << max_dist_to_bdry << std::endl;
 					if(abs(cop_disp_dist) < max_dist_to_bdry) {
 						// we stay within the patch
 						cop_point.segment<2>(0) += cop_disp_dir*cop_disp_dist;
 					} else {
 						// we are on the boundary
+						// std::cout << "Here2" << std::endl;
 						cop_point.segment<2>(0) += cop_disp_dir*max_dist_to_bdry;
 						patch_cop_type = COPContactType::PatchCurvePoint;
 					}

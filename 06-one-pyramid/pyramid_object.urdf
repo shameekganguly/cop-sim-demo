@@ -39,7 +39,20 @@
 	    <visual>
 	        <origin xyz="0.0 0.0 -0.15" rpy="0 0 0" />
 	        <geometry>
-	            <pyramid num_sides="6" height="0.3" base_size="0.2"/>
+	        	<!-- <pyramid num_sides="40" height="0.3" base_size="0.02726"/> -->
+	        	<!-- <pyramid num_sides="35" height="0.3" base_size="0.0311775"/> -->
+	        	<!-- <pyramid num_sides="30" height="0.3" base_size="0.036409"/> -->
+	        	<!-- <pyramid num_sides="25" height="0.3" base_size="0.04376178"/> -->
+	        	<!-- <pyramid num_sides="20" height="0.3" base_size="0.0548659"/> -->
+	        	<!-- <pyramid num_sides="15" height="0.3" base_size="0.0736317"/> -->
+	        	<!-- <pyramid num_sides="10" height="0.3" base_size="0.1126"/> -->
+	        	<!-- <pyramid num_sides="9" height="0.3" base_size="0.1261"/> -->
+	        	<!-- <pyramid num_sides="8" height="0.3" base_size="0.1435"/> -->
+	        	<!-- <pyramid num_sides="7" height="0.3" base_size="0.1668"/> -->
+	        	<!-- <pyramid num_sides="6" height="0.3" base_size="0.2"/> -->
+	        	<!-- <pyramid num_sides="5" height="0.3" base_size="0.2517"/> -->
+	        	<!-- <pyramid num_sides="4" height="0.3" base_size="0.3464"/> -->
+	        	<pyramid num_sides="3" height="0.3" base_size="0.6"/>
 	        </geometry>
 	        <material name="material_brown">
 		        <!-- <color rgba="0.6 0.5 0.5 1.0" /> -->

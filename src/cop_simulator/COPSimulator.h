@@ -143,6 +143,9 @@ public: //internal members of the COPSimulator
 	// Rate 5: Compute contact geometry
 
 	// Rate 1 is the fastest, Rate 5 is the slowest
+public: // penetration analysis
+	double _max_penetration_current;
+
 public: // simulation timing analysis
 
 	double _time_total;

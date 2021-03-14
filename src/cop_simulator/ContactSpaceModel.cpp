@@ -12,6 +12,7 @@ namespace Sai2COPSim {
 
 /* ------ Contact Island Model ------- */
 ContactIslandModel::ContactIslandModel(const ContactIsland* geom_island, ArticulatedRigidBodyManager* arb_manager)
+: _f_support_pt_contact_steady_contact(false)
 {
 	build(geom_island, arb_manager);
 }
@@ -92,7 +93,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 	// compute contact dof
 	uint cop_constraint_contact_dof = 0; // based on COP constraints at each location
 	uint full6_contact_dof = 0; // for COP solver input, we need to send the full Jacobians
-	uint pt_contact_dof = 0; // based on number of points at 
+	uint pt_contact_dof = 0; // based on number of points at
 	uint dq_dof = 0;
 	for (auto& p: _pair_state) {
 		auto p_info = p._geom_prim_pair->info;
@@ -167,7 +168,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			// fill in the Jacobians
 			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 			_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
-			
+
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 			if(p._geom_prim_pair->info->type == ContactType::LINE) {
@@ -219,7 +220,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			// fill in the Jacobians
 			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 			_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
-			
+
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 			if(p._geom_prim_pair->info->type == ContactType::LINE) {
@@ -289,7 +290,7 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			_cop_full6_Jacobian.block(p._id*6 + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
 			_cop_full6_Jacobian.block(p._id*6, arbB_col_ind, 3, arbB_model->dof()) = JvB;
 			_cop_full6_Jacobian.block(p._id*6 + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
-			
+
 			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
 			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
@@ -355,6 +356,8 @@ void ContactIslandModel::updateRHSVectors() {
 
 	uint pt_contact_dof = _pt_contact_Jacobian.rows();
 	_pt_contact_rhs_coll.setZero(pt_contact_dof);
+	_pt_contact_rhs_steady_contact.setZero(pt_contact_dof);
+
 
 	// we assume here that model->nonLinearEffects has been called already after updating
 	// the dq
@@ -378,6 +381,11 @@ void ContactIslandModel::updateRHSVectors() {
 		// pt_ct for collision
 		Jseg = _pt_contact_Jacobian.block(0, arb_Jind, pt_contact_dof, dq_dof);
 		_pt_contact_rhs_coll += Jseg * arb_model->_dq; // collision RHS is simply dx-
+
+		// pt contact for steady contact
+		if(_f_support_pt_contact_steady_contact) {
+			_pt_contact_rhs_steady_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
+		}
 	}
 
 	// compute dot(J)*dq and add to RHS
@@ -388,6 +396,8 @@ void ContactIslandModel::updateRHSVectors() {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
 		uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
+		uint pt_p_ind_start = _pt_contact_Jacobian_prim_start_ind[p._id];
+		auto contact_points = p._geom_prim_pair->info->contact_points;
 		if(primA->_is_static) {
 			// get body location for primB
 			auto arb = _arb_manager->getBody(primB->_articulated_body_name);
@@ -396,27 +406,38 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: cache the local body position for point in primitive
 			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
-			// for the same articulated body multiple 
-			
-			Vector3d djv_times_dq, djw_times_dq;
-			arb->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
-			arb->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
-			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
-			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
+			// for the same articulated body multiple
 
-			// update full cop
-			_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+			{ // block for cop constraint rhs
+				Vector3d djv_times_dq, djw_times_dq;
+				arb->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
+				arb->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
+				// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
+				// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
-			// update constraint cop
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
-			} else { // ContactType::Point
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				// update full cop
+				_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+
+				// update constraint cop
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+				} else { // ContactType::Point
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				}
+			}
+
+			if(_f_support_pt_contact_steady_contact) { // block for pt contacts rhs
+				Vector3d pt_djv_times_dq;
+				for(uint i = 0; i < contact_points.size(); i++) {
+					Vector3d body_pt = arb->worldToBodyPosition(primB->_link_name, contact_points[i]);
+					arb->JvdotTimesQdotInWorld(pt_djv_times_dq, primB->_link_name, body_pt);
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * pt_djv_times_dq;
+				}
 			}
 		} else if(primB->_is_static) {
 			// get body location for primA
@@ -426,27 +447,37 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: cache the local body position for point in primitive
 			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
-			// for the same articulated body multiple 
-			
-			Vector3d djv_times_dq, djw_times_dq;
-			arb->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
-			arb->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
-			// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
-			// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
+			// for the same articulated body multiple
 
-			// update full cop
-			_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+			{ // block for cop constraint rhs
+				Vector3d djv_times_dq, djw_times_dq;
+				arb->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
+				arb->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
+				// std::cout << "djvdq " << djv_times_dq.transpose() << std::endl;
+				// std::cout << "djwdq " << djw_times_dq.transpose() << std::endl;
 
-			// update constraint cop
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
-			} else { // ContactType::Point
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				// update full cop
+				_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+
+				// update constraint cop
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
+				} else { // ContactType::Point
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
+				}
+			}
+			if(_f_support_pt_contact_steady_contact) { // block for pt contacts rhs
+				Vector3d pt_djv_times_dq;
+				for(uint i = 0; i < contact_points.size(); i++) {
+					Vector3d body_pt = arb->worldToBodyPosition(primA->_link_name, contact_points[i]);
+					arb->JvdotTimesQdotInWorld(pt_djv_times_dq, primA->_link_name, body_pt);
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * pt_djv_times_dq;
+				}
 			}
 		} else { // !primA->_is_static && !primB->_is_static
 			auto arbA = _arb_manager->getBody(primA->_articulated_body_name);
@@ -457,32 +488,44 @@ void ContactIslandModel::updateRHSVectors() {
 			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, p._reference_point);
 			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, p._reference_point);
 			// TODO: move update kinematics call elsewhere to avoid duplication
-			// for the same articulated body multiple 
-			
-			Vector3d djv_times_dq_A, djw_times_dq_A, djv_times_dq_B, djw_times_dq_B;
-			arbA->JvdotTimesQdotInWorld(djv_times_dq_A, primA->_link_name, bodyA_point0);
-			arbA->JwdotTimesQdotInWorld(djw_times_dq_A, primA->_link_name);
-			arbB->JvdotTimesQdotInWorld(djv_times_dq_B, primB->_link_name, bodyB_point0);
-			arbB->JwdotTimesQdotInWorld(djw_times_dq_B, primB->_link_name);
-			// std::cout << "djvdqA " << djv_times_dq_A.transpose() << std::endl;
-			// std::cout << "djwdqA " << djw_times_dq_A.transpose() << std::endl;
-			// std::cout << "djvdqB " << djv_times_dq_B.transpose() << std::endl;
-			// std::cout << "djwdqB " << djw_times_dq_B.transpose() << std::endl;
-			
+			// for the same articulated body multiple
 
-			// update full cop RHS
-			_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
-			_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
+			{ // block for cop constraint rhs
+				Vector3d djv_times_dq_A, djw_times_dq_A, djv_times_dq_B, djw_times_dq_B;
+				arbA->JvdotTimesQdotInWorld(djv_times_dq_A, primA->_link_name, bodyA_point0);
+				arbA->JwdotTimesQdotInWorld(djw_times_dq_A, primA->_link_name);
+				arbB->JvdotTimesQdotInWorld(djv_times_dq_B, primB->_link_name, bodyB_point0);
+				arbB->JwdotTimesQdotInWorld(djw_times_dq_B, primB->_link_name);
+				// std::cout << "djvdqA " << djv_times_dq_A.transpose() << std::endl;
+				// std::cout << "djwdqA " << djw_times_dq_A.transpose() << std::endl;
+				// std::cout << "djvdqB " << djv_times_dq_B.transpose() << std::endl;
+				// std::cout << "djwdqB " << djw_times_dq_B.transpose() << std::endl;
 
-			// update constraint cop RHS
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
-				_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A)).segment<2>(1);
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
-			} else { // ContactType::Point
-				_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
+
+				// update full cop RHS
+				_cop_full6_rhs_contact.segment<3>(p._id*6) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
+				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
+
+				// update constraint cop RHS
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
+					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A)).segment<2>(1);
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
+				} else { // ContactType::Point
+					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
+				}
+			}
+			if(_f_support_pt_contact_steady_contact) { // block for pt contacts rhs
+				Vector3d pt_djv_times_dq_A, pt_djv_times_dq_B;
+				for(uint i = 0; i < contact_points.size(); i++) {
+					Vector3d bodyA_pt = arbA->worldToBodyPosition(primA->_link_name, contact_points[i]);
+					Vector3d bodyB_pt = arbB->worldToBodyPosition(primB->_link_name, contact_points[i]);
+					arbA->JvdotTimesQdotInWorld(pt_djv_times_dq_A, primA->_link_name, bodyA_pt);
+					arbB->JvdotTimesQdotInWorld(pt_djv_times_dq_B, primB->_link_name, bodyB_pt);
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * (pt_djv_times_dq_B - pt_djv_times_dq_A);
+				}
 			}
 		}
 	}
@@ -518,7 +561,7 @@ void ContactIslandModel::getActiveFullCOPMatrices(
 		Eigen::MatrixXd& J_full_cop,
 		Eigen::MatrixXd& Lambda_inv_full_cop,
 		Eigen::VectorXd& rhs_full_cop,
-		std::vector<uint>& Jrow_ind_to_contact_pair_map 
+		std::vector<uint>& Jrow_ind_to_contact_pair_map
 		//TODO: ^consider making this a map from ContactPair.id -> row start ind in active Jacobian
 ) const {
 	if(_active_contacts.size() == 0) return;
@@ -528,7 +571,7 @@ void ContactIslandModel::getActiveFullCOPMatrices(
 	rhs_full_cop.setZero(6*_active_contacts.size());
 	int active_contacts_ind = 0;
 	Jrow_ind_to_contact_pair_map.clear();
-	
+
 	// fill in Jacobian and rhs
 	for(uint cid: _active_contacts) {
 		J_full_cop.block(active_contacts_ind*6, 0, 6, _cop_full6_Jacobian.cols()) = _cop_full6_Jacobian.block(cid*6, 0, 6, _cop_full6_Jacobian.cols());
@@ -629,7 +672,7 @@ void ContactIslandModel::getActivePtContactCollisionMatrices(
 	rhs_pt_contacts_collision.setZero(pt_contact_active_dof);
 
 	Jrow_ind_to_contact_pair_map.clear();
-	
+
 	// fill in Jacobian and rhs
 	uint row_ind = 0;
 	for(uint cid: _active_contacts) {
@@ -680,6 +723,29 @@ void ContactIslandModel::getActivePtContactCollisionRHSVector(
 	}
 }
 
+void ContactIslandModel::getActivePtContactSteadyContactRHSVector(
+		Eigen::VectorXd& rhs_pt_contacts_steady_contact
+) const {
+	if(_active_contacts.size() == 0) return;
+	if(!_f_support_pt_contact_steady_contact) return;
+
+	// NOTE: We assume that the active contacts have not changed since the last call to getActivePtContactCollisionMatrices
+	// Therefore, we assume that rhs_pt_contacts_steady_contact is already the correct size
+	rhs_pt_contacts_steady_contact.setZero(_pt_contact_Jacobian_active.rows());
+
+	uint row_ind = 0;
+	// std::cout << _pt_contact_rhs_steady_contact.size() << " " <<
+	//		rhs_pt_contacts_steady_contact.size() <<std::endl;
+	for(uint cid: _active_contacts) {
+		uint Jstart_ind = _pt_contact_Jacobian_prim_start_ind[cid];
+		// std::cout << cid << " " << Jstart_ind << std::endl;
+		for(uint pid: _pair_state[cid]._active_points) {
+			rhs_pt_contacts_steady_contact.segment(row_ind, 3) = _pt_contact_rhs_steady_contact.segment(Jstart_ind + pid*3, 3);
+			row_ind += 3;
+		}
+	}
+}
+
 void ContactIslandModel::getActiveFullCOPRHSVector(
 	Eigen::VectorXd& rhs_full_cop,
 	std::vector<uint>& Jrow_ind_to_contact_pair_map
@@ -707,7 +773,7 @@ void ContactIslandModel::getActiveConstraintCOPRHSVector(
 
 	int active_contacts_ind = 0;
 	Jrow_ind_to_contact_pair_map.clear(); // this is to the start of the constraint rows
-	
+
 	// fill in Jacobian and rhs
 	uint active_prim_start_Jrow_ind = 0;
 	for(uint cid: _active_contacts) {
@@ -747,7 +813,7 @@ bool ContactIslandModel::deactivateContactPair(uint id) {
 
 /* ------ Contact Space Model ------- */
 ContactSpaceModel::ContactSpaceModel(ArticulatedRigidBodyManager* arb_manager)
-: _arb_manager(arb_manager)
+: _arb_manager(arb_manager), _f_support_pt_contact_steady_contact(false)
 {
 	assert(arb_manager != NULL);
 	// reserve space for island models
@@ -769,6 +835,7 @@ void ContactSpaceModel::build(const WorldContactMap* geom_map) {
 		// _contact_island_models.push_back(
 		// 		ContactIslandModel(&(*geom_island_it), _arb_manager)
 		// );
+		_contact_island_models[i]._f_support_pt_contact_steady_contact = _f_support_pt_contact_steady_contact;
 		_contact_island_models[i].build(&(*geom_island_it), _arb_manager);
 		// std::cout << _contact_island_models[i]._pair_state.size() << std::endl;
 		_time_compute_matrices += _contact_island_models[i]._time_compute_matrices;
@@ -817,9 +884,30 @@ bool ContactSpaceModel::resolveSteadyContacts(double friction_coeff, double rest
 	for(uint i = 0; i < _contact_island_models_size; i++) {
 		auto& island = _contact_island_models[i];
 		//TODO: implement island sleep
-		ret_flag = island.resolveSteadyContacts(friction_coeff, restitution_coeff) || ret_flag;
+		if(_f_support_pt_contact_steady_contact) {
+			ret_flag = island.resolveSteadyContactsWithPointContacts(
+								friction_coeff,
+								restitution_coeff
+			) || ret_flag;
+		}
+		else {
+			ret_flag = island.resolveSteadyContacts(friction_coeff, restitution_coeff) || ret_flag;
+		}
+
 	}
 	return ret_flag;
+}
+
+void ContactSpaceModel::setSupportPtContactSteadyContact(bool value) {
+	if(_f_support_pt_contact_steady_contact != value) {
+		_f_support_pt_contact_steady_contact = value;
+		// propagate to current islands. Note that this does not take effect until
+		// all build() is called for each island.
+		for(uint i = 0; i < _contact_island_models_size; i++) {
+			auto& island = _contact_island_models[i];
+			island._f_support_pt_contact_steady_contact = value;
+		}
+	}
 }
 
 /* ------ Contact Pair State ------- */

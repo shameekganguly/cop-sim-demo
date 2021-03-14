@@ -12,7 +12,8 @@ CollLCPPointSolution LCPSolver::solve(
 		const Eigen::VectorXd& b,
 		const Eigen::VectorXd& pre_v,
 		double epsilon,
-		double mu
+		double mu,
+		bool force_sliding_if_pre_slip
 ) {
 	CollLCPPointSolution ret_sol;
 
@@ -38,6 +39,7 @@ CollLCPPointSolution LCPSolver::solve(
 	VectorXd full_v_sol = b;
 	VectorXd full_p_sol = VectorXd::Zero(b.size());
 	int max_iters = num_points * 10;
+	// std::cout << max_iters << std::endl;
 	int iters = 0;
 	while(iters < max_iters) {
 		iters++;
@@ -77,8 +79,26 @@ CollLCPPointSolution LCPSolver::solve(
 					} else {
 						// assert(states[i] == PointState::NoContact); // shouldn't be any other state really
 						// std::cout << "Enable contact " << i << std::endl;
-						enableContact(i);
-						any_pt_penetrating = true;
+						if(states[i] != PointState::NoContact) {
+							// indicates numerical error. so we relax the penetration velocity constraint
+							if(full_v_sol(3*i + 2) > (-1e-6 + -epsilon*pre_v(3*i + 2))) {
+								continue;
+							}
+						} else {
+							if(force_sliding_if_pre_slip) {
+								Vector2d pre_slip = pre_v.segment<2>(i*3);
+								if(pre_slip.norm() > 1e-8) {
+									if(LCP_LOG_DEBUG) std::cout << "force_sliding_if_pre_slip " << i << std::endl;
+									states[i] = PointState::Sliding;
+									chosen_sliding_directions[i] = pre_slip/pre_slip.norm();
+								} else {
+									enableContact(i);
+								}
+							} else {
+								enableContact(i);
+							}
+							any_pt_penetrating = true;
+						}
 					}
 					break;
 				}
@@ -101,7 +121,7 @@ CollLCPPointSolution LCPSolver::solve(
 					// save current slip direction for this point
 					frictionless_sliding_directions[i] = curr_slip_speed/curr_slip_speed.norm();
 
-					enableRollingFriction(i, A, b, pre_v, epsilon, mu); 
+					enableRollingFriction(i, A, b, pre_v, epsilon, mu);
 					// this checks for redundancy directions with existing contacts
 					// TODO: if rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY,
 					// then rolling_friction will be zero. So we will never turn on sliding friction at this
@@ -194,16 +214,23 @@ CollLCPPointSolution LCPSolver::solve(
 	}
 
 	// if we are here, that means the resolution failed
+	// Eigen::IOFormat logVecFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ");
 	std::cerr << "LCPSolver(2) failed to converge" << std::endl;
+	// std::cerr << "A:" << std::endl;
+	// std::cerr << A.format(logVecFmt) << std::endl;
+	// std::cerr << "b: " << b.transpose().format(logVecFmt) << std::endl;
+	// std::cerr << "pre_v: " << pre_v.transpose().format(logVecFmt) << std::endl;
 	ret_sol.result = LCPSolResult::NoSolution;
 	return ret_sol;
 }
 
 void LCPSolver::enableContact(uint i) {
+	if(LCP_LOG_DEBUG) std::cout << "Enabling contact " << i << std::endl;
 	states[i] = PointState::Frictionless;
 }
 
 void LCPSolver::disableContact(uint i) {
+	if(LCP_LOG_DEBUG) std::cout << "Disabling contact " << i << std::endl;
 	states[i] = PointState::NoContactAgain;
 }
 
@@ -215,56 +242,62 @@ void LCPSolver::enableRollingFriction(uint i,
 	double mu
 ) {
 	states[i] = PointState::Rolling;
+	if(LCP_LOG_DEBUG) std::cout << "Enable rolling " << i << std::endl;
 	// try enabling all 3 axes
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::None;
 	composeMatrices(A, b, pre_v, epsilon, mu);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		// TODO: think of a better way of checking
-		// std::cout << "Rolling redundancy none " << i << std::endl;
-		// std::cout << "Det: " << TA.block(0,0,TA_size,TA_size).determinant() << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy none " << i << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "Det: " << TA.block(0,0,TA_size,TA_size).determinant() << std::endl;
 		return;
 	}
 	// try enabling Y only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXOnly;
 	composeMatrices(A, b, pre_v, epsilon, mu);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
-		// std::cout << "Rolling redundancy DirXOnly " << i << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy DirXOnly " << i << std::endl;
 		return;
 	}
 	// try enabling X only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirYOnly;
 	composeMatrices(A, b, pre_v, epsilon, mu);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
-		// std::cout << "Rolling redundancy DirYOnly " << i << std::endl;
+		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy DirYOnly " << i << std::endl;
 		return;
 	}
-	// std::cout << "Rolling redundancy DirXandY " << i << std::endl;
+	if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy DirXandY " << i << std::endl;
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
 	return;
 }
 
 void LCPSolver::enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v) {
 	states[i] = PointState::Sliding;
+	if(LCP_LOG_DEBUG) std::cout << "Enable sliding " << i << std::endl;
 	Vector2d pre_slip = pre_v.segment<2>(i*3);
 	if(pre_slip.norm() > 1e-8) {
 		chosen_sliding_directions[i] = pre_slip/pre_slip.norm();
+		if(LCP_LOG_DEBUG) std::cout << "Use pre_v slip direction " << i << std::endl;
 		return;
 	}
 	Vector2d anti_roll_slip = rolling_sliding_directions[i];
 	if(anti_roll_slip.norm() > 1e-8) {
 		// TODO: blend rolling and frictionless slip directions
 		chosen_sliding_directions[i] = anti_roll_slip/anti_roll_slip.norm();
+		if(LCP_LOG_DEBUG) std::cout << "Use anti-roll slip direction " << i << std::endl;
 		return;
 	}
 	Vector2d frictionless_slip = frictionless_sliding_directions[i];
 	if(frictionless_slip.norm() > 1e-8) {
 		// TODO: blend rolling and frictionless slip directions
 		chosen_sliding_directions[i] = frictionless_slip/frictionless_slip.norm();
+		if(LCP_LOG_DEBUG) std::cout << "Use frictionless slip direction (slip" <<
+			"with no friction force applied, but due to forces at other pts ) " << i << std::endl;
 		return;
 	}
 	// if all fails, simply set the point to be forced frictionless
 	states[i] = PointState::Rolling;
-	// std::cout << "Force frictionless " << std::endl;
+	if(LCP_LOG_DEBUG) std::cout << "Force frictionless " << i << std::endl;
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
 }
 
@@ -532,7 +565,7 @@ void LCPSolver::solveReducedMatrices(
 	// TODO: accomodate redundancy hints from geometry/ rigid body kinematics that
 	// can be computed at a slow model update rate
 	assert(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-15);
-	
+
 	Tp_sol = TA.block(0,0,TA_size,TA_size).partialPivLu().solve(Trhs.segment(0,TA_size));
 
 	// reassemble full_p_sol
@@ -541,7 +574,7 @@ void LCPSolver::solveReducedMatrices(
 	for(uint i = 0; i < num_points; i++) {
 		if(states[i] == PointState::NoContact || states[i] == PointState::NoContactAgain) {
 			// nothing to do
-		} else if(states[i] == PointState::Frictionless || 
+		} else if(states[i] == PointState::Frictionless ||
 			(states[i] == PointState::Rolling && rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY)
 		) {
 			full_p_sol(i*3 + 2) = Tp_sol(TA_ind);
