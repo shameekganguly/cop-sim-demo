@@ -81,6 +81,7 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/CollisionResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/SteadyContactResolution.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/PointContactsSteadyContactResolution.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactCurvature.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
   ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver2.cpp
@@ -106,7 +107,8 @@ set (COP_DEMO_BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 # add_subdirectory(03-one-cylinder)
 # add_subdirectory(04-two-arm-rolling)
 # add_subdirectory(05-one-box)
-add_subdirectory(06-one-pyramid)
+# add_subdirectory(06-one-pyramid)
+add_subdirectory(07-sphere-curved)
 
 # tests
 # add_subdirectory(src/lcp_solvers)

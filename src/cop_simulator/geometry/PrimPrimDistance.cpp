@@ -1,5 +1,6 @@
 // PrimPrimDistance.cpp
 
+#include <algorithm>
 #include <iostream>
 #include "Primitive.h"
 #include "GeometryUtils.h"
@@ -9,7 +10,21 @@ using namespace Eigen;
 namespace Sai2COPSim {
 	void PrimPrimContactInfo::flipNormal() {
 		normal_dir *= -1.0;
+		if(abs(primB_max_radius - primB_min_radius) > 1e-5) {
+			// align constraint dir1 and constraint dir2 with primB max and min curvature
+			// planes
+			double ca = cos(inter_prim_max_curvature_plane_angle);
+			double sa = sin(inter_prim_max_curvature_plane_angle);
+			Eigen::Matrix3d rotz;
+			rotz << ca, -sa,  0,
+					sa,  ca,  0,
+					0,	  0,  1;
+			constraint_dir1 = rotz * constraint_dir1;
+			constraint_dir2 = rotz * constraint_dir2;
+		}
 		constraint_dir2 *= -1.0;
+		std::swap(primA_max_radius, primB_max_radius);
+		std::swap(primA_min_radius, primB_min_radius);
 	}
 
 	void PrimPrimDistance::distancePrimitivePrimitive(
@@ -24,6 +39,21 @@ namespace Sai2COPSim {
 				*(dynamic_cast<const CapsulePrimitive*>(primA)), primAinWorld
 			);
 			prim_prim_info.flipNormal();
+			return;
+		} else if(primA->_type == Primitive::GeometryType::Sphere && primB->_type == Primitive::GeometryType::Plane) {
+			distancePlaneSphere(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primB)), primBinWorld,
+				*(dynamic_cast<const SpherePrimitive*>(primA)), primAinWorld
+			);
+			prim_prim_info.flipNormal();
+			return;
+		} else if(primB->_type == Primitive::GeometryType::Sphere && primA->_type == Primitive::GeometryType::Plane) {
+			distancePlaneSphere(
+				prim_prim_info,
+				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
+				*(dynamic_cast<const SpherePrimitive*>(primB)), primBinWorld
+			);
 			return;
 		} else if(primB->_type == Primitive::GeometryType::Capsule && primA->_type == Primitive::GeometryType::Plane) {
 			distancePlaneCapsule(
@@ -91,7 +121,46 @@ namespace Sai2COPSim {
 		}
 	}
 
+	void PrimPrimDistance::distancePlaneSphere(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const SpherePrimitive& sphere, Eigen::Affine3d sphereInWorld
+	) {
+		assert(sphere._props != NULL);
+		assert(plane._props != NULL);
 
+		prim_prim_info.clear();
+
+		Vector3d plane_point = plane._props->point;
+		Vector3d plane_normal = plane._props->normal;
+
+		Vector3d plane_point_world = planeInWorld*plane_point;
+		Vector3d plane_normal_world = planeInWorld.linear()*plane_normal;
+		prim_prim_info.normal_dir = plane_normal_world;
+
+		Vector3d worldx_axis(1.0,0.0,0.0);
+		double testaxis2_normal_proj = worldx_axis.dot(plane_normal_world);
+		Vector3d worldy_axis(0.0,1.0,0.0);
+		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
+		if(abs(testaxis2_normal_proj) < 0.999) { // use world x axis
+			prim_prim_info.constraint_dir1 = worldx_axis - testaxis2_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		} else { // use world y axis
+			prim_prim_info.constraint_dir1 = worldy_axis - testaxis3_normal_proj*plane_normal_world;
+			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
+		}
+		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
+
+		double radius = sphere._props->radius;
+		Vector3d center = sphereInWorld.translation();
+		prim_prim_info.type = ContactType::POINT;
+		prim_prim_info.contact_points.push_back(center - radius * plane_normal_world);
+		prim_prim_info.primB_max_radius = radius;
+		prim_prim_info.primB_min_radius = radius;
+
+		double distance = (center - plane_point_world).dot(plane_normal_world) - radius;
+		prim_prim_info.min_distance = distance;
+	}
 
 	// returns surface normal pointing outward from plane towards capsule
 	void PrimPrimDistance::distancePlaneCapsule(
@@ -144,7 +213,7 @@ namespace Sai2COPSim {
 		Vector3d worldy_axis(0.0,1.0,0.0);
 		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
 		if(abs(testaxis1_normal_proj) < 0.999) {
-			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
+			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in
 			// the tangent plane
 			prim_prim_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
 			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
@@ -156,7 +225,7 @@ namespace Sai2COPSim {
 			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
 		}
 		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
-		if(abs(end1_distance - end2_distance) < 
+		if(abs(end1_distance - end2_distance) <
 							PrimitiveAlgorithmicConstants::MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD
 		) {
 			prim_prim_info.type = ContactType::LINE;
@@ -358,7 +427,7 @@ namespace Sai2COPSim {
 		Vector3d worldy_axis(0.0,1.0,0.0);
 		double testaxis3_normal_proj = worldy_axis.dot(plane_normal_world);
 		if(abs(testaxis1_normal_proj) < 0.999) {
-			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in 
+			// we can use the inter_end axis as contact_direction1, i.e. the x-axis in
 			// the tangent plane
 			prim_prim_info.constraint_dir1 = inter_end_axis - testaxis1_normal_proj*plane_normal_world;
 			prim_prim_info.constraint_dir1 /= prim_prim_info.constraint_dir1.norm();
@@ -372,7 +441,7 @@ namespace Sai2COPSim {
 		prim_prim_info.constraint_dir2 = prim_prim_info.normal_dir.cross(prim_prim_info.constraint_dir1);
 
 		// check for line contact
-		if(abs(cylinder_axis.dot(plane_normal_world)) < 
+		if(abs(cylinder_axis.dot(plane_normal_world)) <
 			PrimitiveAlgorithmicConstants::MULTI_POINT_HIGHER_PAIR_CONTACT_DISTANCE_DIFF_THRESHOLD
 		) {
 			prim_prim_info.type = ContactType::LINE;

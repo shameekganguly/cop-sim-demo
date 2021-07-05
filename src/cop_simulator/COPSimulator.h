@@ -34,6 +34,23 @@ COPSimulator(double friction_coeff, double restitution_coeff);
 // add an inifinite plane object
 void addPlane(const std::string& name, const Eigen::Vector3d& planeNormal, const Eigen::Vector3d& planePoint);
 
+// add an inifinite plane object that is associated with an articulated body (e.g. a tilting table)
+void addPlaneObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which plane primitive will be attached
+		const std::string& primitive_name,
+		Sai2Model::Sai2Model* object,
+		const Eigen::Vector3d& planeNormal,
+		const Eigen::Vector3d& planePoint);
+
+// add a sphere object
+// object->_T_world_robot is assumed to have been set already
+// local frame at the center of the sphere.
+void addSphereObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which sphere primitive will be attached
+		const std::string& primitive_name,
+		Sai2Model::Sai2Model* object,
+		double radius);
+
 // add a capsule object
 // object->_T_world_robot is assumed to have been set already
 // capsule is assumed to be aligned with X axis. local frame at the center of the capsule.

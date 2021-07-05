@@ -33,6 +33,12 @@ public:
 		return (_last_cop_sol.result != COPSolResult::None);
 	}
 
+	double getAccelerationDueToCurvedContact(
+		const Eigen::Vector3d& omegaA,
+		const Eigen::Vector3d& omegaB,
+		const Eigen::Vector3d& linear_contact_velocity
+	) const;
+
 public:
 	// id corresponding to ContactIslandModel::_index_to_geom_island_contact_list
 	uint _id;

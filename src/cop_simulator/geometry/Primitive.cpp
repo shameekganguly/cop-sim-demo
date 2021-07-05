@@ -40,6 +40,33 @@ void PlanePrimitive::setPlaneProperties(PlaneProperties* props) {
 	_props = props;
 }
 
+SpherePrimitive::SpherePrimitive(const std::string& name, double radius)
+{
+	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));
+	if(radius < 0.001) {
+		std::cerr << radius << std::endl;
+		throw(std::runtime_error("Radius too small."));
+	}
+	_name = name;
+	_type = GeometryType::Sphere;
+	_props = new SphereProperties();
+	_props->radius = radius;
+}
+
+void SpherePrimitive::setSphereProperties(SphereProperties* props) {
+	if(props == NULL) {
+		throw(std::runtime_error("Props is null."));
+	}
+	if(props->radius < 0.001) {
+		std::cerr << props->radius << std::endl;
+		throw(std::runtime_error("Radius too small."));
+	}
+	if(_props != NULL) {
+		delete _props;
+	}
+	_props = props;
+}
+
 CapsulePrimitive::CapsulePrimitive(const std::string& name, double radius, double length)
 {
 	if(name.empty()) throw(std::runtime_error("Name cannot be empty"));

@@ -27,17 +27,32 @@ enum ContactType {
 class PrimPrimContactInfo {
 public:
 	double min_distance;
-	Eigen::Vector3d normal_dir; // in world frame. 
-	// ^ Note that this is directed from prim A to prim B, in the order that the 
+	Eigen::Vector3d normal_dir; // in world frame.
+	// ^ Note that this is directed from prim A to prim B, in the order that the
 	// prim-prim distance computation function was called
 	Eigen::Vector3d constraint_dir1; // in world frame. for line contacts and surface contacts
 	Eigen::Vector3d constraint_dir2; // in world frame. for surface contacts only
-	// TODO: for concave objects, the each contact point can have its own normal and 
+	// TODO: for geometries with different min and max curvatures at the contact point, we need
+	// to ensure that constraint_dir1 and constraint_dir2 are aligned with the max and min
+	// curvature planes respectively of primA.
+	// TODO: for concave objects, the each contact point can have its own normal and
 	// constraint dirs. Consider if we want to support that, or assume that each primitive
 	// is strictly convex
 	std::vector<Eigen::Vector3d> contact_points; // closest points on either prim A or prim B in world frame
 	//TODO: do we need to be consistent about which primitive the points lie on?
 	// or do we need to return points on both bodies?
+
+	// signed curvature for each body
+	// sign is positive is center of curvature lies in the positive normal direction
+	// and negative otherwise
+	// TODO: this works only for point contacts. need to extend to line contacts and surface contacts
+	double primA_max_radius;
+	double primA_min_radius;
+	double primB_max_radius;
+	double primB_min_radius;
+
+	// angle from max curvature plane of primA to max curvature plane of primB
+	double inter_prim_max_curvature_plane_angle;
 
 	// Note: contact_points might not be set for a surface-surface contact. e.g. cylinder
 	// on plane
@@ -47,14 +62,33 @@ public:
 	ContactType type;
 
 public:
-	PrimPrimContactInfo(): min_distance(0), type(ContactType::UNDEFINED) { }
-	PrimPrimContactInfo(double adist, ContactType atype): min_distance(adist), type(atype) { }
+	PrimPrimContactInfo():
+		min_distance(0),
+		primA_max_radius(0),
+		primA_min_radius(0),
+		primB_max_radius(0),
+		primB_min_radius(0),
+		inter_prim_max_curvature_plane_angle(0),
+		type(ContactType::UNDEFINED) { }
+	PrimPrimContactInfo(double adist, ContactType atype):
+		min_distance(adist),
+		primA_max_radius(0),
+		primA_min_radius(0),
+		primB_max_radius(0),
+		primB_min_radius(0),
+		inter_prim_max_curvature_plane_angle(0),
+		type(atype) { }
 
 	// clear
 	void clear() {
 		contact_points.clear();
 		type = ContactType::UNDEFINED;
 		contact_patch.clear();
+		primA_max_radius = 0;
+		primA_min_radius = 0;
+		primB_max_radius = 0;
+		primB_min_radius = 0;
+		inter_prim_max_curvature_plane_angle = 0;
 	}
 
 	// flip normal
@@ -148,6 +182,29 @@ public:
 public:
 	PlaneProperties* _props; // owned by this primitive
 };
+
+// sphere primitive
+// local frame at the center of the sphere.
+struct SphereProperties {
+	double radius;
+};
+
+class SpherePrimitive: public Primitive {
+public:
+	SpherePrimitive(const std::string& name, double radius);
+
+	~SpherePrimitive() {
+		delete _props;
+	}
+
+	virtual void setSphereProperties(SphereProperties* props);
+
+	virtual SphereProperties* getSphereProperties() { return _props; }
+
+public:
+	SphereProperties* _props;
+};
+
 
 // capsule primitive
 // capsule is assumed to be aligned with X axis. local frame at the center of the capsule.
@@ -296,6 +353,12 @@ public:
 		PrimPrimContactInfo& prim_prim_info,
 		const Primitive* primA, Eigen::Affine3d primAinWorld,
 		const Primitive* primB, Eigen::Affine3d primBinWorld
+	);
+
+	static void distancePlaneSphere(
+		PrimPrimContactInfo& prim_prim_info,
+		const PlanePrimitive& plane, Eigen::Affine3d planeInWorld,
+		const SpherePrimitive& sphere, Eigen::Affine3d sphereInWorld
 	);
 
 	static void distancePlaneCapsule(

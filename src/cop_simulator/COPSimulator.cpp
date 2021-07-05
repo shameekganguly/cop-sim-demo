@@ -54,6 +54,55 @@ void COPSimulator::addPlane(const std::string& name, const Eigen::Vector3d& plan
 	//TODO: force update model
 }
 
+// add an inifinite plane object that is associated with an articulated body (e.g. a tilting table)
+void COPSimulator::addPlaneObject(const std::string& articulated_body_name,
+					const std::string& link_name, // name for the link on which plane primitive will be attached
+					const std::string& primitive_name,
+					Sai2Model::Sai2Model* object,
+					const Eigen::Vector3d& planeNormal,
+					const Eigen::Vector3d& planePoint
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+
+	auto plane = new PlanePrimitive(primitive_name, planeNormal, planePoint);
+	plane->_is_static = false;
+	plane->_articulated_body_name = articulated_body_name;
+	plane->_link_name = link_name;
+	_geom_manager.addPrimitive(plane);
+
+	arb->addPrimitive(link_name, plane);
+
+	//TODO: check if intersecting with articulated bodies, if so throw
+	//TODO: force update model
+}
+
+// add a sphere object
+// object->_T_world_robot is assumed to have been set already
+// local frame at the center of the sphere.
+void COPSimulator::addSphereObject(const std::string& articulated_body_name,
+					const std::string& link_name, // name for the link on which sphere primitive will be attached
+					const std::string& primitive_name,
+					Sai2Model::Sai2Model* object,
+					double radius
+) {
+	auto arb = new ArticulatedRigidBody(articulated_body_name, object);
+	_arb_manager.addBody(arb);
+
+	// create a new sphere primitive
+	auto sphere = new SpherePrimitive(primitive_name, radius);
+	sphere->_is_static = false;
+	sphere->_articulated_body_name = articulated_body_name;
+	sphere->_link_name = link_name;
+	// TODO: set primitive _transform_in_link
+
+	_geom_manager.addPrimitive(sphere);
+
+	arb->addPrimitive(link_name, sphere);
+	//TODO: check if intersecting with anything, if so throw
+	//TODO: force update model
+}
+
 // add a capsule object
 // object->_T_world_robot is assumed to have been set already
 // capsule is assumed to be aligned with X axis. local frame at the center of the capsule.
@@ -310,6 +359,13 @@ void COPSimulator::integrate(double dt) {
 	    	}
 		}
 		model->_dq += model->_ddq * dt;
+
+		// if(_iterations % 10000 == 0) {
+  //           cout << "dq: " << model->_dq.segment<3>(3).transpose() << std::endl;
+  //           cout << "ddq: " << model->_ddq.transpose() << std::endl;
+  //           cout << "nonlin: " << arb->jacc_nonlinear.transpose() << std::endl;
+  //           cout << "jtau contact: " << arb->jtau_contact.transpose() << endl;
+  //       }
 
 		// clear the contact torques for this body
 		arb->jtau_contact.setZero(model->dof());

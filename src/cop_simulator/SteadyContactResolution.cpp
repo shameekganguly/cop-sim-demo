@@ -189,7 +189,10 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				}
 			} else if(prim._geom_prim_pair->info->type == ContactType::POINT) {
 				A_constraint = _cop_constraint_Lambda_inv_active;
+				double accel_contact_curvature = prim.getAccelerationDueToCurvedContact(
+					omegaAs[0], omegaBs[0], linear_contact_velocity[0]);
 				rhs_constraint = constraint_cop_rhs;
+				rhs_constraint[2] -= accel_contact_curvature;
 				lin_vel_pt = linear_contact_velocity[0];
 			} else {
 				// check last cop solution. if it is success and lies on patch end,
