@@ -37,3 +37,6 @@
 
 build/*
 bin/*
+
+# Large mesh files
+*.dae
