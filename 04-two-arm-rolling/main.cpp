@@ -154,10 +154,10 @@ int main(int argc, char** argv) {
     Affine3d tf_robot_ee_capsule = Affine3d::Identity();
     tf_robot_ee_capsule.translation() = arm1_ee_local_pos;
     cop_sim->addCapsuleToObject(robot_name, robot_ee_name, "capsule_ee", robot_ee_capsule_radius, robot_ee_capsule_length, tf_robot_ee_capsule);
-    
+
     // add roller object
     cop_sim->addObject(roller_object_name, roller_object);
-    
+
     // add primitives to roller object
     cop_sim->addCapsuleToObject(roller_object_name, object_link_name, "capsule_mid", roller_capsule_mid_radius, roller_capsule_mid_length, Affine3d::Identity());
     Affine3d tf_right_capsule = Affine3d::Identity();
@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
     Affine3d tf_left_capsule = Affine3d::Identity();
     tf_left_capsule.translation() << -0.305, 0, 0;
     cop_sim->addCapsuleToObject(roller_object_name, object_link_name, "capsule_left", roller_capsule_left_radius, roller_capsule_left_length, tf_left_capsule);
-    
+
     // add plane
     cop_sim->addPlane(box_name, static_plane_in_world.linear().col(2), static_plane_in_world.translation());
 
@@ -405,6 +405,7 @@ void control_arm1(Sai2Model::Sai2Model* model, Sai2COPSim::COPSimulator* sim) {
         Vector3d set_pos = des_pos_world;
         set_pos(1) += 0.06*sin(timer.elapsedTime()*1.5);
         F_control.segment<3>(0) = -kp*(ee_pos - set_pos) - kd*J0.block(0,0,3,dof)*model->_dq;
+        // cout << F_control.segment<3>(0).transpose() << endl;
         F_control.segment<3>(3) = -kp*ori_error - kd*J0.block(3,0,3,dof)*model->_dq;
 
 
