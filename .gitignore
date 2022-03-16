@@ -30,6 +30,7 @@
 *.exe
 *.out
 *.app
+*.pyc
 
 # OS indexing files
 .DS_Store
