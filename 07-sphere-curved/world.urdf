@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+
+<world name="demo_world" gravity="0.0 0.0 -4.0">
+
+	<robot name="Plane1">
+		<model dir="resources/07-sphere-curved/" path="plane_tilting.urdf" name="TiltingPlaneModel" />
+		<origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
+	</robot>
+	<robot name="Sphere1">
+		<model dir="resources/07-sphere-curved/" path="sphere_object.urdf" name="SphereObjectModel" />
+		<origin xyz="0.0 0.0 0.2" rpy="0 0 0" />
+	</robot>
+
+	<light name="light2" type="directional">
+		<position xyz="1.5 2.5 2.5" />
+		<lookat xyz="0.0 0.3 1.5" />
+	</light>
+
+	<light name="light3" type="directional">
+		<position xyz="-1.0 1.0 2.0" />
+		<lookat xyz="0.0 0.0 0.0" />
+	</light>
+
+	<camera name="camera_front">
+		<position xyz="1.0 0.0 0.5" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.1" />
+	</camera>
+	<camera name="camera_side">
+		<position xyz="0.3 -1.0 0.5" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.2 0.0 0.2" />
+	</camera>
+	<camera name="camera_top">
+		<position xyz="1.5 0.0 2.0" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.4" />
+	</camera>
+	<camera name="camera_zoom">
+		<position xyz="0.3 -0.3 0.4" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="-0.0 -0.0 0.1" />
+	</camera>
+</world>

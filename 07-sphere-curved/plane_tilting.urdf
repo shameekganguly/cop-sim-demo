@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+
+<robot name="TiltingPlaneModel">
+
+	<link name="ground">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	</link>
+	<link name="table">
+		<inertial>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+			<mass value="10.000" />
+			<inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0" />
+		</inertial>
+	    <collision>
+	        <origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
+	        <geometry>
+	            <box size="3.0 3.0 0.1" />
+	        </geometry>
+	    </collision>
+	    <visual>
+	        <origin xyz="0.0 0.0 -0.05" rpy="0 0 0" />
+	        <geometry>
+	            <box size="3.0 3.0 0.1" />
+	        </geometry>
+	        <material name="material_grey">
+		        <color rgba="0.5 0.1 0.1 1.0" />
+	        </material>
+	    </visual>
+	</link>
+
+	<joint name="jrs" type="spherical">
+		<parent link="ground" />
+		<child link="table" />
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+	</joint>
+</robot>
+
+</xml>
