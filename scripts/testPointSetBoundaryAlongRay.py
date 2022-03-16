@@ -5,7 +5,7 @@ from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
 import sys
 
-NUM_POINTS = 40
+NUM_POINTS = 1000
 NUM_POINT_SETS = 2
 NUM_RAYS = 2
 
@@ -184,7 +184,7 @@ def postProcessResults(points, ray, test_pt, truth_pt, result_tuple, fplot):
 			edge_pts[1,:] = ept2
 			plt.plot(edge_pts[:,0], edge_pts[:,1], '--k')
 	# compare with convex hull solution
-	if truth_pt:
+	if truth_pt is not None:
 		if np.linalg.norm(truth_pt - bdry_pt) > 1e-4:
 			print "MISMATCH"
 			print points
@@ -294,6 +294,7 @@ def main():
 			try:
 				result_tuple = ptSetDetectBoundaryPtAlongRay(test_pt, ray, points)
 				algo_iters = result_tuple[4]
+				# print algo_iters
 				algo_iter_set[algo_iter_set_ind] = algo_iters
 				algo_iter_set_ind += 1
 				if algo_iter_set_ind % 100 == 0:
@@ -311,5 +312,5 @@ def main():
 	print "Num sets skipped: ", num_sets_skipped
 
 if __name__ == "__main__":
-	testMain()
-	# main()
+	# testMain()
+	main()
