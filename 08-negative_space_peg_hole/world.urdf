@@ -1,0 +1,67 @@
+<?xml version="1.0" ?>
+
+<world name="demo_world" gravity="0.0 0.0 -0.1">
+
+	<static_object name="Block">
+		<origin xyz="0.0 0.0 0" rpy="0 0 0" />
+		<!-- <collision>
+	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+	        <geometry>
+	            <box size="3.0 3.0 0.1" />
+	        </geometry>
+	    </collision> -->
+	    <visual>
+	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="resources/08-negative_space_peg_hole/left_half.obj" scale="1 1 1" />
+            </geometry>
+	    </visual>
+	    <visual>
+	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="resources/08-negative_space_peg_hole/right_half.obj" scale="1 1 1" />
+            </geometry>
+	    </visual>
+	</static_object>
+
+	<robot name="Capsule">
+		<model dir="resources/08-negative_space_peg_hole/" path="capsule_object.urdf" name="CapsuleObjectModel" />
+		<origin xyz="0.0 0.0 0.2" rpy="0 -0.0 0.0" />
+	</robot>
+
+	<!-- <robot name="IIWA">
+		<model dir="../resources/kuka_iiwa" path="kuka_iiwa_peg_hole1.urdf" name="kuka_iiwa" />
+		<origin xyz="0.0 -0.65 0.0" rpy="0 0 0" />
+	</robot> -->
+
+	<light name="light2" type="directional">
+		<position xyz="1.5 1.5 2.5" />
+		<lookat xyz="0.0 0.3 1.5" />
+	</light>
+
+	<light name="light3" type="directional">
+		<position xyz="0.0 0.0 2.0" />
+		<lookat xyz="0.0 0.0 0.0" />
+	</light>
+
+	<camera name="camera_front">
+		<position xyz="1.5 0.0 0.7" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.1" />
+	</camera>
+	<camera name="camera_side">
+		<position xyz="0.5 0.6 0.8" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.1" />
+	</camera>
+	<camera name="camera_top">
+		<position xyz="1.5 0.0 2.0" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="0.0 0.0 0.4" />
+	</camera>
+	<camera name="camera_zoom">
+		<position xyz="0.3 -0.3 0.4" />
+		<vertical xyz="0.0 0.0 1.0" />
+		<lookat xyz="-0.0 -0.0 0.1" />
+	</camera>
+</world>

@@ -108,7 +108,8 @@ set (COP_DEMO_BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 # add_subdirectory(04-two-arm-rolling)
 # add_subdirectory(05-one-box)
 # add_subdirectory(06-one-pyramid)
-add_subdirectory(07-sphere-curved)
+# add_subdirectory(07-sphere-curved)
+add_subdirectory(08-negative_space_peg_hole)
 
 # tests
 # add_subdirectory(src/lcp_solvers)
