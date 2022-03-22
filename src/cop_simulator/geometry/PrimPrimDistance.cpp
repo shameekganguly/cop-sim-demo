@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include "Primitive.h"
+#include "PrimPrimDistance.h"
 #include "GeometryUtils.h"
 
 using namespace Eigen;
@@ -112,6 +113,29 @@ namespace Sai2COPSim {
 				prim_prim_info,
 				*(dynamic_cast<const PlanePrimitive*>(primA)), primAinWorld,
 				*(dynamic_cast<const PyramidPrimitive*>(primB)), primBinWorld
+			);
+			return;
+		} else if(primA->_type == Primitive::GeometryType::Capsule && primB->_type == Primitive::GeometryType::Composite1PkN) {
+			distanceComposite1PkNCapsule(
+				prim_prim_info,
+				*(dynamic_cast<const Composite1PkN*>(primB)), primBinWorld,
+				*(dynamic_cast<const CapsulePrimitive*>(primA)), primAinWorld
+			);
+			prim_prim_info.flipNormal();
+			return;
+		} else if(primB->_type == Primitive::GeometryType::Capsule && primA->_type == Primitive::GeometryType::Composite1PkN) {
+			distanceComposite1PkNCapsule(
+				prim_prim_info,
+				*(dynamic_cast<const Composite1PkN*>(primA)), primAinWorld,
+				*(dynamic_cast<const CapsulePrimitive*>(primB)), primBinWorld
+			);
+			return;
+		} else if(primA->_type == Primitive::GeometryType::NegCapsule && primB->_type == Primitive::GeometryType::Capsule) {
+			// TODO: what if primA is pos capsule and primB is neg capsule?
+			distanceNegCapsuleCapsule(
+				prim_prim_info,
+				*(dynamic_cast<const NegCapsulePrimitive*>(primA)), primAinWorld,
+				*(dynamic_cast<const CapsulePrimitive*>(primB)), primBinWorld
 			);
 			return;
 		} else {
@@ -326,7 +350,7 @@ namespace Sai2COPSim {
 			double p2p1d2 = capBcenterToA.dot(capBaxisToA);
 			double z1 = -1.0/Delta*(p2p1d1 - temp*p2p1d2);
 			double z2 = -1.0/Delta*(temp*p2p1d1 - p2p1d2);
-			if(abs(z1) > 0.5*capAlength && abs(z2) > 0.5*capBlength) {
+			if(abs(z1) > 0.5*capAlength || abs(z2) > 0.5*capBlength) {
 				double z1v = abs(z1) - 0.5*capAlength;
 				double z2v = abs(z2) - 0.5*capBlength;
 				if(z1v >= z2v) {
@@ -1042,5 +1066,19 @@ namespace Sai2COPSim {
 				return;
 			}
 		}
+	}
+
+	void PrimPrimDistance::distanceComposite1PkNCapsule(
+		PrimPrimContactInfo& prim_prim_info,
+		const Composite1PkN& composite, Eigen::Affine3d compositeInWorld,
+		const CapsulePrimitive& capsule, Eigen::Affine3d capsuleInWorld
+	) {
+		distancePrimitivePrimitive(prim_prim_info,
+									composite._positivePrimitive,
+									compositeInWorld,
+									&capsule,
+									capsuleInWorld);
+
+		// TODO: Handle negative primitives
 	}
 }

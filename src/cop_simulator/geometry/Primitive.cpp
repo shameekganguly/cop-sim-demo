@@ -320,4 +320,13 @@ void PyramidPrimitive::computeBasePoints() {
 	}
 }
 
+NegCapsulePrimitive::NegCapsulePrimitive(const std::string& name, double radius, double length)
+: CapsulePrimitive(name, radius, length) {
+	_type = GeometryType::NegCapsule;
+}
+
+NegCapsulePrimitive* NegCapsulePrimitive::CreateFromCapsule(const std::string& name, const CapsulePrimitive& capsule) {
+	return new NegCapsulePrimitive(name, capsule._props->radius, capsule._props->length);
+}
+
 }

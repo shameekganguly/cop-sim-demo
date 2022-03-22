@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "COPSimulator.h"
+#include "geometry/PrimPrimDistance.h"
 
 using namespace Eigen;
 

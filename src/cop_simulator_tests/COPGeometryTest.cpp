@@ -3,6 +3,8 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include "cop_simulator/geometry/Primitive.h"
+#include "cop_simulator/geometry/Composite1PkN.h"
+#include "cop_simulator/geometry/PrimPrimDistance.h"
 
 using namespace std;
 using namespace Eigen;
@@ -140,7 +142,7 @@ void testCapsuleCapsuleDistance() {
 	PrimPrimContactInfo info;
 	cout << "000000000000 ----- CAPSULE - CAPSULE ----- 000000000000" << endl;
 	{
-		// test distance between parallel cylinders, aligned exactly
+		// test distance between parallel capsules, aligned exactly
 		cout << "--- TEST 1 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -151,7 +153,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly
+		// test distance between parallel capsules, aligned exactly
 		cout << "--- TEST 2 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.2, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -162,7 +164,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly
+		// test distance between parallel capsules, aligned exactly
 		cout << "--- TEST 3 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -173,7 +175,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly
+		// test distance between parallel capsules, aligned exactly
 		cout << "--- TEST 4 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.4);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -184,7 +186,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly
+		// test distance between parallel capsules, aligned exactly
 		cout << "--- TEST 5 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.4);
@@ -195,7 +197,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly, intersecting
+		// test distance between parallel capsules, aligned exactly, intersecting
 		cout << "--- TEST 6 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -206,7 +208,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly, displaced
+		// test distance between parallel capsules, aligned exactly, displaced
 		cout << "--- TEST 7 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.15, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.15, 0.2);
@@ -218,7 +220,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned exactly, rotated
+		// test distance between parallel capsules, aligned exactly, rotated
 		cout << "--- TEST 8 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -235,7 +237,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned inexactly
+		// test distance between parallel capsules, aligned inexactly
 		cout << "--- TEST 9 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -246,7 +248,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned inexactly far away
+		// test distance between parallel capsules, aligned inexactly far away
 		cout << "--- TEST 10 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -257,7 +259,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned end to end
+		// test distance between parallel capsules, aligned end to end
 		cout << "--- TEST 11 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -268,7 +270,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned end to end, intersecting
+		// test distance between parallel capsules, aligned end to end, intersecting
 		cout << "--- TEST 12 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -279,7 +281,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capB rotated 90deg, in plane
+		// test distance between parallel capsules, capB rotated 90deg, in plane
 		cout << "--- TEST 13 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -293,7 +295,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capA rotated 90deg, in plane
+		// test distance between capsules, capA rotated 90deg, in plane
 		cout << "--- TEST 14 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -307,7 +309,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capB rotated 45deg, in plane
+		// test distance between capsules, capB rotated 45deg, in plane
 		cout << "--- TEST 15 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -321,7 +323,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capA rotated 45deg, in plane
+		// test distance between capsules, capA rotated 45deg, in plane
 		cout << "--- TEST 16 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -335,7 +337,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capB rotated 90deg, in plane, end to end
+		// test distance between capsules, capB rotated 90deg, in plane, end to end
 		cout << "--- TEST 17 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -349,7 +351,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capB rotated 90deg, out of plane
+		// test distance between capsules, capB rotated 90deg, out of plane
 		cout << "--- TEST 18 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -363,7 +365,7 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, capB rotated 90deg, out of plane, intersecting
+		// test distance between capsules, capB rotated 90deg, out of plane, intersecting
 		cout << "--- TEST 19 ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
@@ -377,7 +379,21 @@ void testCapsuleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 	{
-		// test distance between parallel cylinders, aligned end to end, ambiguous case
+		// test distance between capsules, capB rotated 45deg, in plane, long capA
+		cout << "--- TEST 20 ---" << endl;
+		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 2.0);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.linear() << cos(M_PI/4.0), -sin(M_PI/4.0), 0.0,
+							sin(M_PI/4.0), cos(M_PI/4.0), 0.0,
+							0.0, 0.0, 1.0;
+		capBTF.translation() << 0.0, 0.6, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between parallel capsules, aligned end to end, ambiguous case
 		cout << "--- TEST LAST. THIS ASSERTS IN DEBUG ---" << endl; 
 		CapsulePrimitive* capsuleA = new CapsulePrimitive("tc1", 0.1, 0.2);
 		CapsulePrimitive* capsuleB = new CapsulePrimitive("tc2", 0.1, 0.2);
