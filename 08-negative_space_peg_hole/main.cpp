@@ -159,8 +159,8 @@ int main(int argc, char** argv) {
     cop_sim->addCapsuleToObject(capsule_object_name, object_link_name, "capsule_mid", capsule_radius, capsule_length, Affine3d::Identity());
 
     // add block
-    // TODO: add compositive1PkN
-    // cop_sim->addPlane(box_name, static_plane_in_world.linear().col(2), static_plane_in_world.translation());
+    auto* composite = cop_sim->addPlaneComposite1PkN(block_name, block_in_world.linear().col(2), block_in_world.translation());
+    // TODO: add negative capsule to compositive1PkN
 
     // TODO: force sim/ display
 

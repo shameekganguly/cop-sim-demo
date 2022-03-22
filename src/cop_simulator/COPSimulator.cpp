@@ -54,6 +54,26 @@ void COPSimulator::addPlane(const std::string& name, const Eigen::Vector3d& plan
 	//TODO: force update model
 }
 
+// add a static Composite1PkN object with an inifinite plane as the positive primitive
+Composite1PkN* COPSimulator::addPlaneComposite1PkN(const std::string& name,
+					const Eigen::Vector3d& planeNormal,
+					const Eigen::Vector3d& planePoint) {
+	if(_static_objects.find(name) != _static_objects.end()) {
+		std::cerr << name << std::endl;
+		throw(std::runtime_error("PlaneComposite1PkN with name already exists"));
+	}
+	auto *plane = new PlanePrimitive(name+"_positive", planeNormal, planePoint);
+	auto *composite = new Composite1PkN(name, plane);
+	 _static_objects[name] = composite;
+	_static_objects[name]->_is_static = true;
+	_geom_manager.addPrimitive(composite);
+
+	//TODO: check if intersecting with articulated bodies, if so throw
+	//NOTE: It is ok if there is intersection with other static objects
+	//TODO: force update model
+	return composite;
+}
+
 // add an inifinite plane object that is associated with an articulated body (e.g. a tilting table)
 void COPSimulator::addPlaneObject(const std::string& articulated_body_name,
 					const std::string& link_name, // name for the link on which plane primitive will be attached

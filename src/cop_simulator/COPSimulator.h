@@ -7,6 +7,7 @@
 #include <Eigen/Dense>
 
 #include "geometry/Primitive.h"
+#include "geometry/Composite1PkN.h"
 #include "ArticulatedRigidBodyManager.h"
 #include "WorldContactMap.h"
 #include "GeometryManager.h"
@@ -33,6 +34,10 @@ COPSimulator(double friction_coeff, double restitution_coeff);
 
 // add an inifinite plane object
 void addPlane(const std::string& name, const Eigen::Vector3d& planeNormal, const Eigen::Vector3d& planePoint);
+
+Composite1PkN* addPlaneComposite1PkN(const std::string& name,
+				const Eigen::Vector3d& planeNormal,
+				const Eigen::Vector3d& planePoint);
 
 // add an inifinite plane object that is associated with an articulated body (e.g. a tilting table)
 void addPlaneObject(const std::string& articulated_body_name,
