@@ -21,6 +21,15 @@ void PrimPrimContactInfo::flipNormal() {
 	constraint_dir2 *= -1.0;
 	std::swap(primA_max_radius, primB_max_radius);
 	std::swap(primA_min_radius, primB_min_radius);
+
+	if (type == ContactType::CONCAVE) {
+		for(auto& tnormal: normal_dirs) {
+			tnormal *= -1.0;
+		}
+		for(auto& tconstraint_dir2: constraint_dir2s) {
+			tconstraint_dir2 *= -1.0;
+		}
+	}
 }
 
 }

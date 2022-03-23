@@ -39,6 +39,11 @@ public:
 	//TODO: do we need to be consistent about which primitive the points lie on?
 	// or do we need to return points on both bodies?
 
+	// members used for CONCAVE contact type
+	std::vector<Eigen::Vector3d> normal_dirs; // in world frame, corresponding to each contact point
+	std::vector<Eigen::Vector3d> constraint_dir1s; // in world frame, corresponding to each contact point
+	std::vector<Eigen::Vector3d> constraint_dir2s; // in world frame, corresponding to each contact point
+
 	// signed curvature for each body
 	// sign is positive is center of curvature lies in the positive normal direction
 	// and negative otherwise
@@ -86,6 +91,9 @@ public:
 		primB_max_radius = 0;
 		primB_min_radius = 0;
 		inter_prim_max_curvature_plane_angle = 0;
+		normal_dirs.clear();
+		constraint_dir1s.clear();
+		constraint_dir2s.clear();
 	}
 
 	// flip normal
