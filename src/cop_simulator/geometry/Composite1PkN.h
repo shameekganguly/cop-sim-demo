@@ -5,6 +5,7 @@
 #define COMPOSITE1PkN_H
 
 #include "Primitive.h"
+#include "PrimPrimContactInfo.h"
 
 namespace Sai2COPSim {
 

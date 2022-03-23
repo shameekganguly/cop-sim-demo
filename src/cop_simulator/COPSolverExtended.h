@@ -6,7 +6,7 @@
 #define COP_SOLVER_EXTENDED_H
 
 #include "COPSolver.h"
-#include "geometry/Primitive.h"
+#include "geometry/PrimPrimContactInfo.h"
 
 namespace Sai2COPSim {
 

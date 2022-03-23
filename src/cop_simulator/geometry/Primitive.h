@@ -7,8 +7,6 @@
 #include <vector>
 #include <Eigen/Dense>
 
-#include "ContactPatch.h"
-
 namespace Sai2COPSim {
 
 // forward definitions of primitive properties
