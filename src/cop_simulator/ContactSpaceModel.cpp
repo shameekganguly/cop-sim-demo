@@ -35,6 +35,11 @@ void ContactIslandModel::build(const ContactIsland* geom_island, ArticulatedRigi
 		it != geom_island->_contact_prim_pairs.end();
 		it++, prim_pair_id++
 	) {
+		// TODO: support COP-based steady-state contact resolution with concave primitives
+		if (it->info->type == ContactType::CONCAVE && !_f_support_pt_contact_steady_contact) {
+			throw(std::runtime_error("Concave contacts not handled by COP solver yet."));
+		}
+
 		// add a new contact pair state, initially invalid
 		_pair_state.push_back(ContactPairState(prim_pair_id, &(*it)));
 
@@ -109,6 +114,9 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			case ContactType::SURFACE:
 				cop_constraint_contact_dof += 6;
 				break;
+			// TODO: support COP-based steady-state contact resolution with concave primitives
+			case ContactType::CONCAVE:
+				break;
 			case ContactType::UNDEFINED:
 				std::cerr << "Undefined contact type" << std::endl;
 				throw(std::runtime_error("Bad contact"));
@@ -155,30 +163,33 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 
 			MatrixXd Jv(3, arb_model->dof());
 			MatrixXd Jw(3, arb_model->dof());
-			// get body point for point 0
-			// this is used for the cop Jacobian
-			Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, p._reference_point);
 
-			arb_model->Jv(Jv, primB->_link_name, body_point0);
-			arb_model->Jw(Jw, primB->_link_name);
-			// rotate:
-			Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
-			Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
+			if (!_f_support_pt_contact_steady_contact) {
+				// get body point for point 0
+				// this is used for the cop Jacobian
+				Vector3d body_point0 = arb->worldToBodyPosition(primB->_link_name, p._reference_point);
 
-			// fill in the Jacobians
-			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+				arb_model->Jv(Jv, primB->_link_name, body_point0);
+				arb_model->Jw(Jw, primB->_link_name);
+				// rotate:
+				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+				Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
 
-			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
-			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
-				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
-				p_constr_J_start_ind += 6;
-			} else {
-				p_constr_J_start_ind += 3;
+				// fill in the Jacobians
+				_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
+				_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+
+				_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
+				_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
+					p_constr_J_start_ind += 5;
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+					p_constr_J_start_ind += 6;
+				} else {
+					p_constr_J_start_ind += 3;
+				}
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
@@ -204,33 +215,36 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 
 			MatrixXd Jv(3, arb_model->dof());
 			MatrixXd Jw(3, arb_model->dof());
-			// get body point for point 0
-			// this is used for the cop Jacobian
-			Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, p._reference_point);
-			// std::cout << "W point0 " << contact_points[0].transpose() << std::endl;
-			// std::cout << "B point0 " << body_point0.transpose() << std::endl;
 
-			arb_model->Jv(Jv, primA->_link_name, body_point0);
-			// std::cout <<"Jv " << Jv <<std::endl;
-			arb_model->Jw(Jw, primA->_link_name);
-			// rotate:
-			Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
-			Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
+			if (!_f_support_pt_contact_steady_contact) {
+				// get body point for point 0
+				// this is used for the cop Jacobian
+				Vector3d body_point0 = arb->worldToBodyPosition(primA->_link_name, p._reference_point);
+				// std::cout << "W point0 " << contact_points[0].transpose() << std::endl;
+				// std::cout << "B point0 " << body_point0.transpose() << std::endl;
 
-			// fill in the Jacobians
-			_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+				arb_model->Jv(Jv, primA->_link_name, body_point0);
+				// std::cout <<"Jv " << Jv <<std::endl;
+				arb_model->Jw(Jw, primA->_link_name);
+				// rotate:
+				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+				Jw = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jw;
 
-			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
-			_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
-				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
-				p_constr_J_start_ind += 6;
-			} else {
-				p_constr_J_start_ind += 3;
+				// fill in the Jacobians
+				_cop_full6_Jacobian.block(p._id*6, this_arb_col_ind, 3, arb_model->dof()) = Jv;
+				_cop_full6_Jacobian.block(p._id*6 + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+
+				_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
+				_cop_constraint_Jacobian.block(p_constr_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 2, arb_model->dof()) = Jw.block(1, 0, 2, arb_model->dof());
+					p_constr_J_start_ind += 5;
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, this_arb_col_ind, 3, arb_model->dof()) = Jw;
+					p_constr_J_start_ind += 6;
+				} else {
+					p_constr_J_start_ind += 3;
+				}
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
@@ -269,41 +283,44 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			MatrixXd JwA(3, arbA_model->dof());
 			MatrixXd JvB(3, arbB_model->dof());
 			MatrixXd JwB(3, arbB_model->dof());
-			// get body point for point 0
-			// this is used for the cop Jacobian
-			Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, p._reference_point);
-			Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, p._reference_point);
 
-			arbA_model->Jv(JvA, primA->_link_name, bodyA_point0);
-			arbA_model->Jw(JwA, primA->_link_name);
-			arbB_model->Jv(JvB, primB->_link_name, bodyB_point0);
-			arbB_model->Jw(JwB, primB->_link_name);
-			// rotate:
-			JvA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JvA;
-			JwA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JwA;
-			JvB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JvB;
-			JwB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JwB;
+			if (!_f_support_pt_contact_steady_contact) {
+				// get body point for point 0
+				// this is used for the cop Jacobian
+				Vector3d bodyA_point0 = arbA->worldToBodyPosition(primA->_link_name, p._reference_point);
+				Vector3d bodyB_point0 = arbB->worldToBodyPosition(primB->_link_name, p._reference_point);
 
-			// fill in the Jacobians
-			// contact normal is directed from arb A to B
-			_cop_full6_Jacobian.block(p._id*6, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
-			_cop_full6_Jacobian.block(p._id*6 + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
-			_cop_full6_Jacobian.block(p._id*6, arbB_col_ind, 3, arbB_model->dof()) = JvB;
-			_cop_full6_Jacobian.block(p._id*6 + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
+				arbA_model->Jv(JvA, primA->_link_name, bodyA_point0);
+				arbA_model->Jw(JwA, primA->_link_name);
+				arbB_model->Jv(JvB, primB->_link_name, bodyB_point0);
+				arbB_model->Jw(JwB, primB->_link_name);
+				// rotate:
+				JvA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JvA;
+				JwA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JwA;
+				JvB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JvB;
+				JwB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JwB;
 
-			_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
-			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
-			_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
-			if(p._geom_prim_pair->info->type == ContactType::LINE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 2, arbA_model->dof()) = -JwA.block(1, 0, 2, arbA_model->dof());
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 2, arbB_model->dof()) = JwB.block(1, 0, 2, arbB_model->dof());
-				p_constr_J_start_ind += 5;
-			} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
-				_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
-				p_constr_J_start_ind += 6;
-			} else {
-				p_constr_J_start_ind += 3;
+				// fill in the Jacobians
+				// contact normal is directed from arb A to B
+				_cop_full6_Jacobian.block(p._id*6, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
+				_cop_full6_Jacobian.block(p._id*6 + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
+				_cop_full6_Jacobian.block(p._id*6, arbB_col_ind, 3, arbB_model->dof()) = JvB;
+				_cop_full6_Jacobian.block(p._id*6 + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
+
+				_cop_constraint_Jacobian_prim_start_ind.push_back(p_constr_J_start_ind);
+				_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
+				_cop_constraint_Jacobian.block(p_constr_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
+				if(p._geom_prim_pair->info->type == ContactType::LINE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 2, arbA_model->dof()) = -JwA.block(1, 0, 2, arbA_model->dof());
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 2, arbB_model->dof()) = JwB.block(1, 0, 2, arbB_model->dof());
+					p_constr_J_start_ind += 5;
+				} else if(p._geom_prim_pair->info->type == ContactType::SURFACE) {
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbA_col_ind, 3, arbA_model->dof()) = -JwA;
+					_cop_constraint_Jacobian.block(p_constr_J_start_ind + 3, arbB_col_ind, 3, arbB_model->dof()) = JwB;
+					p_constr_J_start_ind += 6;
+				} else {
+					p_constr_J_start_ind += 3;
+				}
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
@@ -332,13 +349,15 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 		uint dq_dof = arb_model->dof();
 		MatrixXd Jseg;
 
-		// cop_full6
-		Jseg = _cop_full6_Jacobian.block(0, arb_Jind, full6_contact_dof, dq_dof);
-		_cop_full6_Lambda_inv += Jseg * arb_model->_M_inv * Jseg.transpose();
+		if (!_f_support_pt_contact_steady_contact) {
+			// cop_full6
+			Jseg = _cop_full6_Jacobian.block(0, arb_Jind, full6_contact_dof, dq_dof);
+			_cop_full6_Lambda_inv += Jseg * arb_model->_M_inv * Jseg.transpose();
 
-		// cop_constraint
-		Jseg = _cop_constraint_Jacobian.block(0, arb_Jind, cop_constraint_contact_dof, dq_dof);
-		_cop_constraint_Lambda_inv += Jseg * arb_model->_M_inv * Jseg.transpose();
+			// cop_constraint
+			Jseg = _cop_constraint_Jacobian.block(0, arb_Jind, cop_constraint_contact_dof, dq_dof);
+			_cop_constraint_Lambda_inv += Jseg * arb_model->_M_inv * Jseg.transpose();
+		}
 
 		// pt contact
 		Jseg = _pt_contact_Jacobian.block(0, arb_Jind, pt_contact_dof, dq_dof);
@@ -369,14 +388,16 @@ void ContactIslandModel::updateRHSVectors() {
 		uint dq_dof = arb_model->dof();
 		MatrixXd Jseg;
 
-		// cop_full6
-		Jseg = _cop_full6_Jacobian.block(0, arb_Jind, full6_contact_dof, dq_dof);
-		_cop_full6_rhs_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
-		// std::cout << _cop_full6_rhs_contact.transpose() << std::endl;
+		if (!_f_support_pt_contact_steady_contact) {
+			// cop_full6
+			Jseg = _cop_full6_Jacobian.block(0, arb_Jind, full6_contact_dof, dq_dof);
+			_cop_full6_rhs_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
+			// std::cout << _cop_full6_rhs_contact.transpose() << std::endl;
 
-		// cop_constraint
-		Jseg = _cop_constraint_Jacobian.block(0, arb_Jind, cop_constraint_contact_dof, dq_dof);
-		_cop_constraint_rhs_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
+			// cop_constraint
+			Jseg = _cop_constraint_Jacobian.block(0, arb_Jind, cop_constraint_contact_dof, dq_dof);
+			_cop_constraint_rhs_contact += Jseg * (arb->jacc_nonlinear + arb_model->_M_inv*arb->jtau_act);
+		}
 
 		// pt_ct for collision
 		Jseg = _pt_contact_Jacobian.block(0, arb_Jind, pt_contact_dof, dq_dof);
@@ -408,7 +429,7 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple
 
-			{ // block for cop constraint rhs
+			if (!_f_support_pt_contact_steady_contact) { // block for cop constraint rhs
 				Vector3d djv_times_dq, djw_times_dq;
 				arb->JvdotTimesQdotInWorld(djv_times_dq, primB->_link_name, body_point0);
 				arb->JwdotTimesQdotInWorld(djw_times_dq, primB->_link_name);
@@ -449,7 +470,7 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple
 
-			{ // block for cop constraint rhs
+			if (!_f_support_pt_contact_steady_contact) { // block for cop constraint rhs
 				Vector3d djv_times_dq, djw_times_dq;
 				arb->JvdotTimesQdotInWorld(djv_times_dq, primA->_link_name, body_point0);
 				arb->JwdotTimesQdotInWorld(djw_times_dq, primA->_link_name);
@@ -490,7 +511,7 @@ void ContactIslandModel::updateRHSVectors() {
 			// TODO: move update kinematics call elsewhere to avoid duplication
 			// for the same articulated body multiple
 
-			{ // block for cop constraint rhs
+			if (!_f_support_pt_contact_steady_contact) { // block for cop constraint rhs
 				Vector3d djv_times_dq_A, djw_times_dq_A, djv_times_dq_B, djw_times_dq_B;
 				arbA->JvdotTimesQdotInWorld(djv_times_dq_A, primA->_link_name, bodyA_point0);
 				arbA->JwdotTimesQdotInWorld(djw_times_dq_A, primA->_link_name);
@@ -565,6 +586,7 @@ void ContactIslandModel::getActiveFullCOPMatrices(
 		//TODO: ^consider making this a map from ContactPair.id -> row start ind in active Jacobian
 ) const {
 	if(_active_contacts.size() == 0) return;
+	if(_f_support_pt_contact_steady_contact) return;
 
 	J_full_cop.setZero(6*_active_contacts.size(), _cop_full6_Jacobian.cols());
 	Lambda_inv_full_cop.setZero(6*_active_contacts.size(), 6*_active_contacts.size());
@@ -600,6 +622,7 @@ void ContactIslandModel::getActiveConstraintCOPMatrices(
 		std::vector<uint>& Jrow_ind_to_contact_pair_map
 ) const {
 	if(_active_contacts.size() == 0) return;
+	if(_f_support_pt_contact_steady_contact) return;
 
 	uint active_J_constraint_cop_dof = 0;
 	std::vector<uint> dof_count_map;
@@ -750,6 +773,8 @@ void ContactIslandModel::getActiveFullCOPRHSVector(
 	Eigen::VectorXd& rhs_full_cop,
 	std::vector<uint>& Jrow_ind_to_contact_pair_map
 ) const {
+	if(_f_support_pt_contact_steady_contact) return;
+
 	// we assume that the correct size has been set already for Jacobian
 	rhs_full_cop.setZero(_cop_full6_Jacobian_active.rows());
 
@@ -768,6 +793,8 @@ void ContactIslandModel::getActiveConstraintCOPRHSVector(
 	Eigen::VectorXd& rhs_constraint_cop,
 	std::vector<uint>& Jrow_ind_to_contact_pair_map
 ) const {
+	if(_f_support_pt_contact_steady_contact) return;
+
 	// we assume that the correct size has been set already for Jacobian
 	rhs_constraint_cop.setZero(_cop_constraint_Jacobian_active.rows());
 
