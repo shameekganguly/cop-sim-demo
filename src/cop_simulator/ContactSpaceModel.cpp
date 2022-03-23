@@ -193,10 +193,10 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
-			for(auto& pt: contact_points) {
-				Vector3d body_point = arb->worldToBodyPosition(primB->_link_name, pt);
+			for(uint cpt_ind = 0; cpt_ind < contact_points.size(); cpt_ind++) {
+				Vector3d body_point = arb->worldToBodyPosition(primB->_link_name, contact_points[cpt_ind]);
 				arb_model->Jv(Jv, primB->_link_name, body_point);
-				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+				Jv = p.rotContactFrameToWorld(cpt_ind).transpose()* arb_model->_T_world_robot.linear() * Jv;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 				p_ptct_J_start_ind += 3;
@@ -248,11 +248,11 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
-			for(auto& pt: contact_points) {
-				Vector3d body_point = arb->worldToBodyPosition(primA->_link_name, pt);
+			for(uint cpt_ind = 0; cpt_ind < contact_points.size(); cpt_ind++) {
+				Vector3d body_point = arb->worldToBodyPosition(primA->_link_name, contact_points[cpt_ind]);
 				arb_model->Jv(Jv, primA->_link_name, body_point);
 				// std::cout <<"pt Jv " << Jv <<std::endl;
-				Jv = p._rot_contact_frame_to_world.transpose()* arb_model->_T_world_robot.linear() * Jv;
+				Jv = p.rotContactFrameToWorld(cpt_ind).transpose()* arb_model->_T_world_robot.linear() * Jv;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, this_arb_col_ind, 3, arb_model->dof()) = Jv;
 				p_ptct_J_start_ind += 3;
@@ -324,13 +324,14 @@ void ContactIslandModel::createContactJacobianAndLambdaInv() {
 			}
 
 			_pt_contact_Jacobian_prim_start_ind.push_back(p_ptct_J_start_ind);
-			for(auto& pt: contact_points) {
-				Vector3d bodyA_point = arbA->worldToBodyPosition(primA->_link_name, pt);
-				Vector3d bodyB_point = arbB->worldToBodyPosition(primB->_link_name, pt);
+			for(uint cpt_ind = 0; cpt_ind < contact_points.size(); cpt_ind++) {
+				Vector3d bodyA_point = arbA->worldToBodyPosition(primA->_link_name, contact_points[cpt_ind]);
+				Vector3d bodyB_point = arbB->worldToBodyPosition(primB->_link_name, contact_points[cpt_ind]);
 				arbA_model->Jv(JvA, primA->_link_name, bodyA_point);
 				arbB_model->Jv(JvB, primB->_link_name, bodyB_point);
-				JvA = p._rot_contact_frame_to_world.transpose()* arbA_model->_T_world_robot.linear() * JvA;
-				JvB = p._rot_contact_frame_to_world.transpose()* arbB_model->_T_world_robot.linear() * JvB;
+				Eigen::Matrix3d rot_mat = p.rotContactFrameToWorld(cpt_ind);
+				JvA = rot_mat.transpose()* arbA_model->_T_world_robot.linear() * JvA;
+				JvB = rot_mat.transpose()* arbB_model->_T_world_robot.linear() * JvB;
 				//TODO: do we need to save the start index for each primitive in the pt contact Jacobian?
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, arbA_col_ind, 3, arbA_model->dof()) = -JvA;
 				_pt_contact_Jacobian.block(p_ptct_J_start_ind, arbB_col_ind, 3, arbB_model->dof()) = JvB;
@@ -457,7 +458,7 @@ void ContactIslandModel::updateRHSVectors() {
 				for(uint i = 0; i < contact_points.size(); i++) {
 					Vector3d body_pt = arb->worldToBodyPosition(primB->_link_name, contact_points[i]);
 					arb->JvdotTimesQdotInWorld(pt_djv_times_dq, primB->_link_name, body_pt);
-					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * pt_djv_times_dq;
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p.rotContactFrameToWorld(i).transpose() * pt_djv_times_dq;
 				}
 			}
 		} else if(primB->_is_static) {
@@ -498,7 +499,7 @@ void ContactIslandModel::updateRHSVectors() {
 				for(uint i = 0; i < contact_points.size(); i++) {
 					Vector3d body_pt = arb->worldToBodyPosition(primA->_link_name, contact_points[i]);
 					arb->JvdotTimesQdotInWorld(pt_djv_times_dq, primA->_link_name, body_pt);
-					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * pt_djv_times_dq;
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p.rotContactFrameToWorld(i).transpose() * pt_djv_times_dq;
 				}
 			}
 		} else { // !primA->_is_static && !primB->_is_static
@@ -547,7 +548,7 @@ void ContactIslandModel::updateRHSVectors() {
 					Vector3d bodyB_pt = arbB->worldToBodyPosition(primB->_link_name, contact_points[i]);
 					arbA->JvdotTimesQdotInWorld(pt_djv_times_dq_A, primA->_link_name, bodyA_pt);
 					arbB->JvdotTimesQdotInWorld(pt_djv_times_dq_B, primB->_link_name, bodyB_pt);
-					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p._rot_contact_frame_to_world.transpose() * (pt_djv_times_dq_B - pt_djv_times_dq_A);
+					_pt_contact_rhs_steady_contact.segment<3>(pt_p_ind_start + 3*i) += p.rotContactFrameToWorld(i).transpose() * (pt_djv_times_dq_B - pt_djv_times_dq_A);
 				}
 			}
 		}
@@ -968,6 +969,22 @@ ContactPairState::ContactPairState(uint id, const ContactPrimitivePair* geom_pri
 
 ContactPairState::~ContactPairState() {
 
+}
+
+Eigen::Matrix3d ContactPairState::rotContactFrameToWorld(uint pt_ind) const {
+	if(_geom_prim_pair->info->type == ContactType::CONCAVE) {
+		assert(pt_ind < _geom_prim_pair->info->normal_dirs.size());
+		assert(pt_ind < _geom_prim_pair->info->constraint_dir1s.size());
+		assert(pt_ind < _geom_prim_pair->info->constraint_dir2s.size());
+		Eigen::Matrix3d ret_mat;
+		ret_mat.col(0) = _geom_prim_pair->info->constraint_dir1s[pt_ind];
+		ret_mat.col(1) = _geom_prim_pair->info->constraint_dir2s[pt_ind];
+		ret_mat.col(2) = _geom_prim_pair->info->normal_dirs[pt_ind];
+		assert(abs(1.0 - ret_mat.determinant()) < 1e-5);
+		return ret_mat;
+	} else {
+		return _rot_contact_frame_to_world;
+	}
 }
 
 bool ContactPairState::activateContactPoint(uint id) {

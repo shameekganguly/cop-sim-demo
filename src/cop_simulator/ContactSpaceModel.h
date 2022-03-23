@@ -39,6 +39,8 @@ public:
 		const Eigen::Vector3d& linear_contact_velocity
 	) const;
 
+	Eigen::Matrix3d rotContactFrameToWorld(uint pt_ind) const;
+
 public:
 	// id corresponding to ContactIslandModel::_index_to_geom_island_contact_list
 	uint _id;
@@ -56,6 +58,7 @@ public:
 	// designed such that the axes have the following notations:
 	// axis x & y: tangential directions. For line contacts, axis x is aligned with the constraint line
 	// axis z: normal direction
+	// NOTE: DO NOT USE FOR CONCAVE CONTACT TYPE. Use rotContactFrameToWorld(pt_ind) instead
 	Eigen::Matrix3d _rot_contact_frame_to_world; //TODO: consider moving to prim-prim contact info
 
 	// contact description. for introspection mostly
