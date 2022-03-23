@@ -26,17 +26,7 @@ bool ContactIslandModel::resolveSteadyContactsWithPointContacts(
 	VectorXd pre_V;
 	pre_V.setZero(_pt_contact_Lambda_inv_active.rows());
 	MatrixXd Jseg;
-	// for(auto it: _arb_index_map) {
-	// 	uint arb_Jind = it.second;
-	// 	auto arb = _arb_manager->getBody(it.first);
-	// 	auto arb_model = arb->_model;
 
-	// 	uint dq_dof = arb_model->dof();
-
-	// 	// pt_ct for collision
-	// 	Jseg = _pt_contact_Jacobian.block(0, arb_Jind, pt_contact_dof, dq_dof);
-	// 	_pt_contact_rhs_coll += Jseg * arb_model->_dq; // collision RHS is simply dx-
-	// }
 	uint row_ind = 0;
 	uint prim_row_start_ind = 0;
 	for(uint prim_id: _active_contacts) {
@@ -97,7 +87,55 @@ bool ContactIslandModel::resolveSteadyContactsWithPointContacts(
 		throw(std::runtime_error("Pt contacts Steady Contact LCP failed"));
 	}
 
-	// TODO: set torques
+	// NOTE: It is assumed that arb->jtau_contact is set to zero before
+	// resolveSteadyContactsWithPointContacts is called
+
+	for(uint prim_id: _active_contacts) {
+		prim_row_start_ind = row_ind;
+		auto& prim = _pair_state[prim_id];
+		auto primA = prim._geom_prim_pair->primA;
+		auto primB = prim._geom_prim_pair->primB;
+		ArticulatedRigidBody* arbA = NULL; // TODO: consider moving these to the contact_pair_state
+		ArticulatedRigidBody* arbB = NULL;
+		if(primA->_is_static) {
+			std::string arb_name = primB->_articulated_body_name;
+			arbB = _arb_manager->getBody(arb_name);
+		} else if (primB->_is_static) {
+			std::string arb_name = primA->_articulated_body_name;
+			arbB = _arb_manager->getBody(arb_name);
+		} else {
+			std::string arbA_name = primA->_articulated_body_name;
+			std::string arbB_name = primB->_articulated_body_name;
+			arbA = _arb_manager->getBody(arbA_name);
+			arbB = _arb_manager->getBody(arbB_name);
+		}
+		uint Jstart_ind = _pt_contact_Jacobian_prim_start_ind[prim_id];
+
+		if(arbB != NULL) {
+			row_ind = prim_row_start_ind;
+			uint arbB_ind = _arb_index_map[arbB->_name];
+			uint dqB_dof = arbB->_model->dof();
+			for(uint pid: prim._active_points) {
+				Jseg = _pt_contact_Jacobian.block(Jstart_ind + pid*3, arbB_ind, 3, dqB_dof);
+				arbB->jtau_contact += Jseg.transpose()*lcp_sol.p_sol;
+				row_ind += 3;
+			}
+		}
+
+		if(arbA != NULL) {
+			row_ind = prim_row_start_ind;
+			uint arbA_ind = _arb_index_map[arbA->_name];
+			uint dqA_dof = arbA->_model->dof();
+			for(uint pid: prim._active_points) {
+				Jseg = _pt_contact_Jacobian.block(Jstart_ind + pid*3, arbA_ind, 3, dqA_dof);
+				arbA->jtau_contact += Jseg.transpose()*lcp_sol.p_sol;
+				row_ind += 3;
+			}
+		}
+
+		// TODO: update primitive last COP sol force and COP
+	}
+
 	return true;
 }
 

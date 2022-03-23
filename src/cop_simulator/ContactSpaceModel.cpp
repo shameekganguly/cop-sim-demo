@@ -416,7 +416,6 @@ void ContactIslandModel::updateRHSVectors() {
 	for (auto& p: _pair_state) {
 		auto primA = p._geom_prim_pair->primA;
 		auto primB = p._geom_prim_pair->primB;
-		uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 		uint pt_p_ind_start = _pt_contact_Jacobian_prim_start_ind[p._id];
 		auto contact_points = p._geom_prim_pair->info->contact_points;
 		if(primA->_is_static) {
@@ -441,6 +440,7 @@ void ContactIslandModel::updateRHSVectors() {
 				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 
 				// update constraint cop
+				uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 				if(p._geom_prim_pair->info->type == ContactType::LINE) {
 					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
@@ -482,6 +482,7 @@ void ContactIslandModel::updateRHSVectors() {
 				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * djw_times_dq;
 
 				// update constraint cop
+				uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 				if(p._geom_prim_pair->info->type == ContactType::LINE) {
 					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * djv_times_dq;
 					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * djw_times_dq).segment<2>(1);
@@ -528,6 +529,7 @@ void ContactIslandModel::updateRHSVectors() {
 				_cop_full6_rhs_contact.segment<3>(p._id*6 + 3) += p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A);
 
 				// update constraint cop RHS
+				uint p_ind_start = _cop_constraint_Jacobian_prim_start_ind[p._id];
 				if(p._geom_prim_pair->info->type == ContactType::LINE) {
 					_cop_constraint_rhs_contact.segment<3>(p_ind_start) += p._rot_contact_frame_to_world.transpose() * (djv_times_dq_B - djv_times_dq_A);
 					_cop_constraint_rhs_contact.segment<2>(p_ind_start + 3) += (p._rot_contact_frame_to_world.transpose() * (djw_times_dq_B - djw_times_dq_A)).segment<2>(1);

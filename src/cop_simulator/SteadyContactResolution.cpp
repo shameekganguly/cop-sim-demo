@@ -303,6 +303,8 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 					// std::cerr << "COP solution failed" << std::endl;
 					throw(std::runtime_error("COP solution failed"));
 				}
+			} else {
+				throw(std::runtime_error("COP solver cannot handle multiple points for a single contact patch."));
 			}
 		}
 	} else if(_active_contacts.size() == 2) {
@@ -358,6 +360,8 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 	}
 
 	// set torques on bodies
+	// NOTE: It is assumed that arbB->jtau_contact is set to zero before
+	// resolveSteadyContacts is called
 	for(uint prim_id: _active_contacts) {
 		auto& prim = _pair_state[prim_id];
 
@@ -388,11 +392,11 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 			case ContactType::POINT:
 				if(arbB != NULL) {
 					uint arb_ind = _arb_index_map[arbB->_name];
-					arbB->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 3, arbB->_model->dof()).transpose()*prim._last_cop_sol.force_sol;
+					arbB->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 3, arbB->_model->dof()).transpose()*prim._last_cop_sol.force_sol;
 				}
 				if(arbA != NULL) {
 					uint arb_ind = _arb_index_map[arbA->_name];
-					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 3, arbA->_model->dof()).transpose()*prim._last_cop_sol.force_sol;
+					arbA->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 3, arbA->_model->dof()).transpose()*prim._last_cop_sol.force_sol;
 				}
 				// update COP world pos
 				prim._cop_pos = prim._reference_point;
@@ -404,11 +408,11 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				cop_point0_force.segment<3>(3) += prim._last_cop_sol.local_cop_pos.cross(cop_point0_force.segment<3>(0));
 				if(arbB != NULL) {
 					uint arb_ind = _arb_index_map[arbB->_name];
-					arbB->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbB->_model->dof()).transpose()*cop_point0_force;
+					arbB->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbB->_model->dof()).transpose()*cop_point0_force;
 				}
 				if(arbA != NULL) {
 					uint arb_ind = _arb_index_map[arbA->_name];
-					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
+					arbA->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
 				}
 				prim._cop_pos = prim._reference_point + prim._rot_contact_frame_to_world*prim._last_cop_sol.local_cop_pos;
 				break;
@@ -419,11 +423,11 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				cop_point0_force.segment<3>(3) += prim._last_cop_sol.local_cop_pos.cross(cop_point0_force.segment<3>(0));
 				if(arbB != NULL) {
 					uint arb_ind = _arb_index_map[arbB->_name];
-					arbB->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbB->_model->dof()).transpose()*cop_point0_force;
+					arbB->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbB->_model->dof()).transpose()*cop_point0_force;
 				}
 				if(arbA != NULL) {
 					uint arb_ind = _arb_index_map[arbA->_name];
-					arbA->jtau_contact = _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
+					arbA->jtau_contact += _cop_full6_Jacobian.block(prim_id*6, arb_ind, 6, arbA->_model->dof()).transpose()*cop_point0_force;
 				}
 				// update COP world pos
 				prim._cop_pos = prim._geom_prim_pair->info->contact_patch._interior_point
