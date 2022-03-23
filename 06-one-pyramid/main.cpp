@@ -11,6 +11,9 @@ Date: 07/02/2020
 #include <chrono>
 #include <math.h>
 #include <vector>
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
 using namespace std;
 
 #include "Sai2Model.h"
@@ -32,6 +35,19 @@ using namespace Eigen;
 #include <GLFW/glfw3.h> //must be loaded after loading opengl/glew as part of graphicsinterface
 
 using namespace chai3d;
+
+void handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
 
 const string world_fname = "resources/06-one-pyramid/world.urdf";
 const string object_fname = "resources/06-one-pyramid/pyramid_object.urdf";
@@ -107,6 +123,8 @@ void glfwError(int error, const char* description);
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main(int argc, char** argv) {
+    signal(SIGSEGV, handler);
+
 	const double restitution = 0.0;
     const double friction = 0.02;
 
