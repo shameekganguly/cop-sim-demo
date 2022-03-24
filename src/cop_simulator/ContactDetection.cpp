@@ -90,6 +90,10 @@ void COPSimulator::computeWorldContactMap() {
 				ppinfo->flipNormal();
 			}
 
+			// for CONCAVE contact type, different contact points have different distances
+			// so filter down to just the ones which are below the threshold
+			ppinfo->filterContactPoints(COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD);
+
 			// check if in contact
 			if(ppinfo->min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD) {
 				_max_penetration_current = max(_max_penetration_current, -ppinfo->min_distance);

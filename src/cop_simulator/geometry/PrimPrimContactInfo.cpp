@@ -32,4 +32,32 @@ void PrimPrimContactInfo::flipNormal() {
 	}
 }
 
+void PrimPrimContactInfo::filterContactPoints(double max_distance) {
+	if(type != ContactType::CONCAVE) {
+		return;
+	}
+	// TODO: this is inefficient. change the data structures (e.g. to a priority list)
+	// to avoid all this copying.
+	std::vector<uint> filtered_inds;
+	for(uint i = 0; i < distances.size(); i++) {
+		if(distances[i] <= max_distance) {
+			filtered_inds.push_back(i);
+		}
+	}
+	auto resize_lambda = [&filtered_inds](std::vector<Eigen::Vector3d>& input) {
+		for(uint j = 0; j < filtered_inds.size(); j++) {
+			input[j] = input[filtered_inds[j]];
+		}
+		input.resize(filtered_inds.size());
+	};
+	resize_lambda(contact_points);
+	resize_lambda(normal_dirs);
+	resize_lambda(constraint_dir1s);
+	resize_lambda(constraint_dir2s);
+	for(uint j = 0; j < filtered_inds.size(); j++) {
+		distances[j] = distances[filtered_inds[j]];
+	}
+	distances.resize(filtered_inds.size());
+}
+
 }

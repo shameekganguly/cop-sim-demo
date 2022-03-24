@@ -9,6 +9,10 @@
 
 namespace Sai2COPSim {
 
+namespace PrimitiveAlgorithmicConstants {
+static constexpr double DISTANCE_FULL_PENETRATION = -1.0;
+}
+
 enum ContactType {
 	UNDEFINED,
 	POINT,
@@ -43,6 +47,7 @@ public:
 	std::vector<Eigen::Vector3d> normal_dirs; // in world frame, corresponding to each contact point
 	std::vector<Eigen::Vector3d> constraint_dir1s; // in world frame, corresponding to each contact point
 	std::vector<Eigen::Vector3d> constraint_dir2s; // in world frame, corresponding to each contact point
+	std::vector<double> distances; // distance at each contact point
 
 	// signed curvature for each body
 	// sign is positive is center of curvature lies in the positive normal direction
@@ -94,10 +99,16 @@ public:
 		normal_dirs.clear();
 		constraint_dir1s.clear();
 		constraint_dir2s.clear();
+		distances.clear();
 	}
 
 	// flip normal
 	void flipNormal();
+
+	// filter contact points, normal_dirs, constraint_dir1s, constraint_dir2s and
+	// distances by a max distance threshold.
+	// Only for CONCAVE contact type
+	void filterContactPoints(double max_distance);
 };
 
 }
