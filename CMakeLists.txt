@@ -1,7 +1,7 @@
 
 cmake_minimum_required (VERSION 2.8.12)
 project (COP_DEMO)
-SET(CMAKE_CXX_FLAGS "-std=c++11")
+SET(CMAKE_CXX_FLAGS "-std=c++14")
 
 include_directories(
 	/usr/local/include
