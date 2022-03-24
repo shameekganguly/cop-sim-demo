@@ -15,13 +15,25 @@ void printPrimPrimInfo(const PrimPrimContactInfo& info) {
 	if(info.type == ContactType::POINT) cout << "Type: Point" << "\n";
 	if(info.type == ContactType::LINE) cout << "Type: Line" << "\n";
 	if(info.type == ContactType::SURFACE) cout << "Type: Surface" << "\n";
+	if(info.type == ContactType::CONCAVE) cout << "Type: Concave" << "\n";
 	if(info.type == ContactType::UNDEFINED) cout << "Type: Undefined" << "\n";
-	cout << "Normal: " << info.normal_dir.transpose() << "\n";
-	cout << "Constraint dir 1: " << info.constraint_dir1.transpose() << "\n";
-	cout << "Constraint dir 2: " << info.constraint_dir2.transpose() << "\n";
-	for(const auto& pt: info.contact_points) {
-		cout << "Point: " << pt.transpose() << "\n";
+	if(info.type != ContactType::CONCAVE) {
+		cout << "Normal: " << info.normal_dir.transpose() << "\n";
+		cout << "Constraint dir 1: " << info.constraint_dir1.transpose() << "\n";
+		cout << "Constraint dir 2: " << info.constraint_dir2.transpose() << "\n";
+		for(const auto& pt: info.contact_points) {
+			cout << "Point: " << pt.transpose() << "\n";
+		}
+	} else {
+		for(uint i = 0; i < info.contact_points.size(); i++) {
+			cout << "Point " << i << ": " << info.contact_points[i].transpose()
+				 << "\n Distance: " << info.distances[i]
+				 << "\n Normal: " << info.normal_dirs[i].transpose()
+				 << "\n Constraint dir 1: " << info.constraint_dir1s[i].transpose()
+				 << "\n Constraint dir 2: " << info.constraint_dir2s[i].transpose() << "\n";
+		}
 	}
+
 	cout << endl;
 }
 
@@ -52,11 +64,13 @@ void printPointTestResult(const PointTestResult& result) {
 void testPlaneCapsuleDistance();
 void testCapsuleCapsuleDistance();
 void testPlaneCylinderDistance();
+void testNegCapsuleCapsuleDistance();
 
 int main (int argc, char** argv) {
 	// testPlaneCapsuleDistance();
 	// testCapsuleCapsuleDistance();
-	testPlaneCylinderDistance();
+	// testPlaneCylinderDistance();
+	testNegCapsuleCapsuleDistance();
 	return 0;
 }
 
@@ -716,5 +730,131 @@ void testPlaneCylinderDistance() {
 		Vector2d test(0, 0);
 		cout << "distance to patch boundary from test (" << test.transpose() << "): " << endl;
 		printPointTestResult(info.contact_patch.testPoint(test));
+	}
+}
+
+void testNegCapsuleCapsuleDistance() {
+	PrimPrimContactInfo info;
+	cout << "000000000000 ----- NEG CAPSULE - CAPSULE ----- 000000000000" << endl;
+	{
+		// test distance between parallel capsules, not axisymmetric, completely contained
+		cout << "--- TEST 1 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << 0.0, 0.1, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between parallel capsules, not axisymmetric, completely contained
+		// capA translated
+		cout << "--- TEST 2 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capATF.translation() << 0.0, 0.1, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, not axisymmetric, completely contained
+		// capA rotated
+		cout << "--- TEST 3 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capATF.linear() << 0.0, -1.0, 0.0,
+						   1.0, 0.0, 0.0,
+						   0.0, 0.0, 1.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between parallel capsules, axisymmetric, completely contained
+		cout << "--- TEST 4 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, positive larger than negative
+		cout << "--- TEST 5 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.3, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, complete penetration
+		cout << "--- TEST 6 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << 0.0, 0.4, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, partial penetration
+		cout << "--- TEST 7 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.3);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << 0.1, 0.0, 0.0;
+		capBTF.linear() << 0.0, -1.0, 0.0,
+						   1.0, 0.0, 0.0,
+						   0.0, 0.0, 1.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, partial penetration, asymmetric
+		cout << "--- TEST 8 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.3);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << 0.1, 0.1, 0.0;
+		capBTF.linear() << 0.0, -1.0, 0.0,
+						   1.0, 0.0, 0.0,
+						   0.0, 0.0, 1.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, partial penetration, end to end
+		cout << "--- TEST 9 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.4);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << 0.4, 0.1, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+	}
+	{
+		// test distance between capsules, no penetration, filter points
+		cout << "--- TEST 10 ---" << endl;
+		CapsulePrimitive* capsuleA = new NegCapsulePrimitive("tnc", 0.2, 0.4);
+		CapsulePrimitive* capsuleB = new CapsulePrimitive("tpc", 0.1, 0.2);
+		Affine3d capATF = Affine3d::Identity();
+		Affine3d capBTF = Affine3d::Identity();
+		capBTF.translation() << -0.2, 0.0, 0.0;
+		PrimPrimDistance::distancePrimitivePrimitive(info, capsuleA, capATF, capsuleB, capBTF);
+		printPrimPrimInfo(info);
+		cout << "After filtering by max_distance (0.05)" << endl;
+		info.filterContactPoints(0.05);
+		printPrimPrimInfo(info);
 	}
 }
