@@ -5,31 +5,9 @@
 #define COMPOSITE1PkN_H
 
 #include "Primitive.h"
-#include "PrimPrimContactInfo.h"
+#include "IntersectionEdge.h"
 
 namespace Sai2COPSim {
-
-// Parent is a Composite1PkN
-struct IntersectionEdge {
-	virtual PrimPrimContactInfo primDistance(Primitive* prim, const Eigen::Affine3d& primInParent) = 0;
-
-	virtual ~IntersectionEdge() = default;
-};
-
-struct CircleIE: public IntersectionEdge {
-	CircleIE(double in_radius, Eigen::Vector3d in_center, Eigen::Vector3d in_plane_normal)
-		: radius(in_radius), center(in_center), plane_normal(in_plane_normal) {}
-
-	PrimPrimContactInfo primDistance(Primitive* prim, const Eigen::Affine3d& primInParent) override;
-
-	double radius;
-	Eigen::Vector3d center;
-	Eigen::Vector3d plane_normal;
-protected:
-	CircleIE() {} // disable default constructor
-};
-
-// TODO: add line segment chain intersection edge
 
 // Parent is a Composite1PkN
 struct NegativePrimitiveInfo {

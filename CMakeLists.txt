@@ -73,6 +73,8 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/Primitive.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/PrimPrimContactInfo.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/PrimPrimDistance.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/IntersectionEdge.cpp
+  ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/IntersectionEdgePrimDistance.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/NegPrimPrimDistance.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/GeometryUtils.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/geometry/Composite1PkN.cpp
