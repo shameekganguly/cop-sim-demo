@@ -88,6 +88,7 @@ public:
 	// TODO: Composite1PkN - other primitives
 	// TODO: Composite1PkN - Composite1PkN
 
+	// NOTE: capsule is treated as a positive capsule here.
 	static void distanceNegCapsuleCapsule(
 		PrimPrimContactInfo& prim_prim_info,
 		const NegCapsulePrimitive& negCapsule, Eigen::Affine3d negCapsuleInWorld,
