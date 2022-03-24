@@ -481,7 +481,7 @@ namespace Sai2COPSim {
 			}
 			prim_prim_info.contact_patch._interior_point = interior_pt;
 			prim_prim_info.contact_patch.max_extent = 2*cylinder_radius;
-			Circle* c = new Circle();
+			auto * c = new Circle2D();
 			c->center = Vector2d::Zero();
 			c->radius = cylinder_radius;
 			prim_prim_info.contact_patch._intersection_curves.push_back(c);
@@ -527,19 +527,19 @@ namespace Sai2COPSim {
 					GeometryUtils::centroidOfPoints(prim_prim_info.contact_points);
 		contact_patch_tf.translation() = prim_prim_info.contact_patch._interior_point;
 		prim_prim_info.contact_patch.max_extent = (vertex1 - vertex4).norm();
-		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex1, contact_patch_tf),
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex2, contact_patch_tf)
 		));
-		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex1, contact_patch_tf),
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex3, contact_patch_tf)
 		));
-		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex2, contact_patch_tf),
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex4, contact_patch_tf)
 		));
-		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex3, contact_patch_tf),
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertex4, contact_patch_tf)
 		));
@@ -867,13 +867,13 @@ namespace Sai2COPSim {
 					GeometryUtils::centroidOfPoints(prim_prim_info.contact_points);
 		contact_patch_tf.translation() = prim_prim_info.contact_patch._interior_point;
 		for(uint i = 0; i < vertices.size()-1; i++) {
-			prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+			prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[i], contact_patch_tf),
 				GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[i+1], contact_patch_tf)
 			));
 		}
 		// add last edge
-		prim_prim_info.contact_patch._line_segments.push_back(LineSegment(
+		prim_prim_info.contact_patch._line_segments.push_back(LineSegment2D(
 			GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[vertices.size()-1], contact_patch_tf),
 			GeometryUtils::Point2DFromPoint3DPlaneTransform(vertices[0], contact_patch_tf)
 		));
@@ -1061,5 +1061,23 @@ namespace Sai2COPSim {
 									capsuleInWorld);
 
 		// TODO: Handle negative primitives
+
+		// If negative primitive reports undefined contact type, ignore the distance
+		// info result. This can happen if it is physically impossible for the positive
+		// primitive to fit in the negative primitive.
+
+		// If all negative primitives report full penetration, return the distance info
+		// from the positive primitive check.
+
+		// If a negative primitive reports partial penetration, filter contact points
+		// which lie inside the positive primitive
+
+		// Filter out the contact points from positive primitive which lie inside the
+		// negative primitive
+
+		// check for contact with intersection edge
+
+		// collect all contact points, normals and tangent directions and take the
+		// minimum of all the minimum distances and return
 	}
 }

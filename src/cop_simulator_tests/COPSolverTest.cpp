@@ -349,7 +349,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -388,7 +388,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -427,7 +427,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -466,7 +466,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -504,7 +504,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -542,7 +542,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -581,7 +581,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);
@@ -620,7 +620,7 @@ void testLinePtCOP() {
 		COPSolver solver;
 		ContactPatch patch;
 		patch.max_extent = 0.2;
-		Circle* c = new Circle();
+		auto * c = new Circle2D();
 		c->center.setZero();
 		c->radius = 0.1;
 		patch._intersection_curves.push_back(c);

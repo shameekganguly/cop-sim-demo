@@ -15,7 +15,7 @@ namespace ContactPatchAlgorithmicConstants {
 
 // NOTE: line points should be in patch coordinates. patch interior point is at (0,0)
 // in patch coordinates
-struct LineSegment {
+struct LineSegment2D {
 	Eigen::Vector2d point1;
 	Eigen::Vector2d point2;
 	double length;
@@ -23,7 +23,7 @@ struct LineSegment {
 	Eigen::Vector2d interior_pt_proj;
 
 	// ctor
-	LineSegment(const Eigen::Vector2d& point1, const Eigen::Vector2d& point2)
+	LineSegment2D(const Eigen::Vector2d& point1, const Eigen::Vector2d& point2)
 	: point1(point1), point2(point2)
 	{
 		Eigen::Vector2d temp = point2 - point1;
@@ -56,7 +56,7 @@ struct LineSegment {
 
 //TODO: these should be only convex curves in the sense that the interior point
 // should be on the convex side of the curve
-struct Curve {
+struct Curve2D {
 	// distance to closest point on the curve from the test point
 	// Note: distance is positive if point is on the same side of the curve as the
 	// interior point, else it is negative
@@ -73,7 +73,7 @@ struct Curve {
 	}
 };
 
-struct Circle: public Curve {
+struct Circle2D: public Curve2D {
 	Eigen::Vector2d center;
 	double distanceToPoint(const Eigen::Vector2d& point) const {
 		return radius - (point - center).norm();
@@ -144,9 +144,9 @@ public:
 
 public:
 	double max_extent; // used to compute mu_rotation
-	std::vector<Curve*> _intersection_curves; //TODO: what about unions? think about a box with rounded corners
+	std::vector<Curve2D*> _intersection_curves; //TODO: what about unions? think about a box with rounded corners
 	Eigen::Vector3d _interior_point; // origin of patch coordinates in global frame
-	std::vector<LineSegment> _line_segments;
+	std::vector<LineSegment2D> _line_segments;
 };
 
 }
