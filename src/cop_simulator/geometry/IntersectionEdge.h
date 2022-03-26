@@ -18,6 +18,10 @@ struct IntersectionEdge {
 struct Circle3D: public IntersectionEdge {
 	Circle3D(double in_radius, Eigen::Vector3d in_center, Eigen::Vector3d in_plane_normal)
 	: radius(in_radius), center(in_center), plane_normal(in_plane_normal) {
+		if(radius < 0.001) {
+			std::cerr << radius << std::endl;
+			throw(std::runtime_error("Radius too small."));
+		}
 		circle_frame_in_parent.translation() = center;
 		Eigen::Vector3d circle_x (1, 0, 0);
 		if (circle_x.dot(plane_normal) > 0.999) {
@@ -46,6 +50,9 @@ protected:
 // Specialized functions for distance from different primitives
 class Circle3DDistance {
 public:
+	// Returns closest point on the circle in parent frame
+	static Eigen::Vector3d pointDist(const Eigen::Vector3d& pointInParent, const Circle3D& circle);
+
 	static PrimPrimContactInfo capsuleDist(const CapsulePrimitive& cap, const Circle3D& circle, const Eigen::Affine3d& primInParent);
 };
 

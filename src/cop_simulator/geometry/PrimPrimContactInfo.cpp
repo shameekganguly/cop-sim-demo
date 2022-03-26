@@ -60,4 +60,8 @@ void PrimPrimContactInfo::filterContactPoints(double max_distance) {
 	distances.resize(filtered_inds.size());
 }
 
+void PrimPrimContactInfo::setMinDistanceFromDistances() {
+	min_distance = *(std::min_element(distances.begin(), distances.end()));
+}
+
 }

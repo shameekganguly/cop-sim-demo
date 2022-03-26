@@ -5,6 +5,7 @@ SET(CMAKE_CXX_FLAGS "-std=c++14")
 
 include_directories(
 	/usr/local/include
+  /usr/local/include/gte  # required for gte Mathematics
 	${PROJECT_SOURCE_DIR}/src
 )
 

@@ -109,6 +109,9 @@ public:
 	// distances by a max distance threshold.
 	// Only for CONCAVE contact type
 	void filterContactPoints(double max_distance);
+
+	// Only for CONCAVE contact type. distances should be set already
+	void setMinDistanceFromDistances();
 };
 
 }
