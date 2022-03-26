@@ -6,8 +6,6 @@
 #include <unordered_map>
 #include <Eigen/Dense>
 
-#include "geometry/Primitive.h"
-#include "geometry/Composite1PkN.h"
 #include "ArticulatedRigidBodyManager.h"
 #include "WorldContactMap.h"
 #include "GeometryManager.h"
@@ -22,6 +20,9 @@ namespace COPAlgorithmicConstants {
 	const long NUM_ITERS_BEFORE_INERTIA_AND_CONTACT_MODEL_UPDATE = 20; //count
 	const long NUM_ITERS_BEFORE_NONLINEAR_ACCERLATION_UPDATE = 8; //count
 };
+
+class Composite1PkN;
+class Primitive;
 
 class COPSimulator {
 public:

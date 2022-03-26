@@ -5,10 +5,11 @@
 
 #include <vector>
 
-#include "geometry/Primitive.h"
 #include "geometry/PrimPrimContactInfo.h"
 
 namespace Sai2COPSim {
+
+class Primitive;
 
 class GeometryManager {
 public:

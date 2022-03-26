@@ -7,10 +7,11 @@
 #include <list>
 #include <unordered_set>
 
-#include "geometry/Primitive.h"
 #include "geometry/PrimPrimContactInfo.h"
 
 namespace Sai2COPSim {
+
+class Primitive;
 
 struct ContactPrimitivePair {
 	Primitive* primA;

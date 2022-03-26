@@ -1,6 +1,8 @@
 // COPSimulator.cpp
 #include <iostream>
 #include "COPSimulator.h"
+#include "geometry/Primitive.h"
+#include "geometry/Composite1PkN.h"
 #include <rbdl/rbdl.h>
 
 using namespace Eigen;
