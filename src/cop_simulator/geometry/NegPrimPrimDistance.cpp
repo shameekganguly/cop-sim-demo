@@ -74,11 +74,13 @@ void PrimPrimDistance::distanceNegCapsuleCapsule(
 			// use neg capsule x axis
 			Vector3d dir1(1.0, 0.0, 0.0);
 			dir1 -= normal(0)*normal;
+			dir1 /= dir1.norm();
 			prim_prim_info.constraint_dir1s.push_back(dir1);
 		} else {
 			// use neg capsule y axis
 			Vector3d dir1(0.0, 1.0, 0.0);
 			dir1 -= normal(1)*normal;
+			dir1 /= dir1.norm();
 			prim_prim_info.constraint_dir1s.push_back(dir1);
 		}
 		prim_prim_info.constraint_dir2s.push_back(normal.cross(prim_prim_info.constraint_dir1s.back()));
@@ -127,7 +129,7 @@ void PrimPrimDistance::distanceNegCapsuleCapsule(
 	}
 
 	prim_prim_info.type = ContactType::CONCAVE;
-	prim_prim_info.min_distance = *(std::min_element(prim_prim_info.distances.begin(), prim_prim_info.distances.end()));
+	prim_prim_info.setMinDistanceFromDistances();
 
 	// transfer from negCapsule coordinates to world coordinates
 	for(auto& normal_dir: prim_prim_info.normal_dirs) {
