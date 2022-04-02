@@ -1074,7 +1074,6 @@ namespace Sai2COPSim {
 				}
 			}
 		};
-
 		// Handle negative primitives
 		std::vector<uint> pos_inds_to_remove;
 		for(const auto& neg_prim_info: composite._negativePrimitives) {
@@ -1112,7 +1111,7 @@ namespace Sai2COPSim {
 						PointPrimDistance::distancePointPrimitive(
 							neg_dist_info.contact_points[j],
 							composite._positivePrimitive, compositeInWorld);
-					if(neg_pt_in_pos_prim_info.distance <= -1e-3) {
+					if(neg_pt_in_pos_prim_info.distance <= -1e-6) {
 						keep_neg_pts_indices.push_back(j);
 					} else {
 						// std::cout << "Remove point " << neg_dist_info.contact_points[j].transpose() << std::endl;
