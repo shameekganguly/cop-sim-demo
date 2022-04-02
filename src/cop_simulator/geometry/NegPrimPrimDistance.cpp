@@ -25,6 +25,8 @@ void PrimPrimDistance::distanceNegCapsuleCapsule(
 
 	PrimPrimContactInfo pos_dist_info;
 	CapsulePrimitive pos_cap("tdncc", neg_cap_rad, 2*neg_cap_half_len);
+	// TODO: need to be careful here. There is a chance that the normal computation
+	// inside the positive capsule distance check results in a divide by zero.
 	distanceCapsuleCapsule(pos_dist_info, pos_cap, negCapsuleInWorld, capsule, capsuleInWorld);
 	// TODO: this check can be generalized to all negative volumes. The positive volume acts
 	// as a cover for the negative volume
