@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <iostream>
+#include "PointPrimDistance.h"
 #include "Primitive.h"
+#include "PrimNormal.h"
 #include "PrimPrimDistance.h"
 #include "GeometryUtils.h"
 
@@ -1059,25 +1061,120 @@ namespace Sai2COPSim {
 									compositeInWorld,
 									&capsule,
 									capsuleInWorld);
+		const uint pos_prim_contact_pts_size = prim_prim_info.contact_points.size();
 
-		// TODO: Handle negative primitives
+		auto set_keep_inds_from_exclude_inds = [](std::vector<uint>& keep_inds,
+			const std::vector<uint>& exclude_inds, uint size) {
+			uint eind = 0;
+			for(uint i = 0; i < size; i++) {
+				if(eind < exclude_inds.size() && i == exclude_inds[eind]) {
+					eind++;
+				} else {
+					keep_inds.push_back(i);
+				}
+			}
+		};
 
-		// If negative primitive reports undefined contact type, ignore the distance
-		// info result. This can happen if it is physically impossible for the positive
-		// primitive to fit in the negative primitive.
+		// Handle negative primitives
+		std::vector<uint> pos_inds_to_remove;
+		for(const auto& neg_prim_info: composite._negativePrimitives) {
+			PrimPrimContactInfo neg_dist_info;
+			Affine3d neg_prim_in_world = compositeInWorld*neg_prim_info.transform_in_parent;
+			distancePrimitivePrimitive(neg_dist_info, neg_prim_info.prim,
+									neg_prim_in_world, &capsule, capsuleInWorld);
+			// If all negative primitives report full penetration, return the distance info
+			// from the positive primitive check.
+			if(fabs(neg_dist_info.min_distance - PrimitiveAlgorithmicConstants::DISTANCE_FULL_PENETRATION) < 1e-3) {
+				continue;
+			}
 
-		// If all negative primitives report full penetration, return the distance info
-		// from the positive primitive check.
+			// Filter out the contact points from positive primitive which lie inside the
+			// negative primitive
+			for(uint i = 0; i < pos_prim_contact_pts_size; i++) {
+				auto pos_pt = prim_prim_info.contact_points[i];
+				PointPrimDistanceInfo pos_pt_in_neg_prim_info =
+					PointPrimDistance::distancePointPrimitive(
+						pos_pt, neg_prim_info.prim, neg_prim_in_world);
+				if(pos_pt_in_neg_prim_info.distance > 0) {
+					pos_inds_to_remove.push_back(i);
+				}
+			}
 
-		// If a negative primitive reports partial penetration, filter contact points
-		// which lie inside the positive primitive
+			// If negative primitive reports undefined contact type, ignore the distance
+			// info result. This can happen if it is physically impossible for the positive
+			// primitive to fit in the negative primitive.
+			if(neg_dist_info.type != ContactType::UNDEFINED) {
+				// If a negative primitive reports partial penetration, filter contact
+				// points which lie inside the positive primitive
+				std::vector<uint> keep_neg_pts_indices;
+				for(uint j = 0; j < neg_dist_info.contact_points.size(); j++) {
+					PointPrimDistanceInfo neg_pt_in_pos_prim_info =
+						PointPrimDistance::distancePointPrimitive(
+							neg_dist_info.contact_points[j],
+							composite._positivePrimitive, compositeInWorld);
+					if(neg_pt_in_pos_prim_info.distance <= -1e-3) {
+						keep_neg_pts_indices.push_back(j);
+					} else {
+						// std::cout << "Remove point " << neg_dist_info.contact_points[j].transpose() << std::endl;
+					}
+				}
+				neg_dist_info.filterContactPoints(keep_neg_pts_indices);
 
-		// Filter out the contact points from positive primitive which lie inside the
-		// negative primitive
+				// set contact type to CONCAVE and insert points from neg prim contact
+				prim_prim_info.addOtherContactInfo(neg_dist_info);
+			}
 
-		// check for contact with intersection edge
+			// check for contact with intersection edge
+			// TODO: if the test primitive is completely contained inside the positive,
+			// primitive, the intersection check can be omitted
+			for(const auto* i_edge: neg_prim_info.intersection_edges) {
+				PrimPrimContactInfo edge_dist_info =
+					i_edge->primDistance(&capsule, compositeInWorld.inverse()*capsuleInWorld);
+				// filter points from contact with intersection edge where the normal points
+				// outwards from the negative primitive or inwards from the positive primitive
+				// std::cout << "Edge points " << edge_dist_info.contact_points.size() << std::endl;
+				std::vector<uint> edge_pts_to_keep;
+				for(uint pt_ind = 0; pt_ind < edge_dist_info.contact_points.size(); pt_ind++) {
+					Vector3d normal;
+					// check with positive primitive
+					if(!PrimNormal::primNormal(normal,
+							edge_dist_info.contact_points[pt_ind],
+							composite._positivePrimitive, compositeInWorld)) {
+						throw(std::runtime_error("Pt not on positive prim"));
+					}
+					if(normal.dot(edge_dist_info.normal_dirs[pt_ind]) < -1e-3) {
+						// std::cout << "Remove edge point " << edge_dist_info.contact_points[pt_ind].transpose()
+						//           << " normal(1): " << edge_dist_info.normal_dirs[pt_ind].transpose() << std::endl;
+						continue;
+					}
+					// check with negative primitive
+					if(!PrimNormal::primNormal(normal,
+							edge_dist_info.contact_points[pt_ind],
+							neg_prim_info.prim, neg_prim_in_world)) {
+						throw(std::runtime_error("Pt not on negative prim"));
+					}
+					if(normal.dot(edge_dist_info.normal_dirs[pt_ind]) < -1e-3) {
+						// std::cout << "Remove edge point " << edge_dist_info.contact_points[pt_ind].transpose()
+						//           << " normal(2): " << edge_dist_info.normal_dirs[pt_ind].transpose() << std::endl;
+						continue;
+					}
+					edge_pts_to_keep.push_back(pt_ind);
+				}
+				edge_dist_info.filterContactPoints(edge_pts_to_keep);
 
-		// collect all contact points, normals and tangent directions and take the
-		// minimum of all the minimum distances and return
+				// add remaining points to prim_prim_info
+				prim_prim_info.addOtherContactInfo(edge_dist_info);
+			}
+		}
+
+		// remove all positive contact points in pos_inds_to_remove
+		// have to be careful, the minimum distance should be adjusted accordingly
+		// e.g. capsule hovering right above the hole
+		// hopefully, this is handled by the distance from the intersection edge?
+		if(!pos_inds_to_remove.empty()) {
+			std::vector<uint> pos_inds_to_keep;
+			set_keep_inds_from_exclude_inds(pos_inds_to_keep, pos_inds_to_remove, prim_prim_info.contact_points.size());
+			prim_prim_info.filterContactPoints(pos_inds_to_keep);
+		}
 	}
 }

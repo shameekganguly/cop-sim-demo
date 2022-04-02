@@ -67,13 +67,15 @@ void testCapsuleCapsuleDistance();
 void testPlaneCylinderDistance();
 void testNegCapsuleCapsuleDistance();
 void testCircleCapsuleDistance();
+void testCapsuleComposite1PkN_1NegCapsule_1Plane_Distance();
 
 int main (int argc, char** argv) {
 	// testPlaneCapsuleDistance();
 	// testCapsuleCapsuleDistance();
 	// testPlaneCylinderDistance();
 	// testNegCapsuleCapsuleDistance();
-	testCircleCapsuleDistance();
+	// testCircleCapsuleDistance();
+	testCapsuleComposite1PkN_1NegCapsule_1Plane_Distance();
 	return 0;
 }
 
@@ -1146,4 +1148,187 @@ void testCircleCapsuleDistance() {
 		printPrimPrimInfo(info);
 	}
 
+}
+
+void testCapsuleComposite1PkN_1NegCapsule_1Plane_Distance() {
+	cout << "---- Testing distance between Capsule and Composite1PkN_1NegCapsule_1Plane ----" << endl;
+	{
+		cout << "-- Test 1: Construct --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTf = Eigen::Affine3d::Identity();
+		capTf.translation() << 1.0, 0.0, 1.0;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		cout << "Num negative primitives " << composite._negativePrimitives.size() << endl;
+		cout << "Num intersection edges for neg prim: "
+			 << composite._negativePrimitives[0].intersection_edges.size() << endl;
+		auto* circle = dynamic_cast<Circle3D*>(composite._negativePrimitives[0].intersection_edges[0]);
+
+		cout << "Intersection circle radius " << circle->radius << endl;
+		cout << "Intersection circle pt " << circle->center.transpose() << endl;
+		cout << "Intersection circle normal " << circle->plane_normal.transpose() << endl;
+		cout << "Intersection circle tf in parent translation "
+			 << circle->circle_frame_in_parent.translation().transpose() << endl;
+		 cout << "Intersection circle tf in parent rotation \n"
+			 << circle->circle_frame_in_parent.linear() << endl;
+	}
+	{
+		cout << "-- Test 2: Far from neg prim --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 1.0, 0.0, 0.1;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 3: Above neg prim --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, 0.2;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 4: Partly above neg prim --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.4, 0.0, 0.2;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 5: Above neg prim, long --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 1.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, 0.2;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 6: Inside neg prim --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, -0.2;
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 7: Touching edge at angle --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, 0.0;
+		capTF.linear() = Matrix3d(AngleAxisd(M_PI/4,  Vector3d::UnitY()));
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &composite, compTf, &cap, capTF);
+		printPrimPrimInfo(contact_info);
+	}
+	{
+		cout << "-- Test 8: Flip contact info --" << endl;
+		CapsulePrimitive cap("capTest", 0.1, 0.2);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, 0.0;
+		capTF.linear() = Matrix3d(AngleAxisd(M_PI/4,  Vector3d::UnitY()));
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.4, 1.0);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() << 0, 0, -1,
+							 0, 1, 0,
+							 1, 0, 0;
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &cap, capTF, &composite, compTf);
+		printPrimPrimInfo(contact_info);
+	}
 }
