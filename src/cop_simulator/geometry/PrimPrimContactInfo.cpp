@@ -115,7 +115,9 @@ void PrimPrimContactInfo::addOtherContactInfo(const PrimPrimContactInfo& other_c
 	append_vectorB_to_vectorA_Vector3d(constraint_dir2s, other_contact_info.constraint_dir2s);
 	append_vectorB_to_vectorA_double(distances, other_contact_info.distances);
 
-	setMinDistanceFromDistances();
+	if(!distances.empty()) {
+		setMinDistanceFromDistances();
+	}
 }
 
 }
