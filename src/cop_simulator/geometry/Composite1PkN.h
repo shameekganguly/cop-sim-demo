@@ -11,13 +11,32 @@ namespace Sai2COPSim {
 
 // Parent is a Composite1PkN
 struct NegativePrimitiveInfo {
+	NegativePrimitiveInfo() = default;
+	NegativePrimitiveInfo(NegativePrimitiveInfo&& other) {
+		prim = other.prim;
+		other.prim = NULL;
+		transform_in_parent = std::move(other.transform_in_parent);
+		intersection_edges.insert(intersection_edges.end(), other.intersection_edges.begin(), other.intersection_edges.end());
+		other.intersection_edges.clear();
+	}
+
 	~NegativePrimitiveInfo() {
-		delete prim;
+		if(prim != NULL) {
+			delete prim;
+		}
+		for(uint i = 0; i < intersection_edges.size(); i++) {
+			delete intersection_edges[i];
+			intersection_edges[i] = NULL;
+		}
 	}
 
 	Primitive* prim;
-	std::vector<IntersectionEdge> intersection_edge;
+	std::vector<IntersectionEdge*> intersection_edges;
 	Eigen::Affine3d transform_in_parent;
+
+	// delete copy constructor to prevent bad memory release
+	NegativePrimitiveInfo(const NegativePrimitiveInfo&) =delete;
+	NegativePrimitiveInfo& operator=(const NegativePrimitiveInfo&) =delete;
 };
 
 // Shape coordinate system is same as the positive primitive.
@@ -32,12 +51,7 @@ public:
 	}
 
 	// Takes ownership of negativePrimitive
-	bool addNegativePrimitive(Primitive* negativePrimitive, Eigen::Affine3d world) {
-		// TODO: Handle transform and implement
-		// Check if intersects with other negative prims
-		// Compute intersections with surface of positive prim
-		return true;
-	}
+	bool addNegativePrimitive(Primitive* negativePrimitive, Eigen::Affine3d primInPositivePrim);
 
 public:
 	Primitive* _positivePrimitive;
