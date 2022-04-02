@@ -110,8 +110,20 @@ public:
 	// Only for CONCAVE contact type
 	void filterContactPoints(double max_distance);
 
+	// filter contact points, normal_dirs, constraint_dir1s, constraint_dir2s and
+	// distances by a boolean condition on the contact point
+	// Only for CONCAVE contact type
+	// If qualifier function returns true for the test point, then that point is retained
+	// otherwise the point is dropped
+	void filterContactPoints(std::function<bool(const Eigen::Vector3d& pt_in_world)>& qualifier);
+
+	void filterContactPoints(const std::vector<uint>& keep_indices);
+
 	// Only for CONCAVE contact type. distances should be set already
 	void setMinDistanceFromDistances();
+
+	// Add other PrimPrimContactInfo and set concave
+	void addOtherContactInfo(const PrimPrimContactInfo& other_contact_info);
 };
 
 }
