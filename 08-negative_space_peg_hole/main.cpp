@@ -12,6 +12,9 @@ Date: 03/21/2022
 #include <chrono>
 #include <math.h>
 #include <vector>
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
 using namespace std;
 
 #include "Sai2Model.h"
@@ -26,9 +29,23 @@ using namespace Eigen;
 
 #include "timer/LoopTimer.h"
 
+#include "cop_simulator/geometry/Composite1PkN.h"
 #include "cop_simulator/COPSimulator.h"
 
 #include <GLFW/glfw3.h> //must be loaded after loading opengl/glew as part of graphicsinterface
+
+void handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
 
 using namespace chai3d;
 
@@ -89,6 +106,7 @@ void glfwError(int error, const char* description);
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main(int argc, char** argv) {
+    signal(SIGSEGV, handler);
 	const double restitution = 0.4;
     const double friction = 0.2;
 
@@ -159,8 +177,15 @@ int main(int argc, char** argv) {
     cop_sim->addCapsuleToObject(capsule_object_name, object_link_name, "capsule_mid", capsule_radius, capsule_length, Affine3d::Identity());
 
     // add block
-    auto* composite = cop_sim->addPlaneComposite1PkN(block_name, block_in_world.linear().col(2), block_in_world.translation());
-    // TODO: add negative capsule to compositive1PkN
+    auto* composite = cop_sim->addPlaneComposite1PkN(block_name, Vector3d::UnitZ(), Vector3d::Zero());
+    composite->_transform_in_link = block_in_world;
+    auto* negCap = new Sai2COPSim::NegCapsulePrimitive("negCap", 0.015, 0.1);
+    Affine3d negCapTf = Eigen::Affine3d::Identity();
+    negCapTf.linear() = Matrix3d(AngleAxisd(-M_PI/2,  Vector3d::UnitY()));
+    composite->addNegativePrimitive(negCap, negCapTf);
+
+    // Allow point-based resolution for CONCAVE contacts
+    cop_sim->_contact_model->setSupportPtContactSteadyContact(true);
 
     // TODO: force sim/ display
 
