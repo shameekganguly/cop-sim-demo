@@ -6,7 +6,7 @@ using namespace Eigen;
 
 namespace Sai2COPSim {
 
-PrimPrimContactInfo Circle3D::primDistance(Primitive* prim, const Eigen::Affine3d& primInParent) {
+PrimPrimContactInfo Circle3D::primDistance(const Primitive* prim, const Eigen::Affine3d& primInParent) const {
 	if(prim->_type == Primitive::GeometryType::Capsule) {
 		return Circle3DDistance::capsuleDist(*(dynamic_cast<const CapsulePrimitive*>(prim)), *this, primInParent);
 	} else {

@@ -10,7 +10,7 @@ namespace Sai2COPSim {
 
 // Parent is a Composite1PkN
 struct IntersectionEdge {
-	virtual PrimPrimContactInfo primDistance(Primitive* prim, const Eigen::Affine3d& primInParent) = 0;
+	virtual PrimPrimContactInfo primDistance(const Primitive* prim, const Eigen::Affine3d& primInParent) const = 0;
 
 	virtual ~IntersectionEdge() = default;
 };
@@ -34,7 +34,7 @@ struct Circle3D: public IntersectionEdge {
 		circle_frame_in_parent.linear().col(2) = plane_normal;
 	}
 
-	PrimPrimContactInfo primDistance(Primitive* prim, const Eigen::Affine3d& primInParent) override;
+	PrimPrimContactInfo primDistance(const Primitive* prim, const Eigen::Affine3d& primInParent) const override;
 
 	double radius;
 	Eigen::Vector3d center;
@@ -57,6 +57,21 @@ public:
 };
 
 // TODO: add line segment chain intersection edge
+
+class IntersectionEdgeFactory {
+public:
+	// NOTE: returns intersection edges with internal transforms in the positive
+	// primitive's frame.
+	static std::vector<IntersectionEdge*> computeIntersectionEdges(
+		const Primitive* positivePrim, const Eigen::Affine3d& positivePrimInWorld,
+		const Primitive* negativePrim, const Eigen::Affine3d& negativePrimInWorld);
+
+	static std::vector<IntersectionEdge*> computeIntersectionEdgesPlaneNegCapsule(
+		const PlanePrimitive& plane, const Eigen::Affine3d& planeInWorld,
+		const NegCapsulePrimitive& negCapsule, const Eigen::Affine3d& negCapsuleInWorld);
+
+	// TODO: implement intersection computation for other primitives
+};
 
 }
 
