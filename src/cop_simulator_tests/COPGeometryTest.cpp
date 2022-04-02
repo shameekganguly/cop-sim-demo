@@ -1331,4 +1331,24 @@ void testCapsuleComposite1PkN_1NegCapsule_1Plane_Distance() {
 		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &cap, capTF, &composite, compTf);
 		printPrimPrimInfo(contact_info);
 	}
+	{
+		cout << "-- Test 9: Vertical capsule on neg cap --" << endl;
+		CapsulePrimitive cap("capTest", 0.01, 0.08);
+		Affine3d capTF = Eigen::Affine3d::Identity();
+		capTF.translation() << 0.0, 0.0, 0.114979;
+		capTF.linear() = Matrix3d(AngleAxisd(M_PI/2,  Vector3d::UnitY()));
+
+		PlanePrimitive* plane = new PlanePrimitive("posPlane", Vector3d(0, 0, 1), Vector3d::Zero());
+		Composite1PkN composite("comp", plane);
+
+		Affine3d compTf = Eigen::Affine3d::Identity();
+
+		NegCapsulePrimitive* negCap = new NegCapsulePrimitive("negCap", 0.015, 0.1);
+		Affine3d negCapTf = Eigen::Affine3d::Identity();
+		negCapTf.linear() = Matrix3d(AngleAxisd(-M_PI/2,  Vector3d::UnitY()));
+		composite.addNegativePrimitive(negCap, negCapTf);
+		PrimPrimContactInfo contact_info;
+		PrimPrimDistance::distancePrimitivePrimitive(contact_info, &cap, capTF, &composite, compTf);
+		printPrimPrimInfo(contact_info);
+	}
 }
