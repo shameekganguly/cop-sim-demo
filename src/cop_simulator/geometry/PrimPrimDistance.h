@@ -25,6 +25,7 @@ public:
 	// TODO: add flag for whether clues should be used from the passed info to compute
 	// delta distance updates
 	// NOTE: currently, each of these calls clears the existing prim_prim_info
+	// TODO: allow call without setting the normal and constraint directions.
 	static void distancePrimitivePrimitive(
 		PrimPrimContactInfo& prim_prim_info,
 		const Primitive* primA, Eigen::Affine3d primAinWorld,
