@@ -146,21 +146,42 @@
                 <mesh filename="meshes/link6.obj" scale="1 1 1" />
             </geometry>
         </visual>
-        <visual>
-            <origin xyz="-0.01 0.0 0.048" rpy="1.5707 0 -1.5707" />
-            <geometry>
-                <mesh filename="hand2.obj" scale="1 1 1" />
-            </geometry>
-        </visual>
         <!-- <visual>
-            <origin xyz="-0.03 0 0.028" rpy="0 0 0" />
+            <origin xyz="0 0 0.13" rpy="0 1.5707 0" />
             <geometry>
-                <capsule radius="0.05" length="0.1"/>
+                <capsule radius="0.008" length="0.08"/>
             </geometry>
             <material name="material_maroon">
                 <color rgba="0.6 0.4 0.1 1.0" />
             </material>
         </visual> -->
+        <visual>
+            <origin xyz="0 0.05 0.13" rpy="0 1.5707 0" /> <!-- Includes z offset of +0.04 -->
+            <geometry>
+                <capsule radius="0.008" length="0.08"/>
+            </geometry>
+            <material name="material_maroon">
+                <color rgba="0.6 0.4 0.1 1.0" />
+            </material>
+        </visual>
+        <visual>
+            <origin xyz="0.0433 -0.025 0.13" rpy="0 1.5707 0" />
+            <geometry>
+                <capsule radius="0.008" length="0.08"/>
+            </geometry>
+            <material name="material_maroon">
+                <color rgba="0.6 0.4 0.1 1.0" />
+            </material>
+        </visual>
+        <visual>
+            <origin xyz="-0.0433 -0.025 0.13" rpy="0 1.5707 0" />
+            <geometry>
+                <capsule radius="0.008" length="0.08"/>
+            </geometry>
+            <material name="material_maroon">
+                <color rgba="0.6 0.4 0.1 1.0" />
+            </material>
+        </visual>
     </link>
     <joint name="j0" type="revolute">
         <parent link="base_link" />

@@ -35,6 +35,11 @@ PrimPrimContactInfo Circle3DDistance::capsuleDist(const CapsulePrimitive& cap,
 	double cap_rad = cap._props->radius;
 	double cap_half_len = cap._props->length*0.5;
 
+	// early return if distance is very large
+	if (cap_center_local.norm() > 1.5*(circle_rad + cap_half_len + cap_rad)) {
+		return ret_info;
+	}
+
 	// Call ONLY ONCE to add both tangent directions.
 	auto add_constraint_dirs = [](Vector3d& normal, PrimPrimContactInfo& add_info) {
 		if(fabs(normal(2)) < 0.999) {
@@ -231,15 +236,24 @@ PrimPrimContactInfo Circle3DDistance::capsuleDist(const CapsulePrimitive& cap,
 				sol_a_vec.push_back(0);
 			}
 		} else {
+			// std::cout << "Quartic\n";
 			// set up quartic equation
 			std::map<double, int32_t> roots;
-			using gte::BSRational;
-			using gte::UIntegerAP32;
-			BSRational<UIntegerAP32> p4(tnsqr*tnsqr_comp);
-			BSRational<UIntegerAP32> p3(2*tm * tn*tn*tn);
-			BSRational<UIntegerAP32> p2(tqsqr - tmsqr*(1 + tnsqr) - Rsqr*tnsqr_comp*tnsqr_comp);
-			BSRational<UIntegerAP32> p1(-2*Rsqr*tm*tn*tnsqr_comp);
-			BSRational<UIntegerAP32> p0(-Rsqr*tmsqr*tnsqr);
+			// NOTE: Using rationals is more accurate, but leads to 40x slowdown!
+			// using gte::BSRational;
+			// using gte::UIntegerAP32;
+			// BSRational<UIntegerAP32> p4(tnsqr*tnsqr_comp);
+			// BSRational<UIntegerAP32> p3(2*tm * tn*tn*tn);
+			// BSRational<UIntegerAP32> p2(tqsqr - tmsqr*(1 + tnsqr) - Rsqr*tnsqr_comp*tnsqr_comp);
+			// BSRational<UIntegerAP32> p1(-2*Rsqr*tm*tn*tnsqr_comp);
+			// BSRational<UIntegerAP32> p0(-Rsqr*tmsqr*tnsqr);
+
+			double p4(tnsqr*tnsqr_comp);
+			double p3(2*tm * tn*tn*tn);
+			double p2(tqsqr - tmsqr*(1 + tnsqr) - Rsqr*tnsqr_comp*tnsqr_comp);
+			double p1(-2*Rsqr*tm*tn*tnsqr_comp);
+			double p0(-Rsqr*tmsqr*tnsqr);
+
 			// only returns real roots
 			gte::RootsPolynomial<double>::SolveQuartic(p0, p1, p2, p3, p4, roots);
 			if (roots.empty()) throw(std::runtime_error("Could not solve quartic."));
@@ -329,7 +343,8 @@ PrimPrimContactInfo Circle3DDistance::capsuleDist(const CapsulePrimitive& cap,
 		}
 	}
 	if(ret_info.contact_points.size() == 0) {
-		throw(std::runtime_error("Did not generate any contact points"));
+		// throw(std::runtime_error("Did not generate any contact points"));
+		return ret_info;
 	}
 
 	ret_info.type = ContactType::CONCAVE;

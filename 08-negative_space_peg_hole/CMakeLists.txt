@@ -10,4 +10,12 @@ SET(RESOURCE_DIR ${COP_DEMO_BINARY_DIR}/resources)
 FILE(MAKE_DIRECTORY ${RESOURCE_DIR})
 SET(APP_RESOURCE_DIR ${RESOURCE_DIR}/08-negative_space_peg_hole)
 FILE(MAKE_DIRECTORY ${APP_RESOURCE_DIR})
-FILE(COPY world.urdf capsule_object.urdf left_half.mtl left_half.obj right_half.mtl right_half.obj DESTINATION ${APP_RESOURCE_DIR})
+FILE(COPY world.urdf
+		  capsule_object.urdf
+		  left_half.mtl
+		  left_half.obj
+		  right_half.mtl
+		  right_half.obj
+		  three_hole_block.mtl
+		  three_hole_block.obj
+		DESTINATION ${APP_RESOURCE_DIR})

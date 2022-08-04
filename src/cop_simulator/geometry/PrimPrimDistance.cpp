@@ -1162,7 +1162,9 @@ namespace Sai2COPSim {
 				edge_dist_info.filterContactPoints(edge_pts_to_keep);
 
 				// add remaining points to prim_prim_info
-				prim_prim_info.addOtherContactInfo(edge_dist_info);
+				if(!edge_dist_info.contact_points.empty()) {
+					prim_prim_info.addOtherContactInfo(edge_dist_info);
+				}
 			}
 		}
 
@@ -1175,5 +1177,9 @@ namespace Sai2COPSim {
 			set_keep_inds_from_exclude_inds(pos_inds_to_keep, pos_inds_to_remove, prim_prim_info.contact_points.size());
 			prim_prim_info.filterContactPoints(pos_inds_to_keep);
 		}
+		// TODO: ensure we do not return zero contact points. This can happen when the
+		// contact points for the negative prim are removed because they are too close to
+		// the positive surface, and the points from the intersection edges are removed
+		// because the normal is pointing inwards towards the positive surface.
 	}
 }

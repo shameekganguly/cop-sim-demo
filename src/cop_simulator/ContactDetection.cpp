@@ -95,7 +95,8 @@ void COPSimulator::computeWorldContactMap() {
 			ppinfo->filterContactPoints(COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD);
 
 			// check if in contact
-			if(ppinfo->min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD) {
+			if(ppinfo->min_distance < COPAlgorithmicConstants::GEOMETRIC_CONTACT_DISTANCE_THRESHOLD &&
+				(ppinfo->type != ContactType::CONCAVE || ppinfo->contact_points.size() > 0)) {
 				_max_penetration_current = max(_max_penetration_current, -ppinfo->min_distance);
 				// if(_iterations % 100 == 0)
 				// 	std::cout << "_max_penetration_current " << _max_penetration_current << std::endl;
