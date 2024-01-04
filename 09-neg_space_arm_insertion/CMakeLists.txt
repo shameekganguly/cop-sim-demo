@@ -1,14 +1,14 @@
 # create an executable
-ADD_EXECUTABLE (08-negative_space_peg_hole main.cpp)
+ADD_EXECUTABLE (09-neg_space_arm_insertion main.cpp)
 
 # and link the library against the executable
-TARGET_LINK_LIBRARIES (08-negative_space_peg_hole ${COP_DEMO_COMMON_LIBRARIES})
+TARGET_LINK_LIBRARIES (09-neg_space_arm_insertion ${COP_DEMO_COMMON_LIBRARIES})
 
 # export resources such as model files.
 # NOTE: this requires an install build
 SET(RESOURCE_DIR ${COP_DEMO_BINARY_DIR}/resources)
 FILE(MAKE_DIRECTORY ${RESOURCE_DIR})
-SET(APP_RESOURCE_DIR ${RESOURCE_DIR}/08-negative_space_peg_hole)
+SET(APP_RESOURCE_DIR ${RESOURCE_DIR}/09-neg_space_arm_insertion)
 FILE(MAKE_DIRECTORY ${APP_RESOURCE_DIR})
 FILE(COPY world.urdf
 		  capsule_object.urdf
@@ -16,4 +16,6 @@ FILE(COPY world.urdf
 		  left_half.obj
 		  right_half.mtl
 		  right_half.obj
+		  three_hole_block.mtl
+		  three_hole_block.obj
 		DESTINATION ${APP_RESOURCE_DIR})

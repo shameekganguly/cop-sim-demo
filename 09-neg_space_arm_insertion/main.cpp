@@ -51,6 +51,17 @@ using namespace chai3d;
 
 const string world_fname = "resources/08-negative_space_peg_hole/world.urdf";
 
+const string robot_fname = "../resources/kuka_iiwa/kuka_iiwa_peg_hole1.urdf";
+const string robot_name = "IIWA";
+const string robot_ee_name = "link6";
+const Eigen::Vector3d capsule1_ee_local_pos(0.0, 0.05, 0.09);
+const Eigen::Vector3d capsule2_ee_local_pos(0.0433, -0.025, 0.09);
+const Eigen::Vector3d capsule3_ee_local_pos(-0.0433, -0.025, 0.09);
+const Eigen::Vector3d arm1_ee_local_pos(0.0, 0, 0.14);
+Eigen::VectorXd arm_home_qpos;
+const double robot_ee_capsule_radius = 0.008;
+const double robot_ee_capsule_length = 0.08;
+
 const string object_fname = "resources/08-negative_space_peg_hole/capsule_object.urdf";
 const string capsule_object_name = "Capsule";
 const double capsule_radius = 0.01;
@@ -76,7 +87,7 @@ static bool fTransZn = false;
 bool LOG_DEBUG = false;
 
 // pause
-bool f_pause_sim = false;
+bool f_pause_sim = true;
 
 // sim state display
 chai3d::cLabel* sim_state_label;
@@ -89,6 +100,7 @@ chai3d::cShapeSphere pt_contact_display2(0.015);
 // simulation loop
 bool fSimulationRunning = false;
 void simulation(Sai2COPSim::COPSimulator* sim);
+void control_arm(Sai2Model::Sai2Model* model, Sai2COPSim::COPSimulator* sim);
 
 // initialize window manager
 GLFWwindow* glfwInitialize();
@@ -102,7 +114,7 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 int main(int argc, char** argv) {
     signal(SIGSEGV, handler);
 	const double restitution = 0;
-    const double friction = 0.2;
+    const double friction = 0;
 
     // load sai2 simulation world
     // TODO: this is currently needed in order to load the base transform for each object
@@ -110,6 +122,11 @@ int main(int argc, char** argv) {
     // TODO: write a parser for world URDF to the cop sim world
     auto sai2_sim = new Simulation::Sai2Simulation(world_fname, false);
 
+    Affine3d arm_in_world;
+    arm_in_world.translation() = sai2_sim->_world->getBaseNode(robot_name)->getLocalPos().eigen();
+    arm_in_world.linear() = sai2_sim->_world->getBaseNode(robot_name)->getLocalRot().eigen();
+
+    // -- UNCOMMENT FOR CAPSULE DEMO --
     Affine3d capsule_in_world;
     capsule_in_world.translation() = sai2_sim->_world->getBaseNode(capsule_object_name)->getLocalPos().eigen();
     capsule_in_world.linear() = sai2_sim->_world->getBaseNode(capsule_object_name)->getLocalRot().eigen();
@@ -123,14 +140,31 @@ int main(int argc, char** argv) {
 
     // load graphics scene
     auto graphics = new Sai2Graphics::Sai2Graphics(world_fname, false);
-    graphics->showWireMeshRender(true, capsule_object_name, object_link_name);
+    // set object graphics to wireframe, and show frame for last link
+    // graphics->showLinkFrame(true, object_name, object_link_name);
+    // -- UNCOMMENT FOR CAPSULE DEMO --
+    // graphics->showWireMeshRender(true, capsule_object_name, object_link_name);
 
     // load objects
     // -- UNCOMMENT FOR CAPSULE DEMO --
-    auto capsule_object = new Sai2Model::Sai2Model(object_fname,
-                                                    false,
-                                                    capsule_in_world,
-                                                    capsule_in_world.linear().transpose()*grav_vector);
+    // auto capsule_object = new Sai2Model::Sai2Model(object_fname,
+    //                                                 false,
+    //                                                 capsule_in_world,
+    //                                                 capsule_in_world.linear().transpose()*grav_vector);
+
+    // load robots
+    auto arm = new Sai2Model::Sai2Model(robot_fname, false, arm_in_world, arm_in_world.linear().transpose()*grav_vector);
+    auto arm_control_model = new Sai2Model::Sai2Model(robot_fname, false, arm_in_world, arm_in_world.linear().transpose()*grav_vector);
+    arm_home_qpos.setZero(arm->dof());
+    arm_home_qpos << 90/180.0*M_PI,
+                40/180.0*M_PI,
+                0/180.0*M_PI,
+                -75.0/180.0*M_PI,
+                -10/180.0*M_PI,
+                60/180.0*M_PI,
+                180/180.0*M_PI;
+    arm->_q = arm_home_qpos;
+    arm->updateModel();
 
     // add some initial velocity. TODO: move to parser
     // coobject1->_dq[5] = 0.1;
@@ -138,11 +172,33 @@ int main(int argc, char** argv) {
     // set up COP sim world
     auto cop_sim = new Sai2COPSim::COPSimulator(friction, restitution);
 
-    // add capsule object
-    cop_sim->addObject(capsule_object_name, capsule_object);
+    // add robot arm
+    cop_sim->addObject(robot_name, arm);
 
-    // add primitives to capsule object
-    cop_sim->addCapsuleToObject(capsule_object_name, object_link_name, "capsule_mid", capsule_radius, capsule_length, Affine3d::Identity());
+    // add robot arm primitives
+    Affine3d tf_robot_ee_capsule1 = Affine3d::Identity();
+    tf_robot_ee_capsule1.translation() = capsule1_ee_local_pos;
+    tf_robot_ee_capsule1.linear() << 0, 0, 1,
+                                    0, 1, 0,
+                                    -1,0, 0;
+    cop_sim->addCapsuleToObject(robot_name, robot_ee_name, "capsule1_ee", robot_ee_capsule_radius, robot_ee_capsule_length, tf_robot_ee_capsule1);
+
+    Affine3d tf_robot_ee_capsule2 = tf_robot_ee_capsule1;
+    tf_robot_ee_capsule2.translation() = capsule2_ee_local_pos;
+    cop_sim->addCapsuleToObject(robot_name, robot_ee_name, "capsule2_ee", robot_ee_capsule_radius, robot_ee_capsule_length, tf_robot_ee_capsule2);
+
+    Affine3d tf_robot_ee_capsule3 = tf_robot_ee_capsule1;
+    tf_robot_ee_capsule3.translation() = capsule3_ee_local_pos;
+    cop_sim->addCapsuleToObject(robot_name, robot_ee_name, "capsule3_ee", robot_ee_capsule_radius, robot_ee_capsule_length, tf_robot_ee_capsule3);
+
+
+    // add capsule object
+    // -- UNCOMMENT FOR CAPSULE DEMO --
+    // cop_sim->addObject(capsule_object_name, capsule_object);
+
+    // add primitives to roller object
+    // -- UNCOMMENT FOR CAPSULE DEMO --
+    // cop_sim->addCapsuleToObject(capsule_object_name, object_link_name, "capsule_mid", capsule_radius, capsule_length, Affine3d::Identity());
 
     // add block
     auto* composite = cop_sim->addPlaneComposite1PkN(block_name, Vector3d::UnitZ(), Vector3d::Zero());
@@ -150,8 +206,23 @@ int main(int argc, char** argv) {
     {
         auto* negCap1 = new Sai2COPSim::NegCapsulePrimitive("negCap1", hole_capsule_radius, hole_capsule_length);
         Affine3d negCap1Tf = Eigen::Affine3d::Identity();
+        negCap1Tf.translation() << 0.0, 0.05, 0.0;
         negCap1Tf.linear() = Matrix3d(AngleAxisd(-M_PI/2,  Vector3d::UnitY()));
         composite->addNegativePrimitive(negCap1, negCap1Tf);
+    }
+    {
+        auto* negCap2 = new Sai2COPSim::NegCapsulePrimitive("negCap2", hole_capsule_radius, hole_capsule_length);
+        Affine3d negCap2Tf = Eigen::Affine3d::Identity();
+        negCap2Tf.translation() << 0.0433, -0.025, 0.0;
+        negCap2Tf.linear() = Matrix3d(AngleAxisd(-M_PI/2,  Vector3d::UnitY()));
+        composite->addNegativePrimitive(negCap2, negCap2Tf);
+    }
+    {
+        auto* negCap3 = new Sai2COPSim::NegCapsulePrimitive("negCap3", hole_capsule_radius, hole_capsule_length);
+        Affine3d negCap3Tf = Eigen::Affine3d::Identity();
+        negCap3Tf.translation() << -0.0433, -0.025, 0.0;
+        negCap3Tf.linear() = Matrix3d(AngleAxisd(-M_PI/2,  Vector3d::UnitY()));
+        composite->addNegativePrimitive(negCap3, negCap3Tf);
     }
 
     // Allow point-based resolution for CONCAVE contacts
@@ -192,17 +263,24 @@ int main(int argc, char** argv) {
     thread sim_thread(simulation, cop_sim);
     sim_state_label->setText(f_pause_sim? "PAUSED": "Sim running");
 
+    // TODO: start the control thread for arm
+    thread arm_thread(control_arm, arm_control_model, cop_sim);
+
     // TODO: visualize contact
 
     // ---- GRAPHICS LOOP ON MAIN THREAD ----
     Eigen::Vector3d camera_pos, camera_lookat, camera_vertical;
     while (!glfwWindowShouldClose(window)) {
+        // update model for object. called from simulation thread
+        // coobject->updateModel();
+
         // update graphics. this automatically waits for the correct amount of time
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
+        graphics->updateGraphics(robot_name, arm);
 
         // -- UNCOMMENT FOR CAPSULE DEMO --
-        graphics->updateGraphics(capsule_object_name, capsule_object);
+        // graphics->updateGraphics(capsule_object_name, capsule_object);
         // TODO: update force display
         // cop_force_display->update();
 
@@ -254,16 +332,14 @@ int main(int argc, char** argv) {
     fSimulationRunning = false;
     sim_thread.join();
 
+    // TODO: join control thread
+    arm_thread.join();
+
     // destroy context
     glfwDestroyWindow(window);
 
     // terminate
     glfwTerminate();
-
-    // ---- Print additional info from sim ----
-    Vector3d capsule_pos;
-    capsule_object->positionInWorld(capsule_pos, object_link_name);
-    cout << capsule_pos.transpose() << endl;
 
 	return 0;
 }
@@ -276,16 +352,13 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
     // auto& geom_manager = sim->_geom_manager;
 
     // create a timer
-    constexpr uint kFrequency = 1000;
     LoopTimer timer;
     timer.initializeTimer();
-    timer.setLoopFrequency(kFrequency); //1500Hz timer
+    timer.setLoopFrequency(2000); //1500Hz timer
     double last_time = timer.elapsedTime(); //secs
     bool fTimerDidSleep = true;
 
-    constexpr uint kSimulationTime = 10;
-
-    while (fSimulationRunning && sim->_iterations < kFrequency * kSimulationTime) {
+    while (fSimulationRunning) {
         fTimerDidSleep = timer.waitForNextLoop();
 
         // integrate forward
@@ -294,8 +367,7 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
             last_time = curr_time;
             continue;
         }
-        // double loop_dt = curr_time - last_time;
-        constexpr double loop_dt = 1.0/kFrequency;
+        double loop_dt = curr_time - last_time;
 
         try {
             sim->integrate(loop_dt);
@@ -342,6 +414,116 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
 }
 
 // TODO: add Sai2Simulation for comparison
+
+void control_arm(Sai2Model::Sai2Model* model, Sai2COPSim::COPSimulator* sim) {
+    // control variables
+    VectorXd tau_gravity;
+    auto arb = sim->_arb_manager.getBody(robot_name);
+
+    const uint dof = model->dof();
+
+    MatrixXd J0(6, dof);
+    MatrixXd Lambda(6, 6);
+    MatrixXd NT(dof, dof);
+
+    VectorXd F_control(6); //6DOF in world frame
+    VectorXd F_feedforward(6); //6DOF in world frame
+    F_feedforward.setZero();
+    const double kp = 20;
+    const double kd = 8;
+    const double kjd = 8;
+
+    Vector3d des_pos_world;
+    model->_q = arb->_model->_q;
+    model->updateModel();
+    model->positionInWorld(des_pos_world, robot_ee_name, arm1_ee_local_pos);
+    Matrix3d des_ori;
+    des_ori << 0, 1, 0,
+               1, 0, 0,
+               0, 0, -1;
+
+    Vector3d ee_pos;
+    Vector3d ori_error;
+    Matrix3d ee_ori;
+    Vector3d ee_lin_vel;
+
+    // create a timer
+    LoopTimer timer;
+    timer.initializeTimer();
+    timer.setLoopFrequency(1000); //1000Hz timer
+
+    enum SearchState {Contact, Search, Insert};
+    SearchState state = SearchState::Contact;
+    while(fSimulationRunning) {
+        timer.waitForNextLoop();
+        // copy over q and dq from sim
+        model->_q = arb->_model->_q;
+        model->_dq = arb->_model->_dq;
+
+        // update model
+        model->updateModel();
+        model->gravityVector(tau_gravity);
+        model->J_0(J0, robot_ee_name, arm1_ee_local_pos);
+        J0.block(0,0,3,dof) = model->_T_world_robot.linear()*J0.block(0,0,3,dof);
+        J0.block(3,0,3,dof) = model->_T_world_robot.linear()*J0.block(3,0,3,dof);
+        ee_lin_vel = J0.block(0,0,3,dof)*model->_dq;
+        Lambda = (J0 * model->_M_inv * J0.transpose()).inverse();
+        NT = MatrixXd::Identity(dof, dof) - J0.transpose()*Lambda*J0*model->_M_inv;
+
+        model->positionInWorld(ee_pos, robot_ee_name, arm1_ee_local_pos);
+        model->rotationInWorld(ee_ori, robot_ee_name);
+        Sai2Model::orientationError(ori_error, des_ori, ee_ori);
+
+        // if (timer.elapsedCycles() % 1000 == 0) {
+        //     cout << ee_pos.transpose() << endl;
+        // }
+
+        // compute control torques
+        F_control.setZero(6);
+        Vector3d set_pos;
+        switch(state) {
+            case SearchState::Contact:
+                set_pos = des_pos_world;
+                F_control.segment<3>(0) = -kp*(ee_pos - set_pos);
+                F_control.segment<3>(0)[2] = 0; // No control in Z direction
+                F_control.segment<3>(0) -= kd*ee_lin_vel;
+                F_control.segment<3>(3) = -kp*ori_error - kd*J0.block(3,0,3,dof)*model->_dq;
+                if(ee_pos[2] < 0.01 && abs(ee_lin_vel[2]) < 1e-3) {
+                    state = SearchState::Search;
+                }
+                break;
+            case SearchState::Search:
+                set_pos = des_pos_world;
+                set_pos(0) += 0.03*sin(timer.elapsedTime()*1.5);
+                set_pos(1) += 0.03*sin(timer.elapsedTime()*0.7);
+                F_control.segment<3>(0) = -kp*(ee_pos - set_pos);
+                F_control.segment<3>(0)[2] = 0; // No control in Z direction
+                F_control.segment<3>(0) -= kd*ee_lin_vel;
+                F_control.segment<3>(3) = -kp*ori_error - kd*J0.block(3,0,3,dof)*model->_dq;
+                F_control.segment<3>(3)[2] = 0.1*sin(timer.elapsedTime()*0.3);
+                if(ee_pos[2] < -0.005 && abs(ee_lin_vel[2]) > 1e-3) {
+                    state = SearchState::Insert;
+                    des_pos_world = ee_pos;
+                }
+                break;
+            case SearchState::Insert:
+                set_pos = des_pos_world;
+                set_pos(0) += 0.003*sin(timer.elapsedTime()*1.5);
+                set_pos(1) += 0.003*sin(timer.elapsedTime()*0.7);
+                F_control.segment<3>(0) = -0.1*kp*(ee_pos - set_pos);
+                F_control.segment<3>(0)[2] = 0; // No control in Z direction
+                F_control.segment<3>(0) -= kd*ee_lin_vel;
+                F_control.segment<3>(3) = -kp*0.2*ori_error - kd*J0.block(3,0,3,dof)*model->_dq;
+                break;
+        }
+
+        // feedforward ee force
+        F_feedforward[2] = -2.0;
+
+        // set control torques
+        arb->jtau_act = tau_gravity + J0.transpose()*(Lambda*F_control + F_feedforward) + NT*(model->_M * -kjd * model->_dq);
+    }
+ }
 
 //------------------------------------------------------------------------------
 GLFWwindow* glfwInitialize() {
