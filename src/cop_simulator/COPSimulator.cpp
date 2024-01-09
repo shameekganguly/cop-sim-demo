@@ -238,6 +238,29 @@ void COPSimulator::addBoxObject(const std::string& articulated_body_name,
 	//TODO: force update model
 }
 
+void COPSimulator::addBoxToObject(const std::string& articulated_body_name,
+					const std::string& link_name, // name for the link on which the primitive will be attached
+					const std::string& primitive_name,
+					double xlength,
+					double ylength,
+					double zlength,
+					Eigen::Affine3d tf_in_link
+) {
+	auto arb = _arb_manager.getBody(articulated_body_name);
+	assert(arb != NULL);
+
+	// create a new box primitive
+	auto box = new BoxPrimitive(primitive_name, xlength, ylength, zlength);
+	box->_is_static = false;
+	box->_articulated_body_name = articulated_body_name;
+	box->_link_name = link_name;
+	box->_transform_in_link = tf_in_link;
+
+	_geom_manager.addPrimitive(box);
+
+	arb->addPrimitive(link_name, box);
+}
+
 void COPSimulator::addPyramidObject(const std::string& articulated_body_name,
 					const std::string& link_name, // name for the link on which primitive will be attached
 					const std::string& primitive_name,

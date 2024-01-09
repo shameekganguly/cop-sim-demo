@@ -116,6 +116,15 @@ void addCapsuleToObject(const std::string& articulated_body_name,
 		double length,
 		Eigen::Affine3d tf_in_link);
 
+// add box shape primitive to existing object
+void addBoxToObject(const std::string& articulated_body_name,
+		const std::string& link_name, // name for the link on which the primitive will be attached
+		const std::string& primitive_name,
+		double xlength,
+		double ylength,
+		double zlength,
+		Eigen::Affine3d tf_in_link);
+
 
 // automatically sets q and dq for the objects
 void integrate(double dt);
