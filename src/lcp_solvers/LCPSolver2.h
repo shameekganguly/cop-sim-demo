@@ -9,6 +9,22 @@
 
 namespace Sai2LCPSolver {
 
+enum PointState {
+	NoContact,
+	NoContactAgain,
+	Frictionless,
+	Rolling,
+	// Impending, // TODO: do we need this?
+	Sliding
+};
+
+enum RollingFrictionRedundancyDir {
+	None,
+	DirXOnly,
+	DirYOnly,
+	DirXandY
+};
+
 // Collision LCP points solver solves a set of equations of the form
 // v = Ap + b 					where A is assumed positive definite
 // v_n >= -eps * pre_v_n  \perp  p_n >= 0 	where n is the normal direction. Assumed to
@@ -41,13 +57,15 @@ public:
 		const Eigen::MatrixXd& A,
 		const Eigen::VectorXd& b,
 		const Eigen::VectorXd& pre_v,
-		double epsilon,
-		double mu,
-		bool force_sliding_if_pre_slip = false // this is set to true for computing steady contact forces
+		const double epsilon,
+		const double mu,
+		// This is set to true for computing steady contact forces instead of collision
+		// impulses.
+		bool force_sliding_if_pre_slip = false
 	);
 
 public: // internal functions
-	void enableContact(uint i);
+	void enableFrictionlessContact(uint i);
 
 	void disableContact(uint i);
 
@@ -55,56 +73,28 @@ public: // internal functions
 		const Eigen::MatrixXd& A,
 		const Eigen::VectorXd& b,
 		const Eigen::VectorXd& pre_v,
-		double epsilon,
-		double mu
+		const double epsilon,
+		const double mu
 	);
 
 	// computes and sets the sliding friction constraint
 	void enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v);
 
-	void composeMatrices(const Eigen::MatrixXd& A,
-		const Eigen::VectorXd& b,
-		const Eigen::VectorXd& pre_v,
-		double epsilon,
-		double mu
-	);
-
-	void solveReducedMatrices(double mu,
-		Eigen::VectorXd& full_p_sol
-	);
-
 public: //internal variables
-	enum PointState {
-		NoContact,
-		NoContactAgain,
-		Frictionless,
-		Rolling,
-		// Impending, // TODO: do we need this?
-		Sliding
-	};
-
-	enum RollingFrictionRedundancyDir {
-		None,
-		DirXOnly,
-		DirYOnly,
-		DirXandY
-	};
-
 	enum SolverState {
 		NoContacts,
 		DeterminingActiveFrictionlessContacts,
 		EnforcingRollingFriction,
-		EnforcingSlidingFriction,
-		EnforcingNonNegativeNormalForce
+		EnforcingFrictionCone,
+		EnforcingNonNegativeNormalForce,
 		// EnforcingImpendingSlip,
-		// Failed,
+		Failed
 		// Succeeded
 	};
 
 	uint num_points;
 	SolverState solver_state;
 	Eigen::MatrixXd TA;
-	Eigen::VectorXd Tp_sol;
 	Eigen::VectorXd Trhs;
 	uint TA_size;
 	std::vector<PointState> states;
