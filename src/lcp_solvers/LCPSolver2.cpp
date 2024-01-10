@@ -8,299 +8,109 @@ using namespace Eigen;
 namespace Sai2LCPSolver {
 namespace {
 
-// In future, if we use index caches for perf, consider making a Composer class.
-// A, b and pre_v would be const class members in that case.
+class Composer {
+public:
 void composeMatrices(
 	// TA and Trhs are assumed to be instantiated and resized outside this function
 	Eigen::MatrixXd& TA,
 	Eigen::VectorXd& Trhs,
 	uint& TA_size,
-	const Eigen::MatrixXd& A,
-	const Eigen::VectorXd& b,
-	const Eigen::VectorXd& pre_v,
-	const double epsilon,
-	const double mu,
 	const std::vector<PointState>& pt_states,
 	const std::vector<Eigen::Vector2d>& pt_chosen_sliding_directions,
-	const std::vector<RollingFrictionRedundancyDir>& pt_rolling_redundancy_directions
+	const std::vector<RollingFrictionRedundancyDir>& pt_rolling_redundancy_directions,
+	const std::vector<MomentConstraints>& pt_moment_constraints
 ) {
-	const uint num_points = pt_states.size();
-
 	// assemble TA and Trhs. TODO: think about how we can do this incrementally.
 	// maybe save the mapping from point id to TA row id?
+
+	const uint num_points = pt_states.size();
+	left_mask.fill(0);
+	right_mask.fill(0);
+	Trhs.fill(0);
+
 	TA_size = 0;
 	for(uint i = 0; i < num_points; i++) {
-		if(pt_states[i] == PointState::NoContact || pt_states[i] == PointState::NoContactAgain) {
+		const uint i_ind_start = i*contact_size;
+		if(pt_states[i] == PointState::NoContact ||
+		   pt_states[i] == PointState::NoContactAgain) {
 			continue;
 		}
 
+		// Force components
 		else if(pt_states[i] == PointState::Frictionless ||
-				(pt_states[i] == PointState::Rolling &&
-				 pt_rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY)
-		) {
-			TA(TA_size, TA_size) = A(i*3+2, i*3+2);
-			Trhs(TA_size) = -b(i*3+2) - epsilon*pre_v(i*3+2);
-			// fill in non-diagonal blocks of TA
-			uint r = 0;
-			for(uint j = 0; j < i; j++) {
-				if(pt_states[j] == PointState::NoContact ||
-				   pt_states[j] == PointState::NoContactAgain) {
-					continue;
-				}
-				if(pt_states[j] == PointState::Frictionless) {
-					TA(r, TA_size) = A(j*3+2, i*3+2);
-					TA(TA_size, r) = TA(r, TA_size);
-					r += 1;
-				}
-				if(pt_states[j] == PointState::Rolling) {
-					if(pt_rolling_redundancy_directions[j] == RollingFrictionRedundancyDir::None) {
-						TA.block<3, 1>(r, TA_size) = A.block<3, 1>(j*3, i*3+2);
-						TA.block<1, 3>(TA_size, r) = TA.block<3, 1>(r, TA_size).transpose();
-						r += 3;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXOnly) {
-						TA.block<2, 1>(r, TA_size) = A.block<2, 1>(j*3+1, i*3+2);
-						TA.block<1, 2>(TA_size, r) = TA.block<2, 1>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirYOnly) {
-						TA(r, TA_size) = A(j*3, i*3+2);
-						TA(r+1, TA_size) = A(j*3+2, i*3+2);
-						TA(TA_size, r) = TA(r, TA_size);
-						TA.block<1, 2>(TA_size, r) = TA.block<2, 1>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-							RollingFrictionRedundancyDir::DirXandY) {
-						TA(r, TA_size) = A(j*3+2, i*3+2);
-						TA(TA_size, r) = TA(r, TA_size);
-						r += 1;
-					}
-				}
-				if(pt_states[j] == PointState::Sliding) {
-					Vector2d slip_dir = pt_chosen_sliding_directions[j];
-					TA(r, TA_size) = A(j*3+2, i*3+2);
-					TA(TA_size, r) = A(i*3+2, j*3+2) - mu*A.block<1,2>(i*3+2, j*3)*slip_dir;
-					r += 1;
-				}
-			}
+		        (pt_states[i] == PointState::Rolling &&
+		        pt_rolling_redundancy_directions[i] ==
+		        	RollingFrictionRedundancyDir::DirXandY)) {
+			right_mask(i_ind_start+2, TA_size) = 1;
+			left_mask(TA_size, i_ind_start+2) = 1;
 			TA_size += 1;
 		}
 
 		else if(pt_states[i] == PointState::Rolling &&
-			    pt_rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::None) {
-			TA.block<3,3>(TA_size, TA_size) = A.block<3,3>(i*3, i*3);
-			Trhs.segment<2>(TA_size) = -b.segment<2>(i*3);
-			Trhs(TA_size + 2) = -b(i*3+2) - epsilon*pre_v(i*3+2);
-			// fill in non-diagonal blocks of TA
-			uint r = 0;
-			for(uint j = 0; j < i; j++) {
-				if(pt_states[j] == PointState::NoContact || pt_states[j] == PointState::NoContactAgain) {
-					continue;
-				}
-				if(pt_states[j] == PointState::Frictionless) {
-					TA.block<1,3>(r, TA_size) = A.block<1,3>(j*3+2, i*3);
-					TA.block<3,1>(TA_size, r) = TA.block<1,3>(r, TA_size).transpose();
-					r += 1;
-				}
-				if(pt_states[j] == PointState::Rolling) {
-					if(pt_rolling_redundancy_directions[j] == RollingFrictionRedundancyDir::None) {
-						TA.block<3, 3>(r, TA_size) = A.block<3, 3>(j*3, i*3);
-						TA.block<3, 3>(TA_size, r) = TA.block<3, 3>(r, TA_size).transpose();
-						r += 3;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXOnly) {
-						TA.block<2, 3>(r, TA_size) = A.block<2, 3>(j*3+1, i*3);
-						TA.block<3, 2>(TA_size, r) = TA.block<2, 3>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirYOnly) {
-						TA.block<1,3>(r, TA_size) = A.block<1,3>(j*3, i*3);
-						TA.block<1,3>(r+1, TA_size) = A.block<1,3>(j*3+2, i*3);
-						TA.block<3, 2>(TA_size, r) = TA.block<2, 3>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXandY) {
-						TA.block<1,3>(r, TA_size) = A.block<1,3>(j*3+2, i*3);
-						TA.block<3,1>(TA_size, r) = TA.block<1,3>(r, TA_size).transpose();
-						r += 1;
-					}
-				}
-				if(pt_states[j] == PointState::Sliding) {
-					Vector2d slip_dir = pt_chosen_sliding_directions[j];
-					TA.block<1,3>(r, TA_size) = A.block<1,3>(j*3+2, i*3);
-					TA.block<3,1>(TA_size, r) = A.block<3,1>(i*3, j*3+2) -
-													mu*A.block<3,2>(i*3, j*3)*slip_dir;
-					r += 1;
-				}
-			}
+			    pt_rolling_redundancy_directions[i] ==
+			    	RollingFrictionRedundancyDir::None) {
+			right_mask.block(i_ind_start, TA_size, 3, 3).setIdentity();
+			left_mask.block(TA_size, i_ind_start, 3, 3).setIdentity();
 			TA_size += 3;
 		}
 
 		else if(pt_states[i] == PointState::Rolling &&
-				pt_rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXOnly) {
-			TA.block<2,2>(TA_size, TA_size) = A.block<2,2>(i*3+1, i*3+1);
-			Trhs(TA_size) = -b(i*3+1);
-			Trhs(TA_size + 1) = -b(i*3+2) - epsilon*pre_v(i*3+2);
-			// fill in non-diagonal blocks of TA
-			uint r = 0;
-			for(uint j = 0; j < i; j++) {
-				if(pt_states[j] == PointState::NoContact ||
-				   pt_states[j] == PointState::NoContactAgain) {
-					continue;
-				}
-				if(pt_states[j] == PointState::Frictionless) {
-					TA.block<1,2>(r, TA_size) = A.block<1,2>(j*3+2, i*3+1);
-					TA.block<2,1>(TA_size, r) = TA.block<1,2>(r, TA_size).transpose();
-					r += 1;
-				}
-				if(pt_states[j] == PointState::Rolling) {
-					if(pt_rolling_redundancy_directions[j] == RollingFrictionRedundancyDir::None) {
-						TA.block<3, 2>(r, TA_size) = A.block<3, 2>(j*3, i*3+1);
-						TA.block<2, 3>(TA_size, r) = TA.block<3, 2>(r, TA_size).transpose();
-						r += 3;
-					} else if(pt_rolling_redundancy_directions[j] ==
-						      	RollingFrictionRedundancyDir::DirXOnly) {
-						TA.block<2, 2>(r, TA_size) = A.block<2, 2>(j*3+1, i*3+1);
-						TA.block<2, 2>(TA_size, r) = TA.block<2, 2>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-							  	RollingFrictionRedundancyDir::DirYOnly) {
-						TA.block<1,2>(r, TA_size) = A.block<1,2>(j*3, i*3+1);
-						TA.block<1,2>(r+1, TA_size) = A.block<1,2>(j*3+2, i*3+1);
-						TA.block<2, 2>(TA_size, r) = TA.block<2, 2>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXandY) {
-						TA.block<1,2>(r, TA_size) = A.block<1,2>(j*3+2, i*3+1);
-						TA.block<2,1>(TA_size, r) = TA.block<1,2>(r, TA_size).transpose();
-						r += 1;
-					}
-				}
-				if(pt_states[j] == PointState::Sliding) {
-					Vector2d slip_dir = pt_chosen_sliding_directions[j];
-					TA.block<1,2>(r, TA_size) = A.block<1,2>(j*3+2, i*3+1);
-					TA.block<2,1>(TA_size, r) = A.block<2,1>(i*3+1, j*3+2) -
-													mu*A.block<2,2>(i*3+1, j*3)*slip_dir;
-					r += 1;
-				}
-			}
+				pt_rolling_redundancy_directions[i] ==
+					RollingFrictionRedundancyDir::DirXOnly) {
+			right_mask.block(i_ind_start+1, TA_size, 2, 2).setIdentity();
+			left_mask.block(TA_size, i_ind_start+1, 2, 2).setIdentity();
 			TA_size += 2;
 		}
 
-		else if(pt_states[i] == PointState::Rolling && pt_rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirYOnly) {
-			TA(TA_size, TA_size) = A(i*3, i*3);
-			TA(TA_size, TA_size+1) = A(i*3, i*3+2);
-			TA(TA_size+1, TA_size) = A(i*3+2, i*3);
-			TA(TA_size+1, TA_size+1) = A(i*3+2, i*3+2);
-			Trhs(TA_size) = -b(i*3);
-			Trhs(TA_size + 1) = -b(i*3+2) - epsilon*pre_v(i*3+2);
-			// fill in non-diagonal blocks of TA
-			uint r = 0;
-			for(uint j = 0; j < i; j++) {
-				if(pt_states[j] == PointState::NoContact || pt_states[j] == PointState::NoContactAgain) {
-					continue;
-				}
-				if(pt_states[j] == PointState::Frictionless) {
-					TA(r, TA_size) = A(j*3+2, i*3);
-					TA(r, TA_size+1) = A(j*3+2, i*3+2);
-					TA.block<2,1>(TA_size, r) = TA.block<1,2>(r, TA_size).transpose();
-					r += 1;
-				}
-				if(pt_states[j] == PointState::Rolling) {
-					if(pt_rolling_redundancy_directions[j] == RollingFrictionRedundancyDir::None) {
-						TA.block<3, 1>(r, TA_size) = A.block<3, 1>(j*3, i*3);
-						TA.block<3, 1>(r, TA_size+1) = A.block<3, 1>(j*3, i*3+2);
-						TA.block<2, 3>(TA_size, r) = TA.block<3, 2>(r, TA_size).transpose();
-						r += 3;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXOnly) {
-						TA.block<2, 1>(r, TA_size) = A.block<2, 1>(j*3+1, i*3);
-						TA.block<2, 1>(r, TA_size+1) = A.block<2, 1>(j*3+1, i*3+2);
-						TA.block<2, 2>(TA_size, r) = TA.block<2, 2>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirYOnly) {
-						TA(r, TA_size) = A(j*3, i*3);
-						TA(r+1, TA_size) = A(j*3+2, i*3);
-						TA(r, TA_size+1) = A(j*3, i*3+2);
-						TA(r+1, TA_size+1) = A(j*3+2, i*3+2);
-						TA.block<2, 2>(TA_size, r) = TA.block<2, 2>(r, TA_size).transpose();
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXandY) {
-						TA(r, TA_size) = A(j*3+2, i*3);
-						TA(r, TA_size+1) = A(j*3+2, i*3+2);
-						TA.block<2,1>(TA_size, r) = TA.block<1,2>(r, TA_size).transpose();
-						r += 1;
-					}
-				}
-				if(pt_states[j] == PointState::Sliding) {
-					Vector2d slip_dir = pt_chosen_sliding_directions[j];
-					TA(r, TA_size) = A(j*3+2, i*3);
-					TA(r, TA_size+1) = A(j*3+2, i*3+2);
-					TA(TA_size, r) = A(i*3, j*3+2) - mu*A.block<1,2>(i*3, j*3)*slip_dir;
-					TA(TA_size+1, r) = A(i*3+2, j*3+2) - mu*A.block<1,2>(i*3+2, j*3)*slip_dir;
-					r += 1;
-				}
-			}
+		else if(pt_states[i] == PointState::Rolling &&
+				pt_rolling_redundancy_directions[i] ==
+					RollingFrictionRedundancyDir::DirYOnly) {
+			right_mask(i_ind_start, TA_size) = 1;
+			left_mask(TA_size, i_ind_start) = 1;
+
+			right_mask(i_ind_start+2, TA_size+1) = 1;
+			left_mask(TA_size+1, i_ind_start+2) = 1;
+
 			TA_size += 2;
 		}
 
 		else if(pt_states[i] == PointState::Sliding) {
-			Vector2d this_slip_dir = pt_chosen_sliding_directions[i];
-			TA(TA_size, TA_size) = A(i*3+2, i*3+2) - mu*A.block<1,2>(i*3+2, i*3)*this_slip_dir;
-			Trhs(TA_size) = -b(i*3+2) - epsilon*pre_v(i*3+2);
-			// fill in non-diagonal blocks of TA
-			uint r = 0;
-			for(uint j = 0; j < i; j++) {
-				if(pt_states[j] == PointState::NoContact ||
-				   pt_states[j] == PointState::NoContactAgain) {
-					continue;
-				}
-				if(pt_states[j] == PointState::Frictionless) {
-					TA(r, TA_size) = A(j*3+2, i*3+2) - mu*A.block<1,2>(j*3+2, i*3)*this_slip_dir;
-					TA(TA_size, r) = TA(r, TA_size);
-					r += 1;
-				}
-				if(pt_states[j] == PointState::Rolling) {
-					if(pt_rolling_redundancy_directions[j] == RollingFrictionRedundancyDir::None) {
-						TA.block<3, 1>(r, TA_size) = A.block<3, 1>(j*3, i*3+2) - mu*A.block<3, 2>(j*3, i*3)*this_slip_dir;
-						TA.block<1, 3>(TA_size, r) = A.block<1, 3>(i*3+2, j*3);
-						r += 3;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXOnly) {
-						TA.block<2, 1>(r, TA_size) = A.block<2, 1>(j*3+1, i*3+2) - mu*A.block<2, 2>(j*3+1, i*3)*this_slip_dir;
-						TA.block<1, 2>(TA_size, r) = A.block<1, 2>(i*3+2, j*3+1);
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirYOnly) {
-						TA(r, TA_size) = A(j*3, i*3+2) - mu*A.block<1, 2>(j*3, i*3)*this_slip_dir;
-						TA(r+1, TA_size) = A(j*3+2, i*3+2) -
-										   mu*A.block<1, 2>(j*3+2, i*3)*this_slip_dir;
-						TA(TA_size, r) = A(i*3+2, j*3);
-						TA(TA_size, r+1) = A(i*3+2, j*3+2);
-						r += 2;
-					} else if(pt_rolling_redundancy_directions[j] ==
-								RollingFrictionRedundancyDir::DirXandY) {
-						TA(r, TA_size) = A(j*3+2, i*3+2) - mu*A.block<1,2>(j*3+2, i*3)*this_slip_dir;
-						TA(TA_size, r) = TA(r, TA_size);
-						r += 1;
-					}
-				}
-				if(pt_states[j] == PointState::Sliding) {
-					Vector2d slip_dir = pt_chosen_sliding_directions[j];
-					TA(r, TA_size) = A(j*3+2, i*3+2) - mu*A.block<1, 2>(j*3+2, i*3)*this_slip_dir;;
-					TA(TA_size, r) = A(i*3+2, j*3+2) - mu*A.block<1, 2>(i*3+2, j*3)*slip_dir;
-					r += 1;
-				}
-			}
+			Vector2d slip_dir = pt_chosen_sliding_directions[i];
+			right_mask.col(TA_size).segment<2>(i_ind_start) = -mu*slip_dir;
+			right_mask(i_ind_start+2, TA_size) = 1;
+
+			left_mask(TA_size, i_ind_start+2) = 1;
 			TA_size += 1;
 		}
+
+		// Moment components
+		if(contact_size == 3) {
+			continue;
+		}
+
+		if(pt_moment_constraints[i] == MomentConstraints::NoMoment) {
+			// nothing to do
+			continue;
+		} else if(pt_moment_constraints[i] == MomentConstraints::XMoment) {
+			right_mask(i_ind_start+3, TA_size) = 1;
+			left_mask(TA_size, i_ind_start+3) = 1;
+			TA_size += 1;
+		} else if(pt_moment_constraints[i] == MomentConstraints::YMoment) {
+			right_mask(i_ind_start+4, TA_size) = 1;
+			left_mask(TA_size, i_ind_start+4) = 1;
+			TA_size += 1;
+		} else if(pt_moment_constraints[i] == MomentConstraints::XandYMoments) {
+			right_mask.block(i_ind_start+3, TA_size, 2, 2).setIdentity();
+			left_mask.block(TA_size, i_ind_start+3, 2, 2).setIdentity();
+			TA_size += 2;
+		}
 	}
+
+	TA.block(0, 0, TA_size, TA_size) = left_mask * A * right_mask;
+	Trhs.head(TA_size) = left_mask * (post_v_min - b);
 }
 
 void solveReducedMatrices(
-	const double mu,
 	const Eigen::MatrixXd& red_A,
 	const Eigen::VectorXd& red_rhs,
     // We need this because only red_A.block(0, 0, red_A_size, red_A_size) is usable.
@@ -309,6 +119,7 @@ void solveReducedMatrices(
 	const std::vector<PointState>& pt_states,
 	const std::vector<Eigen::Vector2d>& pt_chosen_sliding_directions,
 	const std::vector<RollingFrictionRedundancyDir>& pt_rolling_redundancy_directions,
+	const std::vector<MomentConstraints>& pt_moment_constraints,
 	Eigen::VectorXd& full_p_sol
 ) {
 	const uint num_points = pt_states.size();
@@ -325,10 +136,13 @@ void solveReducedMatrices(
 	full_p_sol.setZero();
 	uint red_A_ind = 0;
 	for(uint i = 0; i < num_points; i++) {
-		const size_t full_p_sol_ind = i*3;
+		const size_t full_p_sol_ind = i*contact_size;
 		if(pt_states[i] == PointState::NoContact || pt_states[i] == PointState::NoContactAgain) {
 			// nothing to do
-		} else if(pt_states[i] == PointState::Frictionless ||
+			continue;
+		}
+		// Force component
+		if(pt_states[i] == PointState::Frictionless ||
 			(pt_states[i] == PointState::Rolling && pt_rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY)
 		) {
 			// Only copy z impulse
@@ -356,10 +170,54 @@ void solveReducedMatrices(
 			full_p_sol.segment<2>(full_p_sol_ind) = -mu*slip_dir*p_sol(red_A_ind);
 			red_A_ind += 1;
 		}
+
+		// Moment component
+		if(contact_size == 3) {
+			continue;
+		}
+
+		if(pt_moment_constraints[i] == MomentConstraints::NoMoment) {
+			// nothing to do
+		} else if(pt_moment_constraints[i] == MomentConstraints::XMoment) {
+			full_p_sol(full_p_sol_ind+3) = p_sol(red_A_ind);
+			red_A_ind += 1;
+		} else if(pt_moment_constraints[i] == MomentConstraints::YMoment) {
+			full_p_sol(full_p_sol_ind+4) = p_sol(red_A_ind);
+			red_A_ind += 1;
+		} else if(pt_moment_constraints[i] == MomentConstraints::XandYMoments) {
+			full_p_sol.segment<2>(full_p_sol_ind+3) = p_sol.segment<2>(red_A_ind);
+			red_A_ind += 2;
+		}
 	}
+	assert(red_A_ind == red_A_size);
 }
 
+Composer(const Eigen::MatrixXd& p_A,
+		 const Eigen::VectorXd& p_b,
+		 const Eigen::VectorXd& p_pre_v,
+		 const Eigen::VectorXd& p_post_v_min,
+		 uint p_contact_size,  // either 3 for pts or 5 for line/ surface contacts
+		 const double p_mu)
+: A(p_A), b(p_b), pre_v(p_pre_v), post_v_min(p_post_v_min), contact_size(p_contact_size),
+  mu(p_mu) {
+  	assert(p_contact_size == 3 || p_contact_size == 5);
+	left_mask = MatrixXd::Zero(A.rows(), A.cols());
+	right_mask = MatrixXd::Zero(A.rows(), A.cols());
+}
+
+public:
+	MatrixXd left_mask;
+	MatrixXd right_mask;
+	const MatrixXd& A;
+	const VectorXd& b;
+	const VectorXd& pre_v;
+	const VectorXd& post_v_min;
+	const uint contact_size;
+	const double mu;
+};
+
 }  // namespace
+
 
 CollLCPPointSolution LCPSolver::solve(
 		const Eigen::MatrixXd& A,
@@ -377,17 +235,21 @@ CollLCPPointSolution LCPSolver::solve(
 	TA = A;
 	TA_size = 0;
 	Trhs = -b;
-
+	VectorXd post_v_min;
+	post_v_min.setZero(b.size());
 
 	// initially set all points to be noContact
 	for(uint i = 0; i < num_points; i++) {
 		assert(pre_v(3*i + 2) <= 2e-4);
+		post_v_min(3*i + 2) = -epsilon*pre_v(3*i + 2);
 		states.push_back(PointState::NoContact);
 		frictionless_sliding_directions.push_back(Vector2d::Zero());
 		rolling_sliding_directions.push_back(Vector2d::Zero());
 		chosen_sliding_directions.push_back(Vector2d::Zero());
 		rolling_redundancy_directions.push_back(RollingFrictionRedundancyDir::None);
 	}
+
+	Composer composer(A, b, pre_v, post_v_min, /*contact_size=*/ 3, mu);
 
 	uint last_point_index = 0;
 	VectorXd full_v_sol = b;
@@ -408,7 +270,7 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::DeterminingActiveFrictionlessContacts) {
 			bool any_pt_penetrating = false;
 			for(uint i = 0; i < num_points; i++) {
-				if(full_v_sol(3*i + 2) < (-1e-10 + -epsilon*pre_v(3*i + 2))) {
+				if(full_v_sol(3*i + 2) < (-1e-10 + post_v_min(3*i + 2))) {
 					// we ignore points where pre_v is positive
 					// TODO: think more about this. currently, it often causes failure
 					// to find a solution.
@@ -439,7 +301,7 @@ CollLCPPointSolution LCPSolver::solve(
 					// likely due to numerical error. so we check again with relaxed
 					// penetration velocity constraint
 					if(states[i] != PointState::NoContact) {
-						if (full_v_sol(3*i + 2) > (-1e-6 + -epsilon*pre_v(3*i + 2))) {
+						if (full_v_sol(3*i + 2) > (-1e-6 + post_v_min(3*i + 2))) {
 							if(LCP_LOG_DEBUG) {
 								std::cout << "penetration for contact pt " << i
 										  << ". No penetration after relaxing constraint." << std::endl;
@@ -451,7 +313,7 @@ CollLCPPointSolution LCPSolver::solve(
 									  << " was found in state " << states[i]
 									  << " to be in penetration with velocity"
 									  << full_v_sol(3*i + 2)
-									  << ". Needed at least " << -epsilon*pre_v(3*i + 2)
+									  << ". Needed at least " << post_v_min(3*i + 2)
 									  << std::endl;
 							solver_state = SolverState::Failed;
 							break;
@@ -500,7 +362,7 @@ CollLCPPointSolution LCPSolver::solve(
 					// save current slip direction for this point
 					frictionless_sliding_directions[i] = curr_slip_speed/curr_slip_speed.norm();
 
-					enableRollingFriction(i, A, b, pre_v, epsilon, mu);
+					enableRollingFriction(i, &composer);
 					// this checks for redundancy directions with existing contacts
 					// TODO: if rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY,
 					// then rolling_friction will be zero. So we will never turn on sliding friction at this
@@ -596,15 +458,16 @@ CollLCPPointSolution LCPSolver::solve(
 		// }
 		// std::cout << std::endl;
 
-		composeMatrices(TA, Trhs, TA_size,
-						A, b, pre_v, epsilon, mu,
-						states, chosen_sliding_directions, rolling_redundancy_directions);
+		composer.composeMatrices(TA, Trhs, TA_size,
+								 states, chosen_sliding_directions,
+								 rolling_redundancy_directions, moment_constraints);
 		// std::cout << "TA" << std::endl;
 		// std::cout << TA.block(0,0,TA_size,TA_size) << std::endl;
 		// std::cout << "Trhs: " <<  Trhs.segment(0, TA_size).transpose() << std::endl;
-		solveReducedMatrices(mu, TA, Trhs, TA_size,
-							states, chosen_sliding_directions, rolling_redundancy_directions,
-							full_p_sol);
+		composer.solveReducedMatrices(TA, Trhs, TA_size,
+									  states, chosen_sliding_directions,
+									  rolling_redundancy_directions,
+									  moment_constraints, full_p_sol);
 		// std::cout << "TP sol: " << Tp_sol.transpose() << std::endl;
 
 		// solve full equation for full_v_sol
@@ -633,13 +496,7 @@ void LCPSolver::disableContact(uint i) {
 	states[i] = PointState::NoContactAgain;
 }
 
-void LCPSolver::enableRollingFriction(uint i,
-	const Eigen::MatrixXd& A,
-	const Eigen::VectorXd& b,
-	const Eigen::VectorXd& pre_v,
-	const double epsilon,
-	const double mu
-) {
+void LCPSolver::enableRollingFriction(uint i, Composer* composer) {
 	states[i] = PointState::Rolling;
 	if(LCP_LOG_DEBUG) std::cout << "Enable rolling " << i << std::endl;
 
@@ -647,9 +504,9 @@ void LCPSolver::enableRollingFriction(uint i,
 	// can be computed at a slow model update rate
 	// try enabling all 3 axes
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::None;
-	composeMatrices(TA, Trhs, TA_size,
-					A, b, pre_v, epsilon, mu,
-					states, chosen_sliding_directions, rolling_redundancy_directions);
+	composer->composeMatrices(TA, Trhs, TA_size,
+							  states, chosen_sliding_directions,
+							  rolling_redundancy_directions, moment_constraints);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		// TODO: think of a better way of checking
 		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy none " << i << std::endl;
@@ -658,18 +515,18 @@ void LCPSolver::enableRollingFriction(uint i,
 	}
 	// try enabling Y only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXOnly;
-	composeMatrices(TA, Trhs, TA_size,
-					A, b, pre_v, epsilon, mu,
-					states, chosen_sliding_directions, rolling_redundancy_directions);
+	composer->composeMatrices(TA, Trhs, TA_size,
+							  states, chosen_sliding_directions,
+							  rolling_redundancy_directions, moment_constraints);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy DirXOnly " << i << std::endl;
 		return;
 	}
 	// try enabling X only
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirYOnly;
-	composeMatrices(TA, Trhs, TA_size,
-					A, b, pre_v, epsilon, mu,
-					states, chosen_sliding_directions, rolling_redundancy_directions);
+	composer->composeMatrices(TA, Trhs, TA_size,
+							  states, chosen_sliding_directions,
+							  rolling_redundancy_directions, moment_constraints);
 	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
 		if(LCP_LOG_DEBUG) std::cout << "Rolling redundancy DirYOnly " << i << std::endl;
 		return;

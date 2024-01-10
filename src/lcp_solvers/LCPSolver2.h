@@ -18,12 +18,24 @@ enum PointState {
 	Sliding
 };
 
+enum MomentConstraints {
+	NoMoment,
+	XMoment,
+	YMoment,
+	XandYMoments
+};
+
 enum RollingFrictionRedundancyDir {
 	None,
 	DirXOnly,
 	DirYOnly,
 	DirXandY
 };
+
+namespace {
+// Internal helper class
+class Composer;
+}
 
 // Collision LCP points solver solves a set of equations of the form
 // v = Ap + b 					where A is assumed positive definite
@@ -53,6 +65,7 @@ public:
 		// nothing to do
 	}
 
+	// Special case for all pt contacts without moment constraints
 	CollLCPPointSolution solve(
 		const Eigen::MatrixXd& A,
 		const Eigen::VectorXd& b,
@@ -69,13 +82,7 @@ public: // internal functions
 
 	void disableContact(uint i);
 
-	void enableRollingFriction(uint i,
-		const Eigen::MatrixXd& A,
-		const Eigen::VectorXd& b,
-		const Eigen::VectorXd& pre_v,
-		const double epsilon,
-		const double mu
-	);
+	void enableRollingFriction(uint i, Composer* composer);
 
 	// computes and sets the sliding friction constraint
 	void enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v);
@@ -108,6 +115,8 @@ public: //internal variables
 	std::vector<Eigen::Vector2d> rolling_sliding_directions;
 	std::vector<Eigen::Vector2d> chosen_sliding_directions;
 	std::vector<RollingFrictionRedundancyDir> rolling_redundancy_directions;
+	std::vector<MomentConstraints> initial_moment_constraints;
+	std::vector<MomentConstraints> moment_constraints;
 };
 
 }

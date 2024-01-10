@@ -51,6 +51,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 2 - two contacts, rolling - rolling, no tangential pre-velocity
 	{
@@ -69,6 +71,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 3 - two contacts, rolling - rolling, x-tangential pre-velocity
 	{
@@ -87,6 +91,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 3.2 - two contacts, rolling - rolling, x-tangential pre-velocity
 	{
@@ -105,6 +111,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 3.3 - two contacts, sliding - sliding, x-tangential pre-velocity
 	{
@@ -123,6 +131,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 4 - two contacts, sliding - sliding, x-tangential pre-velocity
 	{
@@ -141,6 +151,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 5 - two contacts, contact 1 sliding - contact 2 rolling, y-tangential pre-velocity
 	{
@@ -162,6 +174,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 5.2 - two contacts, contact 1 rolling - contact 2 sliding, y-tangential pre-velocity
 	{
@@ -183,6 +197,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 
 	// test 6 - contact 1 only, rolling, no tangential pre-velocity
@@ -202,6 +218,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 6.2 - contact 1 only, sliding, no tangential pre-velocity
 	{
@@ -220,6 +238,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 7 - contact 2 only, rolling, no tangential pre-velocity
 	{
@@ -238,6 +258,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 7.2 - contact 2 only, sliding, no tangential pre-velocity
 	{
@@ -256,6 +278,8 @@ int main (int argc, char** argv) {
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
 		cout << "Vsol new: " << (Lambda_inv*test1_sol_new.p_sol + pre_v).transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 8 - one contact only
 	{
@@ -279,6 +303,8 @@ int main (int argc, char** argv) {
 		CollLCPPointSolution test1_sol_new = solver.solve(Test8Lambda_inv, pre_v, pre_v, 0.0, mu);
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 9
 	{
@@ -301,6 +327,8 @@ int main (int argc, char** argv) {
 		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 10
 	{
@@ -323,6 +351,8 @@ int main (int argc, char** argv) {
 		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.0, mu);
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 11
 	{
@@ -345,6 +375,8 @@ int main (int argc, char** argv) {
 		CollLCPPointSolution test1_sol_new = solver.solve(Test9Lambda_inv, pre_v, pre_v, 0.3, mu);
 		cout << static_cast<int>(test1_sol_new.result) << endl;
 		cout << "Psol new: " << test1_sol_new.p_sol.transpose() << endl;
+
+		cout << "Psol diff: " << (test1_sol.p_sol - test1_sol_new.p_sol).transpose() << endl;
 	}
 	// test 12
 	{
