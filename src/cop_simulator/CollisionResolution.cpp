@@ -129,6 +129,16 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 			// We use the fastest collision to determine the coefficient of restitution
 			// std::cout << "Force stick" << std::endl;
 			adjusted_restitution_coeff = 0.0; // force inelastic collision to bring to steady contact
+		} else {
+			// TODO: we need another condition here to enable steady contact
+			// if the prim pair is in collision for multiple iterations where
+			// contact detection has been updated. Otherwise we can get limit
+			// cycles where the object keeps bouncing indefinitely since it
+			// separates each time with a small speed > MIN_COLLISION_SPEED_FOR_STEADY_CONTACT
+			// and then collides again due to gravity with the same speed each
+			// time.
+
+			// std::cout << max_collision_speed << std::endl;
 		}
 
 		// - call LCP solver.
