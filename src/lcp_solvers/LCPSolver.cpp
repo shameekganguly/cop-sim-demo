@@ -1,7 +1,8 @@
-// LCPSolver2.cpp
+// LCPSolver.cpp
 
 #include <iostream>
-#include "LCPSolver2.h"
+#include "LCPSolver.h"
+#include "LCPSolverInternal.h"
 
 using namespace Eigen;
 
@@ -125,6 +126,8 @@ void solveReducedMatrices(
 	const uint num_points = pt_states.size();
 
 	// In debug mode, assert that red_A is full rank before solving.
+	// std::cout << "red A determinant: "
+	// 		  << abs(red_A.block(0,0,red_A_size,red_A_size).determinant()) << std::endl;
 	assert(abs(red_A.block(0,0,red_A_size,red_A_size).determinant()) > 1e-15);
 
 	// Solve the reduced equation red_A*p_sol = red_rhs that we assembled in composeMatrices
@@ -218,6 +221,16 @@ public:
 
 }  // namespace
 
+CollLCPPointSolution LCPSolver::solveWithMoments(
+		const Eigen::MatrixXd& A,
+		const Eigen::VectorXd& b,
+		const Eigen::VectorXd& pre_v,
+		const std::vector<MomentConstraints>& initial_moment_constraints,
+		const double mu
+) {
+	return solveInternal(/*contact_size=*/ 5, A, b, pre_v, initial_moment_constraints,
+		                 /*epsilon=*/ 0, mu, /*force_sliding_if_pre_slip=*/ true);
+}
 
 CollLCPPointSolution LCPSolver::solve(
 		const Eigen::MatrixXd& A,
@@ -227,29 +240,60 @@ CollLCPPointSolution LCPSolver::solve(
 		const double mu,
 		const bool force_sliding_if_pre_slip
 ) {
+	num_points = A.rows()/3;
+	std::vector<MomentConstraints> dummy_moment_constraints(
+									num_points,
+									MomentConstraints::NoMoment);
+	return solveInternal(/*contact_size=*/ 3, A, b, pre_v, dummy_moment_constraints,
+		                 epsilon, mu, force_sliding_if_pre_slip);
+}
+
+CollLCPPointSolution LCPSolver::solveInternal(
+		const uint contact_size,
+		const Eigen::MatrixXd& A,
+		const Eigen::VectorXd& b,
+		const Eigen::VectorXd& pre_v,
+		const std::vector<MomentConstraints>& initial_moment_constraints,
+		const double epsilon,
+		const double mu,
+		const bool force_sliding_if_pre_slip
+) {
+	this->contact_size = contact_size;
+	num_points = A.rows()/contact_size;
+
+	if (contact_size == 3 && num_points == 1) {
+		// TODO: extend to contact size > 3
+		// Use optimized 1 pt solution
+		return solveCollLCPOnePoint(A, b, pre_v, epsilon, mu);
+	}
+
 	CollLCPPointSolution ret_sol;
 
 	// setup
-	states.clear();
-	num_points = A.rows()/3;
 	TA = A;
 	TA_size = 0;
 	Trhs = -b;
 	VectorXd post_v_min;
-	post_v_min.setZero(b.size());
 
-	// initially set all points to be noContact
+	// initially set all points to be noContact and noMoment
+	states = std::vector<PointState>(num_points, PointState::NoContact);
+	frictionless_sliding_directions = std::vector<Vector2d>(num_points, Vector2d::Zero());
+	rolling_sliding_directions = std::vector<Vector2d>(num_points, Vector2d::Zero());
+	chosen_sliding_directions = std::vector<Vector2d>(num_points, Vector2d::Zero());
+	rolling_redundancy_directions =
+		std::vector<RollingFrictionRedundancyDir>(num_points, RollingFrictionRedundancyDir::None);
+
+	post_v_min.setZero(b.size());
 	for(uint i = 0; i < num_points; i++) {
-		assert(pre_v(3*i + 2) <= 2e-4);
-		post_v_min(3*i + 2) = -epsilon*pre_v(3*i + 2);
-		states.push_back(PointState::NoContact);
-		frictionless_sliding_directions.push_back(Vector2d::Zero());
-		rolling_sliding_directions.push_back(Vector2d::Zero());
-		chosen_sliding_directions.push_back(Vector2d::Zero());
-		rolling_redundancy_directions.push_back(RollingFrictionRedundancyDir::None);
+		assert(pre_v(contact_size*i + 2) <= 2e-4);
+		post_v_min(contact_size*i + 2) = -epsilon*pre_v(contact_size*i + 2);
 	}
 
-	Composer composer(A, b, pre_v, post_v_min, /*contact_size=*/ 3, mu);
+	// Initialize moment constraints with the given constraints. But note that if a point
+	// is not in contact, moment constraints will be ignored.
+	moment_constraints = initial_moment_constraints;
+
+	Composer composer(A, b, pre_v, post_v_min, contact_size, mu);
 
 	uint last_point_index = 0;
 	VectorXd full_v_sol = b;
@@ -270,11 +314,20 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::DeterminingActiveFrictionlessContacts) {
 			bool any_pt_penetrating = false;
 			for(uint i = 0; i < num_points; i++) {
-				if(full_v_sol(3*i + 2) < (-1e-10 + post_v_min(3*i + 2))) {
+				const uint i_ind_start = contact_size*i;
+				if(full_v_sol(i_ind_start + 2) < (-1e-10 + post_v_min(i_ind_start + 2))) {
 					// we ignore points where pre_v is positive
 					// TODO: think more about this. currently, it often causes failure
 					// to find a solution.
-					if(pre_v(3*i+2) > 1e-10) {
+
+					// std::cout << "Pt " << i << " penetrating with vel "
+						// << full_v_sol(i_ind_start + 2) << std::endl;
+
+					if(epsilon > 0 && pre_v(i_ind_start+2) > 1e-10) {
+						if(LCP_LOG_DEBUG) {
+							std::cout << "Pre-V positive " << pre_v(i_ind_start+2)
+									  << " at pt " << i << ". Ignoring penetration.\n";
+						}
 						continue;
 					}
 
@@ -291,7 +344,10 @@ CollLCPPointSolution LCPSolver::solve(
 						// This heuristic circumvents Painleve's problem by sacrificing
 						// frictional correctness to preserve non-penetration.
 
-						// std::cout << "Force NoContactAgain to frictionless contact " << i << std::endl;
+						if(LCP_LOG_DEBUG) {
+							std::cout << "Force NoContactAgain to frictionless contact " << i << std::endl;
+						}
+						any_pt_penetrating = true;
 						states[i] = PointState::Rolling;
 						rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
 						continue;
@@ -301,7 +357,7 @@ CollLCPPointSolution LCPSolver::solve(
 					// likely due to numerical error. so we check again with relaxed
 					// penetration velocity constraint
 					if(states[i] != PointState::NoContact) {
-						if (full_v_sol(3*i + 2) > (-1e-6 + post_v_min(3*i + 2))) {
+						if (full_v_sol(i_ind_start + 2) > (-1e-6 + post_v_min(i_ind_start + 2))) {
 							if(LCP_LOG_DEBUG) {
 								std::cout << "penetration for contact pt " << i
 										  << ". No penetration after relaxing constraint." << std::endl;
@@ -312,8 +368,8 @@ CollLCPPointSolution LCPSolver::solve(
 							std::cout << "LCPSolver failed because contact point " << i
 									  << " was found in state " << states[i]
 									  << " to be in penetration with velocity"
-									  << full_v_sol(3*i + 2)
-									  << ". Needed at least " << post_v_min(3*i + 2)
+									  << full_v_sol(i_ind_start + 2)
+									  << ". Needed at least " << post_v_min(i_ind_start + 2)
 									  << std::endl;
 							solver_state = SolverState::Failed;
 							break;
@@ -326,7 +382,8 @@ CollLCPPointSolution LCPSolver::solve(
 					// If force_sliding_if_pre_slip is false, start in frictionless state.
 					// If force_sliding_if_pre_slip is true but there is no slip at the
 					// point, also start in frictionless state.
-					if(!force_sliding_if_pre_slip || pre_v.segment<2>(i*3).norm() < 1e-8) {
+					if(!force_sliding_if_pre_slip ||
+					   pre_v.segment<2>(i_ind_start).norm() < 1e-8) {
 						enableFrictionlessContact(i);
 					} else {
 						// If force_sliding_if_pre_slip is true and point is slipping,
@@ -341,7 +398,11 @@ CollLCPPointSolution LCPSolver::solve(
 			if(solver_state == SolverState::Failed) {
 				break;
 			} else if(!any_pt_penetrating) {
-				solver_state = SolverState::EnforcingRollingFriction;
+				if (mu > 0) {
+					solver_state = SolverState::EnforcingRollingFriction;
+				} else {
+					solver_state = SolverState::EnforcingNonNegativeNormalForce;
+				}
 			}
 		}
 
@@ -351,13 +412,14 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::EnforcingRollingFriction) {
 			bool any_frictionless_pt_slipping = false;
 			for(uint i = 0; i < num_points; i++) {
+				const uint i_ind_start = contact_size*i;
 				if(states[i] != PointState::Frictionless) {
 					// If the point is not in contact or is already set to be in rolling
 					// or sliding contact, there's nothing to do.
 					continue;
 				}
 
-				const Vector2d curr_slip_speed = full_v_sol.segment<2>(3*i);
+				const Vector2d curr_slip_speed = full_v_sol.segment<2>(i_ind_start);
 				if(curr_slip_speed.norm() > 1e-8) {
 					// save current slip direction for this point
 					frictionless_sliding_directions[i] = curr_slip_speed/curr_slip_speed.norm();
@@ -387,14 +449,15 @@ CollLCPPointSolution LCPSolver::solve(
 		if(solver_state == SolverState::EnforcingFrictionCone) {
 			bool any_pt_friction_cone_violation = false;
 			for(uint i = 0; i < num_points; i++) {
+				const uint i_ind_start = contact_size*i;
 				if(states[i] != PointState::Rolling) {
 					// Either point is not in contact or is frictionless or
 					// is sliding and the slip direction is already known.
 					continue;
 				}
 
-				const Vector2d rolling_friction = full_p_sol.segment<2>(3*i);
-				if(rolling_friction.norm() - mu*abs(full_p_sol(3*i + 2)) > 1e-15) {
+				const Vector2d rolling_friction = full_p_sol.segment<2>(i_ind_start);
+				if(rolling_friction.norm() - mu*abs(full_p_sol(i_ind_start + 2)) > 1e-15) {
 					// save current rolling direction for this point
 					if(rolling_friction.norm() > 1e-8) {
 						rolling_sliding_directions[i] = -rolling_friction/rolling_friction.norm();
@@ -418,18 +481,19 @@ CollLCPPointSolution LCPSolver::solve(
 			bool did_disable_any_contacts = false;
 			bool did_ignore_rolling_contacts = false;
 			for(uint i = 0; i < num_points; i++) {
+				const uint i_ind_start = contact_size*i;
 				if(states[i] == PointState::Rolling) {
 					// for rolling points, if friction cone is violated, then the point will
 					// eventually be sliding. so ignore the non-negative force check for now.
 					// We can get into this state if another point previously in contact was
 					// disabled in the last solver iteration.
-					Vector2d rolling_friction = full_p_sol.segment<2>(3*i);
-					if(rolling_friction.norm() - mu*abs(full_p_sol(3*i + 2)) > 1e-15) {
+					Vector2d rolling_friction = full_p_sol.segment<2>(i_ind_start);
+					if(rolling_friction.norm() - mu*abs(full_p_sol(i_ind_start + 2)) > 1e-15) {
 						did_ignore_rolling_contacts = true;
 						continue;
 					}
 				}
-				if(full_p_sol(3*i+2) < -1e-8) {
+				if(full_p_sol(i_ind_start+2) < -1e-8) {
 					// std::cout << "TRhs: " << Trhs.segment(0, TA_size).transpose() << std::endl;
 					// std::cout << "Disable contact" << i << std::endl;
 					disableContact(i);
@@ -442,6 +506,9 @@ CollLCPPointSolution LCPSolver::solve(
 				break;
 			} else if(!did_ignore_rolling_contacts && !did_disable_any_contacts) {
 				// We are done!
+				if(LCP_LOG_DEBUG) {
+					std::cout << "Solved LCP in " << iters << " iterations\n";
+				}
 				ret_sol.p_sol = full_p_sol;
 				ret_sol.result = LCPSolResult::Success;
 				return ret_sol;
@@ -472,6 +539,7 @@ CollLCPPointSolution LCPSolver::solve(
 
 		// solve full equation for full_v_sol
 		full_v_sol = A*full_p_sol + b;
+		// std::cout << "Full p sol: " << full_p_sol.transpose() << std::endl;
 		// std::cout << "Full v sol: " << full_v_sol.transpose() << std::endl;
 	}
 
@@ -539,7 +607,7 @@ void LCPSolver::enableRollingFriction(uint i, Composer* composer) {
 void LCPSolver::enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v) {
 	states[i] = PointState::Sliding;
 	if(LCP_LOG_DEBUG) std::cout << "Enable sliding " << i << std::endl;
-	Vector2d pre_slip = pre_v.segment<2>(i*3);
+	Vector2d pre_slip = pre_v.segment<2>(i*contact_size);
 	if(pre_slip.norm() > 1e-8) {
 		chosen_sliding_directions[i] = pre_slip/pre_slip.norm();
 		if(LCP_LOG_DEBUG) std::cout << "Use pre_v slip direction " << i << std::endl;
