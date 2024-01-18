@@ -1,5 +1,6 @@
 // SteadyContactResolution.cpp
 
+#include <algorithm>
 #include <iostream>
 #include "ContactSpaceModel.h"
 
@@ -13,7 +14,7 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 		return false;
 	}
 
-	// assemble solver matrices
+	// assemble solver matrices specific to the post-collision active pairs
 	std::vector<std::vector<Vector3d>> boundary_points;
 	std::vector<ContactType> contact_types;
 	std::vector<Eigen::Vector3d> omegaAs, omegaBs;
@@ -162,7 +163,6 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 			Vector3d pt0_to_pt_pos;
 			Vector3d lin_vel_pt;
 			if(prim._geom_prim_pair->info->type == ContactType::LINE) {//
-				// TODO: add surface
 				// TODO: this should be handled in getActiveMatrices
 				if(prim._active_points.front() == 0) {
 					A_constraint = _cop_constraint_Lambda_inv_active.block<3,3>(0,0);
@@ -195,6 +195,7 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				rhs_constraint[2] -= accel_contact_curvature;
 				lin_vel_pt = linear_contact_velocity[0];
 			} else {
+				// This is a surface contact with one active point lying on the patch end.
 				// check last cop solution. if it is success and lies on patch end,
 				// then solve for a pt contact at the last cop position
 				if(prim._last_cop_sol.result == COPSolResult::Success
@@ -352,8 +353,38 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				}
 				ind++;
 			}
+		} else if (contact_types[0] == ContactType::SURFACE &&
+				   		contact_types[1] == ContactType::SURFACE) {
+			std::vector<ContactPatch> patches(2);
+			for(uint prim_id: _active_contacts) {
+				auto& prim = _pair_state[prim_id];
+				patches.push_back(prim._geom_prim_pair->info->contact_patch);
+			}
+
+			COPSolver solver;
+			std::vector<ContactCOPSolution> two_sol =
+				solver.solveTwoSurfaceContactsWithLCP(
+					friction_coeff,
+					_cop_constraint_Lambda_inv_active,
+					constraint_cop_rhs,
+					constraint_Jrow_ind_to_contact_pair_map,
+					contact_types, patches,
+					omegaAs, omegaBs,
+					linear_contact_velocity);
+
+			uint ind = 0;
+			for(uint prim_id: _active_contacts) {
+				if (two_sol[ind].result != COPSolResult::Success) {
+					throw(std::runtime_error("COP solution failed"));
+				}
+				auto& prim = _pair_state[prim_id];
+				prim._last_cop_sol = two_sol[ind];
+				ind++;
+			}
 		} else {
-			throw(std::runtime_error("Unimplemented steady contact resolution case. Two primitives, not line and pt."));
+			throw(std::runtime_error("Unimplemented steady contact resolution case. "
+									 "Two primitives, neither line+pt nor"
+									 "surface+surface."));
 		}
 	} else {
 		throw(std::runtime_error("Unimplemented steady contact resolution case. Num primitives."));

@@ -64,6 +64,17 @@ public:
 		//^ expected to be zero in the z direction, but we don't explicitly check
 	);
 
+	ContactCOPSolution solveOneLineStartWithPatchCentroidWithLCP(
+		double friction_coeff,
+		const Eigen::MatrixXd& A_constraint, // defined at point0
+		const Eigen::VectorXd& rhs_constraint, // defined at point 0. Includes Jdot_qdot
+		const std::vector<Eigen::Vector3d>& boundary_points, // points are in the COP frame with point0 being origin
+		const Eigen::Vector3d& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+		const Eigen::Vector3d& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+		const Eigen::Vector3d& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+		//^ expected to be zero in the z direction, but we don't explicitly check
+	);
+
 	ContactCOPSolution solveStartWithPatchCentroidOnePointOneLine( //TODO: should return a vector of ContactCOPSolution
 		double friction_coeff,
 		const Eigen::MatrixXd& A_constraint,
@@ -71,6 +82,30 @@ public:
 		const std::vector<std::vector<Eigen::Vector3d>>& boundary_points, // points are in the COP frame with point0 being origin
 		const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
 		const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
+		const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+		const std::vector<Eigen::Vector3d>& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+		const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+		//^ expected to be zero in the z direction, but we don't explicitly check
+	);
+
+	ContactCOPSolution solveOneSurfaceContactWithLCP(
+		double friction_coeff,
+		const Eigen::MatrixXd& A_constraint, // defined at Contact Patch Interior point.
+		const Eigen::VectorXd& rhs_constraint, // defined at Contact Patch Interior point. Includes Jdot_qdot
+		const ContactPatch& contact_patch,
+		const Eigen::Vector3d& omegaA, // vector of body A angular velocities, in COP frame, one entry per contact patch
+		const Eigen::Vector3d& omegaB, // vector of body B angular velocities, in COP frame, one entry per contact patch
+		const Eigen::Vector3d& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
+		//^ expected to be zero in the z direction, but we don't explicitly check
+	);
+
+	std::vector<ContactCOPSolution> solveTwoSurfaceContactsWithLCP(
+		double friction_coeff,
+		const Eigen::MatrixXd& A_constraint,
+		const Eigen::VectorXd& rhs_constraint,
+		const std::vector<uint>& patch_indices, // ith entry gives starting row of ith contact patch in A_constraint, rhs_constraint
+		const std::vector<ContactType>& contact_types, // ith entry gives contact type of ith contact patch
+		const std::vector<ContactPatch>& contact_patches,
 		const std::vector<Eigen::Vector3d>& omega_bodyA, // vector of body A angular velocities, in COP frame, one entry per contact patch
 		const std::vector<Eigen::Vector3d>& omega_bodyB, // vector of body B angular velocities, in COP frame, one entry per contact patch
 		const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
