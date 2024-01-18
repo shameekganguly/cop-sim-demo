@@ -93,7 +93,8 @@ set(COP_DEMO_COMMON_SOURCE
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactCurvature.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/ContactDetection.cpp
   ${PROJECT_SOURCE_DIR}/src/cop_simulator/COPSimulator.cpp
-  ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver2.cpp
+  ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolver.cpp
+  ${PROJECT_SOURCE_DIR}/src/lcp_solvers/LCPSolverInternal.cpp
 )
 
 add_library(copsim ${COP_DEMO_COMMON_SOURCE})
