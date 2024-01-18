@@ -1,9 +1,12 @@
 /*  01-single-contact - main.cpp
-This demo shows collision and contact resolution between a single cylinder and a plane.
+This demo shows collision and contact resolution between a single capsule and a plane.
 
 Author: Shameek Ganguly shameekg@stanford.edu
 Date: 11/8/2017
 */
+
+// TODO: Consider deleting this example since it is a subset of 02-two-capsules.
+
 #include <iostream>
 #include <string>
 #include <thread>
@@ -26,13 +29,14 @@ using namespace Eigen;
 #include "force_sensor/ForceSensorSim.h"
 #include "force_sensor/ForceSensorDisplay.h"
 
-#include "lcp_solvers/LCPSolver.h"
+#include "lcp_solvers/LCPSolverInternal.h"
 #include "cop_simulator/COPSolver.h"
 
 #include <GLFW/glfw3.h> //must be loaded after loading opengl/glew as part of graphicsinterface
 
 using namespace std;
 using namespace chai3d;
+using namespace Sai2LCPSolver;
 
 const string world_fname = "resources/01-single-contact/world.urdf";
 const string object_fname = "resources/01-single-contact/sphere_object.urdf";
