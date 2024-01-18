@@ -43,7 +43,9 @@
 
 	<robot name="Capsule5">
 		<model dir="resources/02-two-capsules/" path="capsule_object.urdf" name="CapsuleObjectModel" />
-		<origin xyz="-0.7 -0.0 1.0" rpy="0 0.0 0.3" />
+		<!-- Use this once two-pt COP solver is supported -->
+		<!-- <origin xyz="-0.7 0 1.0" rpy="0 0.0 0.3" /> -->
+		<origin xyz="-0.7 -0.5 1.0" rpy="0 0.0 0.3" />
 	</robot>
 
 	<light name="light2" type="directional">

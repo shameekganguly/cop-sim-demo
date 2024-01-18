@@ -34,6 +34,11 @@ using namespace Eigen;
 
 using namespace chai3d;
 
+// Set this to true to make the simulation deterministic and set it to false to make it
+// smooth. The simulation may not always be smooth when this flag is true because the
+// simulator may run slower than real-time for some intervals.
+const bool make_sim_deterministic = true;
+
 const string world_fname = "resources/02-two-capsules/world.urdf";
 const string object_fname = "resources/02-two-capsules/capsule_object.urdf";
 const string object1_name = "Capsule1";
@@ -253,9 +258,10 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
 	fSimulationRunning = true;
 
     // create a timer
+    constexpr uint kFrequency = 1000;
     LoopTimer timer;
     timer.initializeTimer();
-    timer.setLoopFrequency(20000); //1500Hz timer
+    timer.setLoopFrequency(kFrequency);
     double last_time = timer.elapsedTime(); //secs
     bool fTimerDidSleep = true;
     while (fSimulationRunning) {
@@ -267,7 +273,11 @@ void simulation(Sai2COPSim::COPSimulator* sim) {
             last_time = curr_time;
             continue;
         }
-        double loop_dt = curr_time - last_time;
+        double loop_dt = 1.0/kFrequency;
+        if (!make_sim_deterministic) {
+            // Integrate for the actual time elapsed and not the expected time elapsed.
+            loop_dt = curr_time - last_time;
+        }
 
         try {
             sim->integrate(loop_dt);
