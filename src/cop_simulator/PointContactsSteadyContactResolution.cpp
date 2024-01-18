@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include "ContactSpaceModel.h"
-#include "lcp_solvers/LCPSolver2.h"
+#include "lcp_solvers/LCPSolver.h"
 
 using namespace Eigen;
 
@@ -83,7 +83,7 @@ bool ContactIslandModel::resolveSteadyContactsWithPointContacts(
 		friction_coeff,
 		true /* force_sliding_if_pre_slip */
 	);
-	if(lcp_sol.result != LCPSolResult::Success) {
+	if(lcp_sol.result != Sai2LCPSolver::LCPSolResult::Success) {
 		throw(std::runtime_error("Pt contacts Steady Contact LCP failed"));
 	}
 

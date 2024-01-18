@@ -217,7 +217,7 @@ public:
 	Eigen::VectorXd _cop_constraint_rhs_contact;
 
 	// last collision LCP solution
-	CollLCPPointSolution _last_coll_lcp_sol;
+	Sai2LCPSolver::CollLCPPointSolution _last_coll_lcp_sol;
 
 	// list of active contact indices. This corresponds to particular primitive pairs in
 	// the _geom_island->_contact_prim_pairs which are either colliding or at steady contact

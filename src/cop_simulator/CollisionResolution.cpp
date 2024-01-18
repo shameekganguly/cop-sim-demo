@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include "ContactSpaceModel.h"
-#include "lcp_solvers/LCPSolver2.h"
+#include "lcp_solvers/LCPSolver.h"
 
 using namespace Eigen;
 
@@ -142,39 +142,8 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 		}
 
 		// - call LCP solver.
-		uint num_active_contact_pts = pt_contact_rhs_coll_active.size()/3;
-		if(num_active_contact_pts == 1) {
-			_last_coll_lcp_sol = solveCollLCPOnePoint (
-				_pt_contact_Lambda_inv_active,
-				pt_contact_rhs_coll_active,
-				pt_contact_rhs_coll_active,
-				adjusted_restitution_coeff,
-				friction_coeff
-			);
-		} else if(num_active_contact_pts == 2) {
-			// std::cout << "Line contact" << std::endl;
-			//TODO: extend to more comprehensive hints for redundant force dimensions
-			// check if both points are in the same prim pair
-			bool is_x_redundant = false;
-			if(max_num_pts_any_prim == 2) {
-				is_x_redundant = true;
-				// ensure that we do not have an assymetry due to numerical error
-				double v_red = pt_contact_rhs_coll_active[0] + pt_contact_rhs_coll_active[3];
-				v_red *= 0.5;
-				pt_contact_rhs_coll_active[0] = v_red;
-				pt_contact_rhs_coll_active[3] = v_red;
-			}
-			//TODO: generalize above to any redundancy direction
-			_last_coll_lcp_sol = solveCollLCPPoint (
-				2,
-				_pt_contact_Lambda_inv_active,
-				pt_contact_rhs_coll_active,
-				pt_contact_rhs_coll_active,
-				adjusted_restitution_coeff,
-				friction_coeff,
-				is_x_redundant
-			);
-		} else {
+		const uint num_active_contact_pts = pt_contact_rhs_coll_active.size()/3;
+		if (num_active_contact_pts > 0) {
 			auto solver = Sai2LCPSolver::LCPSolver();
 			// std::cout << _pt_contact_Lambda_inv_active << std::endl;
 			// std::cout << pt_contact_rhs_coll_active.transpose() << std::endl;
@@ -186,22 +155,19 @@ bool ContactIslandModel::resolveCollisions(double friction_coeff, double restitu
 				adjusted_restitution_coeff,
 				friction_coeff
 			);
-		}
-
-		if(num_active_contact_pts > 0) {
-			if (_last_coll_lcp_sol.result == LCPSolResult::Success) {
+			if (_last_coll_lcp_sol.result == Sai2LCPSolver::LCPSolResult::Success) {
 				// std::cout << "LCP Impulse: " << _last_coll_lcp_sol.p_sol.transpose() << std::endl;
 				// std::cout << "Num contacts " << num_active_contact_pts << std::endl;
 				// std::cout << _pt_contact_Jacobian_active << std::endl;
 			} else {
-							std::cerr << "LCP failed with type: " << static_cast<int>(_last_coll_lcp_sol.result) << std::endl;
-		// 					cout << "Num contacts " << contact_model._activeContacts.size() << endl;
-		// 					cout << "pre coll vel: " << pre_collision_contact_vel.transpose() << endl;
-		// 					cout << "lambda inv " << contact_lambda_inv << endl;
-		// 					cout << "restitution " << coll_restitution << endl;
-		// 					cout << "q " << model->_q.transpose() << endl;
-		// 					cout << "contact Jacobian " << contact_jacobian << endl;
-							throw(std::out_of_range("Collision LCP failure."));
+				std::cerr << "LCP failed with type: " << static_cast<int>(_last_coll_lcp_sol.result) << std::endl;
+				// cout << "Num contacts " << contact_model._activeContacts.size() << endl;
+				// cout << "pre coll vel: " << pre_collision_contact_vel.transpose() << endl;
+				// cout << "lambda inv " << contact_lambda_inv << endl;
+				// cout << "restitution " << coll_restitution << endl;
+				// cout << "q " << model->_q.transpose() << endl;
+				// cout << "contact Jacobian " << contact_jacobian << endl;
+				throw(std::out_of_range("Collision LCP failure."));
 			}
 		}
 
