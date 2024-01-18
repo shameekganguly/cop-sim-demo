@@ -13,25 +13,25 @@
 	    <!-- <visual>
 	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
             <geometry>
-                <mesh filename="resources/08-negative_space_peg_hole/left_half.obj" scale="1 1 1" />
+                <mesh filename="resources/09-neg_space_arm_insertion/left_half.obj" scale="1 1 1" />
             </geometry>
 	    </visual>
 	    <visual>
 	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
             <geometry>
-                <mesh filename="resources/08-negative_space_peg_hole/right_half.obj" scale="1 1 1" />
+                <mesh filename="resources/09-neg_space_arm_insertion/right_half.obj" scale="1 1 1" />
             </geometry>
 	    </visual> -->
 	    <visual>
 	        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
             <geometry>
-                <mesh filename="resources/08-negative_space_peg_hole/three_hole_block.obj" scale="1 1 1" />
+                <mesh filename="resources/09-neg_space_arm_insertion/three_hole_block.obj" scale="1 1 1" />
             </geometry>
 	    </visual>
 	</static_object>
 
 	<!-- <robot name="Capsule">
-		<model dir="resources/08-negative_space_peg_hole/" path="capsule_object.urdf" name="CapsuleObjectModel" />
+		<model dir="resources/09-neg_space_arm_insertion/" path="capsule_object.urdf" name="CapsuleObjectModel" />
 		<origin xyz="0.01 0.0 0.2" rpy="0 -1.3 0.0" />
 	</robot> -->
 

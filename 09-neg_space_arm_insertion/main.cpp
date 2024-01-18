@@ -49,7 +49,7 @@ void handler(int sig) {
 
 using namespace chai3d;
 
-const string world_fname = "resources/08-negative_space_peg_hole/world.urdf";
+const string world_fname = "resources/09-neg_space_arm_insertion/world.urdf";
 
 const string robot_fname = "../resources/kuka_iiwa/kuka_iiwa_peg_hole1.urdf";
 const string robot_name = "IIWA";
@@ -62,7 +62,7 @@ Eigen::VectorXd arm_home_qpos;
 const double robot_ee_capsule_radius = 0.008;
 const double robot_ee_capsule_length = 0.08;
 
-const string object_fname = "resources/08-negative_space_peg_hole/capsule_object.urdf";
+const string object_fname = "resources/09-neg_space_arm_insertion/capsule_object.urdf";
 const string capsule_object_name = "Capsule";
 const double capsule_radius = 0.01;
 const double capsule_length = 0.08;
