@@ -355,7 +355,7 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 			}
 		} else if (contact_types[0] == ContactType::SURFACE &&
 				   		contact_types[1] == ContactType::SURFACE) {
-			std::vector<ContactPatch> patches(2);
+			std::vector<ContactPatch> patches;
 			for(uint prim_id: _active_contacts) {
 				auto& prim = _pair_state[prim_id];
 				patches.push_back(prim._geom_prim_pair->info->contact_patch);
@@ -379,6 +379,9 @@ bool ContactIslandModel::resolveSteadyContacts(double friction_coeff, double res
 				}
 				auto& prim = _pair_state[prim_id];
 				prim._last_cop_sol = two_sol[ind];
+				// std::cout << "cop sol force " << ind
+				// 		  << ": " << prim._last_cop_sol.force_sol.transpose()
+				// 		  << std::endl;
 				ind++;
 			}
 		} else {

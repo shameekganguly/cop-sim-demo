@@ -47,23 +47,24 @@ void getDisplacedMatricesForMultipleSurfaceContacts(
 	const std::vector<Eigen::Vector3d>& lin_vels
 ) {
 	const uint num_surfaces = displacements.size();
-
-	MatrixXd transform_mat = MatrixXd::Identity(6*num_surfaces, 6*num_surfaces);
-	// Note: use multiple for loops instead of one so that the matrices are loaded
-	// in a cache-friendly manner.
+	const uint A_size = A.rows();
+	A_disp = A;
+	rhs_disp = rhs;
 	for (uint i = 0; i < num_surfaces; i++) {
-		transform_mat.block<3,3>(6*i, 6*i + 3) = -crossMat(displacements[i]);
-	}
+		if (displacements[i].norm() < 1e-6) {
+			continue;
+		}
+		Eigen::Matrix3d cM = -crossMat(displacements[i]);
+		A_disp.block(0, 6*i, A_size, 3) +=
+			A_disp.block(0, 6*i + 3, A_size, 3)*cM.transpose();
 
-	A_disp = transform_mat*A*transform_mat.transpose();
+		A_disp.block(6*i, 0, 3, A_size) +=
+			cM*A_disp.block(6*i + 3, 0, 3, A_size);
 
-	rhs_disp = transform_mat*rhs;
-	for (uint i = 0; i < num_surfaces; i++) {
+		rhs_disp.segment<3>(6*i) += cM*rhs_disp.segment<3>(6*i + 3);
 		rhs_disp.segment<3>(6*i) += omegaBs[i].cross(omegaBs[i].cross(displacements[i]))
 				- omegaAs[i].cross(omegaAs[i].cross(displacements[i]));
-	}
 
-	for (uint i = 0; i < num_surfaces; i++) {
 		lin_vels_disp[i] = lin_vels[i] +
 						   		(omegaBs[i] - omegaAs[i]).cross(displacements[i]);
 	}
@@ -719,7 +720,9 @@ ContactCOPSolution COPSolver::solveOneLineStartWithPatchCentroidWithLCP(
 			lcp_moment_constraint = Sai2LCPSolver::MomentConstraints::XMoment;
 		}
 
-		Vector3d lcp_lin_vel_disp = lin_vel_disp;
+		// LCP solver expects pre_v to be the same size as vector b. So we add 0's to pad.
+		VectorXd lcp_lin_vel_disp(5);
+		lcp_lin_vel_disp << lin_vel_disp, 0, 0;
 		if (fForceIgnoreSlip) {
 			lcp_lin_vel_disp[0] = 0;
 			lcp_lin_vel_disp[1] = 0;
@@ -1827,7 +1830,9 @@ ContactCOPSolution COPSolver::solveOneSurfaceContactWithLCP(
 		   lin_vel_disp.segment<2>(0).norm() < 1e-6) {
 		   	fForceIgnoreSlip = true;
 		}
-		Vector3d lin_vel_disp_for_lcp = lin_vel_disp;
+		// LCP solver expects pre_v to be the same size as vector b. So we add 0's to pad.
+		VectorXd lin_vel_disp_for_lcp(5);
+		lin_vel_disp_for_lcp << lin_vel_disp, 0, 0;
 		if (fForceIgnoreSlip) {
 			lin_vel_disp_for_lcp.segment<2>(0).setZero();
 		}
@@ -1934,10 +1939,12 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		const std::vector<Eigen::Vector3d>& linear_contact_velocity // 3 dof relative translation velocity at point 0, in COP frame, one entry per contact patch
 		//^ expected to be zero in the z direction, but we don't explicitly check
 	) {
+	constexpr bool print_time_analytics = false;
 	assert(contact_types.size() == 2);
 	assert(patch_indices[0] == 0);
 	assert(patch_indices[1] == 6);
 
+	auto pre_time_pt1 = std::chrono::high_resolution_clock::now();
 	if(contact_types[0] != ContactType::SURFACE ||
 	   contact_types[1] != ContactType::SURFACE) {
 		throw(std::runtime_error(
@@ -2078,14 +2085,20 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		}
 	};
 
+	auto pre_time_pt2 = std::chrono::high_resolution_clock::now();
+
 	auto lcp_solver = Sai2LCPSolver::LCPSolver();
 	MatrixXd lcp_A_disp(10, 10);
 	VectorXd lcp_rhs_disp(10);
-	VectorXd lcp_lin_vel_disp(6);
+	VectorXd lcp_lin_vel_disp(10);
+
+	auto pre_time_pt3 = std::chrono::high_resolution_clock::now();
+	double iter_time_total = 0;
 	while (iter_ind < max_iters) {
 		iter_ind++;
 
 		// -- Assemble LCP variables --
+		auto time_pt1 = std::chrono::high_resolution_clock::now();
 		getDisplacedMatricesForMultipleSurfaceContacts(
 			A_disp, rhs_disp, lin_vel_disp,
 			cop_points,
@@ -2096,12 +2109,16 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		update_ignore_slip(0);
 		update_ignore_slip(1);
 
-		lcp_lin_vel_disp << lin_vel_disp[0], lin_vel_disp[1];
+		// LCP solver expects pre_v to be the same size as vector b. So we add 0's to pad
+		// between linear velocity components for each point.
+		lcp_lin_vel_disp << lin_vel_disp[0], 0, 0,
+						    lin_vel_disp[1], 0, 0;
+		// std::cout << "lcp_lin_vel_disp " << lcp_lin_vel_disp.transpose() << std::endl;
 		if (fForceIgnoreSlip[0]) {
 			lcp_lin_vel_disp.segment<2>(0).setZero();
 		}
 		if (fForceIgnoreSlip[1]) {
-			lcp_lin_vel_disp.segment<2>(3).setZero();
+			lcp_lin_vel_disp.segment<2>(5).setZero();
 		}
 
 		auto lcp_moment_constraints =
@@ -2114,9 +2131,11 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 			lcp_moment_constraints[1] = Sai2LCPSolver::MomentConstraints::NoMoment;
 		}
 
+		auto time_pt2 = std::chrono::high_resolution_clock::now();
 		update_viscous_torque(0);
 		update_viscous_torque(1);
 
+		auto time_pt3 = std::chrono::high_resolution_clock::now();
 		// -- Solve LCP --
 		// The LCP A matrix does not include row for rotational acc and col for
 		// rotational torque for any patch. So we copy A_disp to lcp_A_disp without these
@@ -2128,6 +2147,9 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		lcp_rhs_disp.segment<5>(0) = rhs_disp.segment<5>(0);
 		lcp_rhs_disp.segment<5>(5) = rhs_disp.segment<5>(6);
 
+		// std::cout << "lcp A " << std::endl << lcp_A_disp << std::endl;
+		// std::cout << "lcp rhs " << lcp_rhs_disp.transpose() << std::endl;
+		auto time_pt4 = std::chrono::high_resolution_clock::now();
 		auto lcp_result = lcp_solver.solveWithMoments(
 			lcp_A_disp,
 			lcp_rhs_disp,
@@ -2137,10 +2159,11 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		if (lcp_result.result != Sai2LCPSolver::LCPSolResult::Success) {
 			break;
 		}
+		auto time_pt5 = std::chrono::high_resolution_clock::now();
 
 		full_f_sol << lcp_result.p_sol.segment<5>(0), visc_rot_torque[0],
 					  lcp_result.p_sol.segment<5>(5), visc_rot_torque[1];
-		// std::cout << f_sol.transpose() << std::endl;
+		// std::cout << full_f_sol.transpose() << std::endl;
 
 		// Don't multiply A_disp with full_f_sol directly since we added
 		// the acc contributions from the viscous torques to rhs_disp earlier.
@@ -2148,6 +2171,7 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 		             	A_disp.block<12, 5>(0, 6)*full_f_sol.segment<5>(6) +
 							rhs_disp;
 
+		auto time_pt6 = std::chrono::high_resolution_clock::now();
 		bool did_succeed = true;
 
 		for (uint i = 0; i < patch_indices.size(); i++) {
@@ -2170,7 +2194,6 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 					break;
 				}
 			} else {
-
 				// patch_cop_type = COPContactType::PatchCenter, check for COP constraint.
 				Vector2d violation_moment = full_f_sol.segment<2>(6*i + 3);
 				if(violation_moment.norm() > 1e-3) {
@@ -2201,8 +2224,25 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 				}
 			}
 		}
+
+		if (print_time_analytics) {
+			auto time_pt7 = std::chrono::high_resolution_clock::now();
+			iter_time_total += 1e3*std::chrono::duration<double>(time_pt7 - time_pt1).count();
+			std::cout << "Iter took "
+					  << 1e3*std::chrono::duration<double>(time_pt7 - time_pt1).count()
+					  << "ms\n";
+			std::cout << "Step 1: " << 1e3*std::chrono::duration<double>(time_pt2 - time_pt1).count()
+			          << "Step 2: " << 1e3*std::chrono::duration<double>(time_pt3 - time_pt2).count()
+			          << "Step 3: " << 1e3*std::chrono::duration<double>(time_pt4 - time_pt3).count()
+			          << "Step 4: " << 1e3*std::chrono::duration<double>(time_pt5 - time_pt4).count()
+			          << "Step 5: " << 1e3*std::chrono::duration<double>(time_pt6 - time_pt5).count()
+			          << "Step 6: " << 1e3*std::chrono::duration<double>(time_pt7 - time_pt6).count()
+			          << std::endl;
+		}
+
 		if (did_succeed) {
 			// We are done, return success
+		    auto copy_time_pt1 = std::chrono::high_resolution_clock::now();
 			std::vector<ContactCOPSolution> ret_sols;
 			for (uint i = 0; i < patch_indices.size(); i++) {
 				ContactCOPSolution sol;
@@ -2210,7 +2250,18 @@ std::vector<ContactCOPSolution> COPSolver::solveTwoSurfaceContactsWithLCP(
 				sol.result = COPSolResult::Success;
 				sol.local_cop_pos = cop_points[i];
 				sol.cop_type = patches_cop_type[i];
-				ret_sols.push_back(sol);
+				ret_sols.push_back(std::move(sol));
+			}
+			auto copy_time_pt2 = std::chrono::high_resolution_clock::now();
+
+			if (print_time_analytics) {
+				double copy_time = 1e3*std::chrono::duration<double>(copy_time_pt2 - copy_time_pt1).count();
+				double setup_time = 1e3*std::chrono::duration<double>(pre_time_pt3 - pre_time_pt1).count();
+				std::cout << "Setup took " << setup_time << "ms\n";
+				std::cout << "Result copy took " << copy_time << "ms\n";
+				std::cout << "Two sol took "
+						  << setup_time + copy_time + iter_time_total
+						  << "ms\n";
 			}
 			return ret_sols;
 		}
