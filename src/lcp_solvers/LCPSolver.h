@@ -120,6 +120,11 @@ public: // internal functions
 	// computes and sets the sliding friction constraint
 	void enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v);
 
+	// Enables moment constraints at the given point and checks for redundancy.
+	// A max number of constraints given by the initial moment constraints at this point
+	// will be enabled.
+	void enableMomentConstraints(uint i, Composer* composer);
+
 public: //internal variables
 	enum SolverState {
 		NoContacts,

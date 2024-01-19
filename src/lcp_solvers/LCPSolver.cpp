@@ -108,6 +108,9 @@ void composeMatrices(
 	}
 
 	TA.block(0, 0, TA_size, TA_size) = left_mask * A * right_mask;
+	// std::cout << "left mask :\n" << left_mask << std::endl;
+	// std::cout << "post_v_min :\n" << post_v_min.transpose() << std::endl;
+	// std::cout << "b :\n" << post_v_min.transpose() << std::endl;
 	Trhs.head(TA_size) = left_mask * (post_v_min - b);
 }
 
@@ -228,6 +231,7 @@ CollLCPPointSolution LCPSolver::solveWithMoments(
 		const std::vector<MomentConstraints>& initial_moment_constraints,
 		const double mu
 ) {
+	if (LCP_LOG_DEBUG) std::cout << "LCPSolver::solveWithMoments\n";
 	return solveInternal(/*contact_size=*/ 5, A, b, pre_v, initial_moment_constraints,
 		                 /*epsilon=*/ 0, mu, /*force_sliding_if_pre_slip=*/ true);
 }
@@ -240,6 +244,7 @@ CollLCPPointSolution LCPSolver::solve(
 		const double mu,
 		const bool force_sliding_if_pre_slip
 ) {
+	if (LCP_LOG_DEBUG) std::cout << "LCPSolver::solve (without moments)\n";
 	num_points = A.rows()/3;
 	std::vector<MomentConstraints> dummy_moment_constraints(
 									num_points,
@@ -291,6 +296,7 @@ CollLCPPointSolution LCPSolver::solveInternal(
 
 	// Initialize moment constraints with the given constraints. But note that if a point
 	// is not in contact, moment constraints will be ignored.
+	this->initial_moment_constraints = initial_moment_constraints;
 	moment_constraints = initial_moment_constraints;
 
 	Composer composer(A, b, pre_v, post_v_min, contact_size, mu);
@@ -350,6 +356,7 @@ CollLCPPointSolution LCPSolver::solveInternal(
 						any_pt_penetrating = true;
 						states[i] = PointState::Rolling;
 						rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
+						enableMomentConstraints(i, &composer);
 						continue;
 					}
 
@@ -385,11 +392,13 @@ CollLCPPointSolution LCPSolver::solveInternal(
 					if(!force_sliding_if_pre_slip ||
 					   pre_v.segment<2>(i_ind_start).norm() < 1e-8) {
 						enableFrictionlessContact(i);
+						enableMomentConstraints(i, &composer);
 					} else {
 						// If force_sliding_if_pre_slip is true and point is slipping,
 						// skip directly to sliding state.
 						if(LCP_LOG_DEBUG) std::cout << "force_sliding_if_pre_slip " << i << std::endl;
 						enableSlidingFriction(i, pre_v);
+						enableMomentConstraints(i, &composer);
 					}
 					break;
 				}
@@ -425,6 +434,7 @@ CollLCPPointSolution LCPSolver::solveInternal(
 					frictionless_sliding_directions[i] = curr_slip_speed/curr_slip_speed.norm();
 
 					enableRollingFriction(i, &composer);
+					enableMomentConstraints(i, &composer);
 					// this checks for redundancy directions with existing contacts
 					// TODO: if rolling_redundancy_directions[i] == RollingFrictionRedundancyDir::DirXandY,
 					// then rolling_friction will be zero. So we will never turn on sliding friction at this
@@ -463,6 +473,8 @@ CollLCPPointSolution LCPSolver::solveInternal(
 						rolling_sliding_directions[i] = -rolling_friction/rolling_friction.norm();
 					}
 					enableSlidingFriction(i, pre_v); // this also handles impending slip
+					// No need to enable moment constraints again at this point as it was already
+					// called when the point was set to rolling.
 					any_pt_friction_cone_violation = true;
 					break;
 				}
@@ -632,6 +644,68 @@ void LCPSolver::enableSlidingFriction(uint i, const Eigen::VectorXd& pre_v) {
 	states[i] = PointState::Rolling;
 	if(LCP_LOG_DEBUG) std::cout << "Force frictionless " << i << std::endl;
 	rolling_redundancy_directions[i] = RollingFrictionRedundancyDir::DirXandY;
+}
+
+void LCPSolver::enableMomentConstraints(uint i, Composer* composer) {
+	if(LCP_LOG_DEBUG) std::cout << "Enable moment constraints at pt " << i << std::endl;
+	// TODO: Currently we progressively remove moment constraints starting from the initial
+	// moment constraints with each iteration. Are there cases where a moment constraint
+	// should be added back if a point is disabled?
+
+	auto log_debug_moment = [&]() {
+		if(LCP_LOG_DEBUG) {
+			std::cout << "Moment constraint at " << i << ": " << moment_constraints[i]
+							  << ". Initial constraint: " << initial_moment_constraints[i] << std::endl;
+		}
+	};
+
+	if (moment_constraints[i] == MomentConstraints::NoMoment) {
+		log_debug_moment();
+		return;
+	}
+
+	composer->composeMatrices(TA, Trhs, TA_size,
+							  states, chosen_sliding_directions,
+							  rolling_redundancy_directions, moment_constraints);
+
+	if(abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
+		log_debug_moment();
+		return;
+	}
+
+	// If initial moment constraint is XandYMoments, then we need to try with just X or just
+	// Y constraint. If neither works, we disable moment constraint at this point.
+	// If the initial moment constraint is either X moment or Y moment, then simple disable
+	// moment constraints at this point.
+	if (initial_moment_constraints[i] != MomentConstraints::XandYMoments) {
+		moment_constraints[i] = MomentConstraints::NoMoment;
+		log_debug_moment();
+		return;
+	}
+
+	// Try X constraint only
+	moment_constraints[i] = MomentConstraints::XMoment;
+	composer->composeMatrices(TA, Trhs, TA_size,
+					  states, chosen_sliding_directions,
+					  rolling_redundancy_directions, moment_constraints);
+	if (abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
+		log_debug_moment();
+		return;
+	}
+
+	// Try Y constraint only
+	moment_constraints[i] = MomentConstraints::YMoment;
+	composer->composeMatrices(TA, Trhs, TA_size,
+				  states, chosen_sliding_directions,
+				  rolling_redundancy_directions, moment_constraints);
+	if (abs(TA.block(0,0,TA_size,TA_size).determinant()) > 1e-5) {
+		log_debug_moment();
+		return;
+	}
+
+	moment_constraints[i] = MomentConstraints::NoMoment;
+	log_debug_moment();
+	return;
 }
 
 };
